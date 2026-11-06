@@ -1,0 +1,53 @@
+name: dev
+# Builds every commit on main and deploys it to the Test Instance. The database is reset and seeded.
+# The deploy uses the immutable version tag of this build, not the moving tag dev.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One dev build at a time, in push order: a later run must not deploy before an earlier one.
+concurrency:
+  group: dev
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.publish.outputs.version }}
+    steps:
+      # The full history lets git find the latest tag.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 10.0.x
+      - name: Build and push the image
+        id: publish
+        env:
+          SDK_CONTAINER_REGISTRY_UNAME: ${{ github.actor }}
+          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          base=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+          VERSION="${base#v}-dev.$GITHUB_RUN_NUMBER"
+          # dev moves to the newest build. The version tag never moves.
+          digest=$(.github/scripts/publish-image.sh "$VERSION" dev "$VERSION")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Image ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/headroom:dev, version $VERSION, digest $digest" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: image
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/deploy-test.yaml
+    with:
+      image: version
+      version: ${{ needs.image.outputs.version }}

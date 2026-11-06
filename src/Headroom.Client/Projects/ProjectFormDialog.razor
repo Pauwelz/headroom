@@ -1,0 +1,50 @@
+@* One small form for every Project and Client change: a name, optionally a Client and a status.
+   The dialog returns a ProjectForm, or is cancelled. *@
+<MudDialog>
+    <DialogContent>
+        @if (ShowName)
+        {
+            <MudTextField @bind-Value="_name" Label="Name" Immediate="true" AutoFocus="true" MaxLength="200" />
+        }
+        @if (Clients is not null)
+        {
+            <IdAutocomplete @bind-Value="_clientId" Label="Client" Variant="Variant.Text" Items="_clientItems" />
+        }
+        @if (ShowStatus)
+        {
+            <MudSelect T="string" @bind-Value="_status" Label="Status">
+                <MudSelectItem T="string" Value="@ProjectStatusName.Tentative">Tentative</MudSelectItem>
+                <MudSelectItem T="string" Value="@ProjectStatusName.Confirmed">Confirmed</MudSelectItem>
+            </MudSelect>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(ShowName && string.IsNullOrWhiteSpace(_name))"
+                   OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public record ProjectForm(string Name, Guid ClientId, string Status);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public bool ShowName { get; set; } = true;
+    [Parameter] public bool ShowStatus { get; set; }
+    // Set to show a Client picker.
+    [Parameter] public IReadOnlyList<ClientResponse>? Clients { get; set; }
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public Guid ClientId { get; set; }
+    [Parameter] public string Status { get; set; } = ProjectStatusName.Tentative;
+
+    private string _name = "";
+    private Guid _clientId;
+    private string _status = ProjectStatusName.Tentative;
+
+    private IReadOnlyList<(Guid Id, string Label)> _clientItems = [];
+
+    protected override void OnInitialized() =>
+        (_name, _clientId, _status, _clientItems) = (Name, ClientId, Status, [.. Clients?.Select(c => (c.Id, c.Name)) ?? []]);
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(new ProjectForm(_name.Trim(), _clientId, _status)));
+}

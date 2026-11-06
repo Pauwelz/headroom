@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- A release build passes -p:Version=<version>, which overrides this value. -->
+    <Version>0.0.0-dev</Version>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- CI caches NuGet packages keyed on the lock files. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,49 @@
+@page "/help"
+@page "/help/{Topic}"
+@using Headroom.Client.Help
+@using Headroom.Client.People
+@using Headroom.Client.Shell
+@inject HelpApi Api
+
+<PageTitle>Help - Headroom</PageTitle>
+
+@if (_failed is not null)
+{
+    <MudAlert Severity="Severity.Warning">@_failed</MudAlert>
+}
+else if (_html is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    @* A plain element: scoped CSS does not reach the root of a child component such as MudPaper. *@
+    <article class="help">
+        @if (Topic is not null && Topic != HelpApi.Contents)
+        {
+            <a class="back" href="/help">Back to Help</a>
+        }
+        @((MarkupString)_html)
+        <MudText Typo="Typo.caption" Color="Color.Secondary">@AppVersion.Text</MudText>
+    </article>
+}
+
+@code {
+    [Parameter] public string? Topic { get; set; }
+
+    private string? _html;
+    private string? _failed;
+
+    // The server renders our own repository files, so the HTML is safe to show as-is.
+    protected override async Task OnParametersSetAsync()
+    {
+        _html = null;
+        _failed = null;
+        try
+        {
+            _html = await Api.TopicAsync(Topic ?? HelpApi.Contents);
+            if (_html is null) _failed = "This help topic does not exist.";
+        }
+        catch (ApiException e) { _failed = e.Message; }
+    }
+}

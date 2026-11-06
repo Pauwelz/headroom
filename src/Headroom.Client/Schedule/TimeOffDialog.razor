@@ -1,0 +1,59 @@
+@using Headroom.Client.People
+@inject TimeOffApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+            <DateRangeField @bind-DateRange="_range" Label="Period" />
+            <MudText Typo="Typo.caption">From part</MudText>
+            <MudToggleGroup T="string" @bind-Value="_startPart" SelectionMode="SelectionMode.SingleSelection" Size="Size.Small" Outlined="true" Color="Color.Primary">
+                <MudToggleItem Value="@DayPartName.Morning" Text="Morning" />
+                <MudToggleItem Value="@DayPartName.Afternoon" Text="Afternoon" />
+            </MudToggleGroup>
+            <MudText Typo="Typo.caption">To part</MudText>
+            <MudToggleGroup T="string" @bind-Value="_endPart" SelectionMode="SelectionMode.SingleSelection" Size="Size.Small" Outlined="true" Color="Color.Primary">
+                <MudToggleItem Value="@DayPartName.Morning" Text="Morning" />
+                <MudToggleItem Value="@DayPartName.Afternoon" Text="Afternoon" />
+            </MudToggleGroup>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public ScheduleTimeOff Bar { get; set; } = default!;
+
+    private DateRange? _range;
+    private string _startPart = DayPartName.Morning;
+    private string _endPart = DayPartName.Afternoon;
+    private string? _error;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _range = DateRangeField.Of(Bar.StartDate, Bar.EndDate);
+        _startPart = Bar.StartPart;
+        _endPart = Bar.EndPart;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (DateRangeField.Days(_range) is not var (start, end)) { _error = "Enter both dates."; return; }
+        _busy = true;
+        try
+        {
+            await Api.EditAsync(Bar.Id, new TimeOffRequest(start, _startPart, end, _endPart));
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException e) { _error = e.Message; }
+        _busy = false;
+    }
+}

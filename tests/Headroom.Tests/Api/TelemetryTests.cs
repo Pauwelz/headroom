@@ -1,0 +1,163 @@
+using System.Diagnostics;
+using System.Net.Http.Json;
+using Headroom.Client.Api;
+using Headroom.Data;
+using Headroom.Email;
+using Headroom.Telemetry;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
+namespace Headroom.Tests.Api;
+
+// Runs the real registration (a dummy connection string or OTLP endpoint switches it on) and reads what the exporters get.
+public class TelemetryTests : IAsyncLifetime
+{
+    private const string Name = "Zebulon Quillfeather";
+    private const string Email = "telemetry-zq@example.com";
+    private const string QueryValue = "q-marker-7f3a";
+
+    private readonly HeadroomApp _app = new();
+    private readonly FakeEmailSender _mail = new();
+    private readonly List<Activity> _spans = [];
+    private readonly List<LogRecord> _logs = [];
+    private readonly List<Metric> _metrics = [];
+
+    public ValueTask InitializeAsync() => _app.InitializeAsync();
+
+    public ValueTask DisposeAsync() => _app.DisposeAsync();
+
+    [Fact]
+    public void WithoutAConnectionStringOrAnOtlpEndpointTheAppRegistersNoTelemetry() =>
+        Assert.Null(_app.Factory.Services.GetService<TracerProvider>());
+
+    private const string AzureMonitor = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=http://localhost:1/";
+    private const string Otlp = "http://localhost:1";
+
+    private WebApplicationFactory<Program> StartFactory(string? connectionString = AzureMonitor, string? otlpKey = null) =>
+        _app.Factory.WithWebHostBuilder(builder =>
+        {
+            // UseSetting, not ConfigureAppConfiguration: Program reads the keys before the host builds.
+            if (connectionString is not null) builder.UseSetting(HeadroomTelemetry.ConnectionStringKey, connectionString);
+            if (otlpKey is not null) builder.UseSetting(otlpKey, Otlp);
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<IEmailSender>(_mail);
+                services.ConfigureOpenTelemetryTracerProvider(t => t.AddInMemoryExporter(_spans));
+                services.ConfigureOpenTelemetryMeterProvider(m => m.AddInMemoryExporter(_metrics));
+                services.ConfigureOpenTelemetryLoggerProvider(l => l.AddInMemoryExporter(_logs));
+                services.Configure<OpenTelemetryLoggerOptions>(o => o.IncludeScopes = true);
+            });
+        });
+
+    [Fact]
+    public async Task ALoginAndAnAllocationChangeExportNoPersonalDataAndNoSqlText()
+    {
+        var factory = StartFactory();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            var person = new Person { Name = Name, Email = Email, IsPlanner = true };
+            db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = person.Id });
+            db.People.Add(person);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var client = await TestLogin.SignInAsync(factory, _mail, Email);
+        client.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(client));
+        var code = _mail.Sent.Last().Code;
+        var me = (await client.GetFromJsonAsync<MeResponse>($"/api/me?x={QueryValue}", TestContext.Current.CancellationToken))!;
+        var created = (await (await client.PostAsJsonAsync("/api/clients", new ClientRequest("Acme Client"), TestContext.Current.CancellationToken))
+            .Content.ReadFromJsonAsync<ClientResponse>(TestContext.Current.CancellationToken))!;
+        var project = (await (await client.PostAsJsonAsync($"/api/clients/{created.Id}/projects", new CreateProjectRequest("Apollo", "confirmed"), TestContext.Current.CancellationToken))
+            .Content.ReadFromJsonAsync<ProjectResponse>(TestContext.Current.CancellationToken))!;
+        var allocation = await client.PostAsJsonAsync("/api/allocations",
+            new CreateAllocationRequest(me.Id, project.Id, new(2026, 3, 2), new(2026, 3, 6), 50), TestContext.Current.CancellationToken);
+        allocation.EnsureSuccessStatusCode();
+        await client.GetAsync($"/api/schedule?from=2026-03-01&to=2026-03-31&secret={QueryValue}", TestContext.Current.CancellationToken);
+
+        await FlushAndStopAsync(factory);
+        AssertNothingLeaks(true, me.Id.ToString(), Email, "Zebulon", "Quillfeather", code, QueryValue);
+    }
+
+    // The first-run form takes a company, a name and an email, and the first Planner is created from them.
+    // OTLP alone, and OTLP next to Azure Monitor, use the same filter. Each OTLP endpoint key switches it on.
+    [Theory]
+    [InlineData(AzureMonitor, null)]
+    [InlineData(null, "OTEL_EXPORTER_OTLP_ENDPOINT")]
+    [InlineData(AzureMonitor, "OTEL_EXPORTER_OTLP_ENDPOINT")]
+    [InlineData(null, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")]
+    public async Task TheFirstRunExportsNoPersonalData(string? connectionString, string? otlpKey)
+    {
+        var factory = StartFactory(connectionString, otlpKey);
+        await FirstRunAsync(factory);
+        var id = PersonId(factory);
+        await FlushAndStopAsync(factory);
+        AssertNothingLeaks(expectSqlSpans: connectionString is not null, // only the Azure Monitor distro adds the SQL spans
+            id, "first-run-ob@example.com", "Zebulon", "Quillfeather", "Hollowbrook", _mail.Sent.Last().Code);
+    }
+
+    private async Task FirstRunAsync(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+        var fields = new[] { ("company", "Hollowbrook Holdings"), ("name", Name), ("email", "first-run-ob@example.com") };
+        await TestLogin.PostFrom(client, "/first-run", "/first-run", fields);
+        var done = await TestLogin.PostFrom(client, "/first-run", "/first-run/verify", [.. fields, ("code", _mail.Sent.Last().Code)]);
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, done.StatusCode);
+    }
+
+    private static string PersonId(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People.Single().Id.ToString();
+    }
+
+    private async Task FlushAndStopAsync(WebApplicationFactory<Program> factory)
+    {
+        factory.Services.GetRequiredService<TracerProvider>().ForceFlush();
+        factory.Services.GetRequiredService<MeterProvider>().ForceFlush();
+        factory.Services.GetRequiredService<LoggerProvider>().ForceFlush();
+
+        await factory.DisposeAsync(); // stops the background services, so nothing adds to the lists while the test reads them
+    }
+
+    private void AssertNothingLeaks(bool expectSqlSpans, params string[] secrets)
+    {
+        Assert.Contains(_spans, s => s.GetTagItem("http.route") is not null);
+        if (expectSqlSpans)
+            Assert.Contains(_spans, s => s.GetTagItem("db.system.name") is not null || s.GetTagItem("db.system") is not null);
+        var texts = new List<string>();
+        foreach (var span in _spans)
+        {
+            texts.Add(span.DisplayName);
+            texts.AddRange(span.TagObjects.SelectMany(t => new[] { t.Key, t.Value?.ToString() ?? "" }));
+            texts.AddRange(span.Events.SelectMany(e => e.Tags.SelectMany(t => new[] { t.Key, t.Value?.ToString() ?? "" })));
+            Assert.Null(span.GetTagItem("url.query"));
+            Assert.Null(span.GetTagItem("url.full"));
+            Assert.Null(span.GetTagItem("db.statement"));
+            Assert.Null(span.GetTagItem("db.query.text"));
+        }
+        foreach (var log in _logs)
+        {
+            texts.Add(log.FormattedMessage ?? "");
+            texts.Add(log.Body ?? "");
+            texts.AddRange(log.Attributes?.Select(a => $"{a.Key}={a.Value}") ?? []);
+            log.ForEachScope((scope, list) => { foreach (var a in scope) list.Add($"{a.Key}={a.Value}"); }, texts);
+        }
+        foreach (var metric in _metrics)
+        {
+            texts.Add(metric.Name);
+            foreach (var point in metric.GetMetricPoints())
+                foreach (var tag in point.Tags) texts.Add($"{tag.Key}={tag.Value}");
+        }
+
+        var everything = string.Join('\n', texts);
+        Assert.NotEmpty(_logs);
+        foreach (var secret in secrets.Concat(["SELECT ", "INSERT ", "UPDATE ", "FROM ["]))
+            Assert.DoesNotContain(secret, everything, StringComparison.OrdinalIgnoreCase);
+    }
+}

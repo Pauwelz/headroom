@@ -1,0 +1,100 @@
+@inject PeopleApi Api
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+@* Detail panel. The Employment card holds the lifecycle buttons. *@
+<MudStack Spacing="3">
+    <MudPaper Class="pa-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h6">Details</MudText>
+            <MudSpacer />
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@(Person.Status == PersonStatus.Erased)"
+                       OnClick="EditAsync">Edit name or email</MudButton>
+        </MudStack>
+        <MudText Typo="Typo.body1" Class="mt-2">@Person.Name</MudText>
+        <MudText Typo="Typo.body2">@(Person.Email ?? "No email")</MudText>
+        <ReasonTooltip Reason="@PlannerLockReason">
+            <MudCheckBox T="bool" Value="Person.IsPlanner" ValueChanged="SetPlannerAsync" Label="Planner"
+                         Disabled="@(PlannerLockReason is not null)" />
+        </ReasonTooltip>
+        <MudText Typo="Typo.body2">Hours per week now: @Person.HoursPerWeekNow</MudText>
+    </MudPaper>
+
+    <MudPaper Class="pa-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h6">Contracts</MudText>
+            <MudSpacer />
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="() => ContractAsync(null)">Contract</MudButton>
+        </MudStack>
+        <MudTable Items="Person.Contracts" Dense="true" Elevation="0" Class="mt-2">
+            <HeaderContent>
+                <MudTh>From</MudTh><MudTh>To</MudTh>
+                <MudTh>Mon</MudTh><MudTh>Tue</MudTh><MudTh>Wed</MudTh><MudTh>Thu</MudTh><MudTh>Fri</MudTh><MudTh>Sat</MudTh><MudTh>Sun</MudTh>
+                <MudTh>Hours per week</MudTh><MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@DisplayDate.Format(context.StartDate)</MudTd>
+                <MudTd>@DisplayDate.Format(context.EndDate, "open")</MudTd>
+                @foreach (var hours in context.Hours.ToArray())
+                {
+                    <MudTd>@hours</MudTd>
+                }
+                <MudTd>@context.HoursPerWeek</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" aria-label="Edit Contract"
+                                   OnClick="() => ContractAsync(context)" />
+                    <ReasonTooltip Reason="@(Person.Contracts.Count == 1 ? "A Person keeps at least one Contract." : null)">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" aria-label="Delete Contract"
+                                       Disabled="@(Person.Contracts.Count == 1)" OnClick="() => DeleteAsync(context)" />
+                    </ReasonTooltip>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+
+    <EmploymentCard Person="Person" Everyone="Everyone" Changed="Changed" />
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public PersonResponse Person { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<PersonResponse> Everyone { get; set; } = default!;
+
+    // Raised after any change, so the page loads the list again.
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private string? PlannerLockReason => Person.Locks.PlannerFlag;
+
+    private async Task EditAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<EditPersonDialog>("Edit name or email",
+            new DialogParameters<EditPersonDialog> { { x => x.Person, Person } });
+        if (!(await dialog.Result)!.Canceled) await Changed.InvokeAsync();
+    }
+
+    private Task SetPlannerAsync(bool isPlanner) =>
+        TryAsync(() => Api.EditAsync(Person.Id, new EditPersonRequest(Person.Name, Person.Email ?? "", isPlanner)));
+
+    private async Task ContractAsync(ContractResponse? contract)
+    {
+        var dialog = await Dialogs.ShowAsync<ContractDialog>(contract is null ? "Add Contract" : "Edit Contract",
+            new DialogParameters<ContractDialog> { { x => x.Person, Person }, { x => x.Contract, contract } },
+            new DialogOptions { MaxWidth = MaxWidth.Medium });
+        if (!(await dialog.Result)!.Canceled) await Changed.InvokeAsync();
+    }
+
+    private async Task DeleteAsync(ContractResponse contract)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync("Delete Contract",
+            $"Delete the Contract from {DisplayDate.Format(contract.StartDate)}?", yesText: "Delete", cancelText: "Cancel");
+        if (confirmed == true) await TryAsync(() => Api.DeleteContractAsync(Person.Id, contract.Id));
+    }
+
+    // The server has the final say. Its reason shows in a snackbar.
+    private async Task TryAsync(Func<Task> call)
+    {
+        try { await call(); }
+        catch (ApiException e) { Snackbar.Add(e.Message, Severity.Error); }
+        await Changed.InvokeAsync();
+    }
+}

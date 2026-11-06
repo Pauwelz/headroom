@@ -1,0 +1,50 @@
+@using System.ComponentModel.DataAnnotations
+@inject PeopleApi Api
+
+<MudDialog>
+    <DialogContent>
+        <ValidatedForm @bind-IsValid="_valid">
+        <MudStack Spacing="3">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+            <MudTextField @bind-Value="_name" Label="Name" Required="true" RequiredError="Enter a name." MaxLength="200" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_email" Label="Email" Required="true" RequiredError="Enter an email address." MaxLength="254" InputType="InputType.Email"
+                          Variant="Variant.Outlined" Validation="_emailRule" />
+            <MudCheckBox @bind-Value="_isPlanner" Label="Planner" />
+            <MudText Typo="Typo.subtitle2">First Contract</MudText>
+            <DateField @bind-Date="_start" Label="Starts on" Required="true" />
+            <HoursEditor Hours="_hours" />
+        </MudStack>
+        </ValidatedForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_busy || !_valid)" OnClick="SaveAsync">Add Person</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string _name = "", _email = "";
+    private string? _error;
+    private bool _isPlanner, _busy, _valid;
+    private readonly EmailAddressAttribute _emailRule = new() { ErrorMessage = "Enter a valid email address." };
+    private DateTime? _start = DateTime.Today;
+    private readonly decimal[] _hours = WeekHours.FullTime.ToArray();
+
+    private async Task SaveAsync()
+    {
+        if (_start is null) { _error = "Enter the start date of the first Contract."; return; }
+        _busy = true;
+        try
+        {
+            await Api.AddAsync(new AddPersonRequest(_name, _email, _isPlanner, DateOnly.FromDateTime(_start.Value), WeekHours.From(_hours)));
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException e) { _error = e.Message; }
+        _busy = false;
+    }
+}

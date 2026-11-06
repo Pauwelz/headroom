@@ -1,0 +1,100 @@
+@page "/people"
+@inject PeopleApi Api
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>People - Headroom</PageTitle>
+
+@if (_people is null)
+{
+    <LoadingSkeleton />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="5" lg="4">
+            <MudPaper Class="pa-3">
+                <MudStack Spacing="2">
+                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.h6">People</MudText>
+                        <MudSpacer />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="AddAsync">Person</MudButton>
+                    </MudStack>
+                    <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Search name or email" Clearable="true"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <MudToggleGroup T="PeopleScope" @bind-Value="_scope" Size="Size.Small" Color="Color.Primary">
+                        <MudToggleItem Value="PeopleScope.Current" Text="Current" />
+                        <MudToggleItem Value="PeopleScope.Left" Text="Left" />
+                        <MudToggleItem Value="PeopleScope.All" Text="All" />
+                    </MudToggleGroup>
+                    <MudList T="Guid?" Dense="true" SelectedValue="_selectedId" SelectedValueChanged="id => _selectedId = id" SelectionMode="SelectionMode.SingleSelection">
+                        @foreach (var person in Visible)
+                        {
+                            <MudListItem Value="@((Guid?)person.Id)">
+                                <MudStack Row="true" AlignItems="AlignItems.Center">
+                                    <div>
+                                        <MudText Typo="Typo.body1">@person.Name</MudText>
+                                        <MudText Typo="Typo.caption">@(person.Email ?? "")</MudText>
+                                    </div>
+                                    <MudSpacer />
+                                    <MudText Typo="Typo.body2">@person.HoursPerWeekNow h</MudText>
+                                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(person.Status)">@person.Status</MudChip>
+                                </MudStack>
+                            </MudListItem>
+                        }
+                    </MudList>
+                    @if (!Visible.Any())
+                    {
+                        <MudText Typo="Typo.body2">No People match.</MudText>
+                    }
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="7" lg="8">
+            @if (Selected is { } selected)
+            {
+                <PersonDetail Person="selected" Everyone="_people" Changed="LoadAsync" />
+            }
+            else
+            {
+                <MudText Typo="Typo.body1">Select a Person.</MudText>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private IReadOnlyList<PersonResponse>? _people;
+    private string? _search;
+    private PeopleScope _scope = PeopleScope.Current;
+    private Guid? _selectedId;
+
+    private IReadOnlyList<PersonResponse> Visible =>
+        PeopleFilter.Apply(_people ?? [], _search, _scope).ToList();
+
+    private PersonResponse? Selected => _people?.FirstOrDefault(p => p.Id == _selectedId);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _people = await Api.ListAsync(); }
+        catch (ApiException e) { Snackbar.Add(e.Message, Severity.Error); _people ??= []; }
+    }
+
+    private async Task AddAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<AddPersonDialog>("Add Person", new DialogOptions { MaxWidth = MaxWidth.Medium });
+        if (!(await dialog.Result)!.Canceled) await LoadAsync();
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        PersonStatus.Active => Color.Success,
+        PersonStatus.StartsLater => Color.Info,
+        PersonStatus.Leaving => Color.Warning,
+        _ => Color.Default,
+    };
+}

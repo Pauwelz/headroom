@@ -1,0 +1,72 @@
+@inject PeopleApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+            <DateField Date="_date" DateChanged="DateChangedAsync" Label="Last working day" />
+            @if (_impact is not null)
+            {
+                <MudText>The last working day is <b>@DisplayDate.Format(_impact.LastWorkingDay)</b>.
+                    The login stops on <b>@DisplayDate.Format(_impact.LoginStopsOn)</b>.</MudText>
+                @if (_impact.Records.Count == 0)
+                {
+                    <MudText Typo="Typo.body2">No records after the end date are cut.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2">These records after the end date are cut. They do not come back.</MudText>
+                    <MudList T="string" Dense="true">
+                        @foreach (var record in _impact.Records)
+                        {
+                            <MudListItem T="string">@record.Kind: @record.Description (@(record.Deleted ? "deleted" : "shortened"))</MudListItem>
+                        }
+                    </MudList>
+                }
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_busy || _impact is null)" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public PersonResponse Person { get; set; } = default!;
+
+    private DateTime? _date;
+    private EndDateImpact? _impact;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() =>
+        DateChangedAsync((Person.EndDate ?? DateOnly.FromDateTime(DateTime.Today)).ToDateTime(TimeOnly.MinValue));
+
+    // The server names the records the date would cut. A refusal shows as an error and blocks Save.
+    private async Task DateChangedAsync(DateTime? date)
+    {
+        _date = date;
+        _impact = null;
+        _error = null;
+        if (date is null) return;
+        try { _impact = await Api.EndDateImpactAsync(Person.Id, DateOnly.FromDateTime(date.Value)); }
+        catch (ApiException e) { _error = e.Message; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Api.SetEndDateAsync(Person.Id, _impact!.LastWorkingDay);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException e) { _error = e.Message; }
+        _busy = false;
+    }
+}

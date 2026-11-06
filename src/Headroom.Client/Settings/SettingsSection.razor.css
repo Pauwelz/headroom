@@ -1,0 +1,2 @@
+/* Keep a section heading below the app bar after a jump from the nav. */
+.settings-section { scroll-margin-top: 80px; }

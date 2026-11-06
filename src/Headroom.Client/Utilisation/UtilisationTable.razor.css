@@ -1,0 +1,8 @@
+.wrap ::deep .n { text-align: right; font-variant-numeric: tabular-nums; }
+.wrap ::deep tr.me { background: color-mix(in srgb, var(--mud-palette-primary) 14%, var(--mud-palette-surface)); }
+.wrap ::deep tfoot td { font-weight: 700; border-top: 2px solid var(--mud-palette-text-secondary); }
+.wrap ::deep .low { background: color-mix(in srgb, var(--mud-palette-info) 22%, var(--mud-palette-surface)); }
+.wrap ::deep .ideal { background: color-mix(in srgb, var(--mud-palette-success) 45%, var(--mud-palette-surface)); }
+.wrap ::deep .high { background: color-mix(in srgb, var(--mud-palette-warning) 55%, var(--mud-palette-surface)); }
+.wrap ::deep .over { background: color-mix(in srgb, var(--mud-palette-error) 55%, var(--mud-palette-surface)); }
+.wrap ::deep .none { background: var(--mud-palette-action-disabled-background); }

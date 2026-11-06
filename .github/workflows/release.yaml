@@ -1,0 +1,79 @@
+name: release
+# Publishes a release when a maintainer pushes a tag vX.Y.Z or vX.Y.Z-rc.N on main.
+# It pushes the image to GHCR (tags X.Y.Z, and latest for a final version) and creates a GitHub Release with notes. It deploys nothing.
+# The steps are in docs/releasing.md.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      # The full history lets the check find origin/main.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Check the release
+        run: |
+          VERSION=$(.github/scripts/check-version.sh "$TAG")
+          # A release is X.Y.Z or X.Y.Z-rc.N. Other pre-release shapes are builds of dev or PRs.
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] \
+            || { echo "Tag $TAG must look like vX.Y.Z or vX.Y.Z-rc.N." >&2; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "The commit of tag $TAG is not on main." >&2; exit 1; }
+          # A final version needs its own CHANGELOG.md section. An rc takes [Unreleased] as its notes.
+          heading="## [$VERSION]"
+          if [[ "$VERSION" == *-* ]]; then
+            heading="## [Unreleased]"
+          else
+            awk -v h="$heading" 'index($0, h) == 1 { found = 1 } END { exit !found }' CHANGELOG.md \
+              || { echo "CHANGELOG.md has no section for $VERSION" >&2; exit 1; }
+          fi
+          { echo "VERSION=$VERSION"; echo "HEADING=$heading"; } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and push the image
+        id: publish
+        env:
+          SDK_CONTAINER_REGISTRY_UNAME: ${{ github.actor }}
+          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Only a final version moves latest. It is a pointer for people: a deploy always pins a version or a digest.
+          tags=("$VERSION")
+          [[ "$VERSION" == *-* ]] || tags+=(latest)
+          digest=$(.github/scripts/publish-image.sh "$VERSION" "${tags[@]}")
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/headroom" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.publish.outputs.name }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          # Not in the registry: the cleanup workflow could delete it there. Verify with gh attestation verify.
+          push-to-registry: false
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The notes are the CHANGELOG.md section of this version.
+          awk -v h="$HEADING" 'index($0, h) == 1 { on = 1; next } /^## \[/ { on = 0 } on' CHANGELOG.md > notes.md
+          flags=()
+          [[ "$VERSION" == *-* ]] && flags+=(--prerelease)
+          gh release create "$TAG" --verify-tag --title "$VERSION" --notes-file notes.md "${flags[@]}"

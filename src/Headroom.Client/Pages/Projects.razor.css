@@ -1,0 +1,27 @@
+.toolbar { display: flex; gap: 12px; align-items: center; position: sticky; top: 0; z-index: 2; padding: 8px 0; background: var(--mud-palette-background); }
+.toolbar .search { flex: 1; }
+.toolbar .status { max-width: 160px; }
+
+.client-row, .project-row { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--mud-palette-lines-default); }
+.client-row { background: var(--mud-palette-background-gray); font-weight: 600; }
+.client-row .count { opacity: .7; }
+.project-row { padding-left: 40px; cursor: pointer; }
+.project-row:hover { background: var(--mud-palette-action-default-hover); }
+.project-row.selected { outline: 2px solid var(--mud-palette-primary); outline-offset: -2px; }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; flex: none; }
+.swatch.confirmed, .swatch.archived { background: var(--mud-palette-primary); }
+.swatch.archived { opacity: .45; }
+.swatch.tentative { border: 1px solid var(--mud-palette-primary); background: repeating-linear-gradient(45deg, var(--mud-palette-primary) 0 2px, transparent 2px 5px); }
+
+.project-head { display: flex; align-items: center; justify-content: space-between; }
+.status-control { display: flex; gap: 8px; margin-top: 8px; }
+
+.person-row { display: grid; grid-template-columns: 1fr 2fr; gap: 4px 12px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--mud-palette-lines-default); }
+.person-row.me { background: var(--mud-palette-action-default-hover); font-weight: 600; }
+.timeline { position: relative; height: 12px; background: var(--mud-palette-background-gray); border-radius: 3px; }
+.tl-bar { position: absolute; top: 0; bottom: 0; min-width: 2px; border-radius: 3px; background: var(--mud-palette-primary); }
+.tl-bar.archived { opacity: .45; }
+.tl-bar.tentative { background: repeating-linear-gradient(45deg, var(--mud-palette-primary) 0 2px, transparent 2px 5px); outline: 1px solid var(--mud-palette-primary); }
+.allocations { grid-column: 1 / -1; margin: 0; padding-left: 16px; font-size: 0.8rem; }

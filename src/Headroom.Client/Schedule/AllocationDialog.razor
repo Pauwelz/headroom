@@ -1,0 +1,63 @@
+@inject ScheduleApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+            <DateRangeField @bind-DateRange="_range" Label="Period" />
+            <MudSelect T="int" @bind-Value="_percentage" Label="Percentage" Variant="Variant.Outlined">
+                @foreach (var step in Enumerable.Range(1, 20).Select(i => i * 5))
+                {
+                    <MudSelectItem Value="@step">@step%</MudSelectItem>
+                }
+            </MudSelect>
+            <IdAutocomplete @bind-Value="_projectId" Label="Project" Items="_projectItems" />
+            <IdAutocomplete @bind-Value="_personId" Label="Person" Items="_personItems" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public sealed record ProjectChoice(Guid Id, string Label);
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public ScheduleAllocation Bar { get; set; } = default!;
+    [Parameter, EditorRequired] public Guid PersonId { get; set; }
+    [Parameter, EditorRequired] public Guid ProjectId { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<SchedulePerson> People { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<ProjectChoice> Projects { get; set; } = [];
+
+    private DateRange? _range;
+    private IReadOnlyList<(Guid Id, string Label)> _projectItems = [], _personItems = [];
+    private int _percentage;
+    private Guid _personId;
+    private Guid _projectId;
+    private string? _error;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        (_range, _percentage) = (DateRangeField.Of(Bar.StartDate, Bar.EndDate), Bar.Percentage);
+        (_projectItems, _personItems) = ([.. Projects.Select(p => (p.Id, p.Label))], [.. People.Select(p => (p.Id, p.Name))]);
+        (_personId, _projectId) = (PersonId, ProjectId);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (DateRangeField.Days(_range) is not var (start, end)) { _error = "Enter both dates."; return; }
+        _busy = true;
+        // A new Allocation has no id yet: Save creates it.
+        _error = Bar.Id == Guid.Empty
+            ? await Api.CreateAllocationAsync(_personId, _projectId, start, end, _percentage)
+            : await Api.UpdateAllocationAsync(Bar.Id, start, end, _percentage, _personId, _projectId);
+        _busy = false;
+        if (_error is null) MudDialog.Close(DialogResult.Ok(true));
+    }
+}

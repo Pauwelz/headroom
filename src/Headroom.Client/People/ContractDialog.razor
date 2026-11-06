@@ -1,0 +1,52 @@
+@inject PeopleApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+            <DateField @bind-Date="_start" Label="From" />
+            <HoursEditor Hours="_hours" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public PersonResponse Person { get; set; } = default!;
+
+    // Null adds a Contract. A Contract edits it.
+    [Parameter] public ContractResponse? Contract { get; set; }
+
+    private DateTime? _start;
+    private decimal[] _hours = WeekHours.FullTime.ToArray();
+    private string? _error;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _start = (Contract?.StartDate ?? DateOnly.FromDateTime(DateTime.Today)).ToDateTime(TimeOnly.MinValue);
+        _hours = (Contract?.Hours ?? Person.Contracts.LastOrDefault()?.Hours ?? WeekHours.FullTime).ToArray();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_start is null) { _error = "Enter the date the Contract starts."; return; }
+        var request = new ContractRequest(DateOnly.FromDateTime(_start.Value), WeekHours.From(_hours));
+        _busy = true;
+        try
+        {
+            if (Contract is null) await Api.AddContractAsync(Person.Id, request);
+            else await Api.EditContractAsync(Person.Id, Contract.Id, request);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException e) { _error = e.Message; }
+        _busy = false;
+    }
+}

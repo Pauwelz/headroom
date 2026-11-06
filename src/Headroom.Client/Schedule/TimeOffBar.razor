@@ -1,0 +1,82 @@
+@* One Time off bar of a Person. The grid owns the drag state and the writes.
+   This component draws the bar and raises events. *@
+@* One segment per visible day, so a pointer-down knows its day. *@
+<div class="bar timeoff" style="@Style" title="@Tip">
+    @foreach (var day in Days)
+    {
+        <span class="seg @(CanEdit ? "editable" : null)" @onpointerdown='e => PressAsync("move", day, e)'
+              @oncontextmenu="OpenMenuAsync" @oncontextmenu:preventDefault="@CanEdit">
+            @if (CanEdit && day == Bar.StartDate)
+            {
+                <i class="edge l" @onpointerdown='e => PressAsync("start", day, e)' @onpointerdown:stopPropagation="true"></i>
+            }
+            @if (CanEdit && day == Bar.EndDate)
+            {
+                <i class="edge r" @onpointerdown='e => PressAsync("end", day, e)' @onpointerdown:stopPropagation="true"></i>
+            }
+        </span>
+    }
+    @* The row is the Time off row, so the bar shows only the half-day marks. *@
+    <span class="text @(CanEdit ? "editable" : null)" aria-hidden="true">
+        <span>@(TimeOffChanges.FirstDayIsHalf(Bar) ? "½" : "")</span><span>@(TimeOffChanges.LastDayIsHalf(Bar) ? "½" : "")</span>
+    </span>
+    @if (!CanEdit)
+    {
+        <span class="sr-only">@Description</span>
+    }
+    else
+    {
+        <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more"
+                 AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
+            <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
+            @if (TimeOffChanges.IsSingleDay(Bar))
+            {
+                <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, DayPartName.Morning))'>Morning</MudMenuItem>
+                <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, DayPartName.Afternoon))'>Afternoon</MudMenuItem>
+                <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, "full"))'>Full day</MudMenuItem>
+            }
+            else
+            {
+                <MudMenuItem OnClick="() => OnChange.InvokeAsync(TimeOffChanges.FirstDay(Bar, !TimeOffChanges.FirstDayIsHalf(Bar)))">
+                    First day: @(TimeOffChanges.FirstDayIsHalf(Bar) ? "Full day" : "Half day")
+                </MudMenuItem>
+                <MudMenuItem OnClick="() => OnChange.InvokeAsync(TimeOffChanges.LastDay(Bar, !TimeOffChanges.LastDayIsHalf(Bar)))">
+                    Last day: @(TimeOffChanges.LastDayIsHalf(Bar) ? "Full day" : "Half day")
+                </MudMenuItem>
+            }
+            <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+        </MudMenu>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ScheduleTimeOff Bar { get; set; } = default!;
+
+    /// <summary>The Person of the row. Screen readers need it: they do not see the row label next to the bar.</summary>
+    [Parameter, EditorRequired] public string PersonName { get; set; } = "";
+
+    /// <summary>A Planner may change Time off. The server enforces it too.</summary>
+    [Parameter] public bool CanEdit { get; set; }
+
+    /// <summary>The visible days of the bar, also while a drag runs. The grid column style places the bar.</summary>
+    [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
+    [Parameter] public string Style { get; set; } = "";
+
+    [Parameter] public EventCallback<(string Mode, DateOnly Day)> OnPress { get; set; }
+    [Parameter] public EventCallback<TimeOffRequest> OnChange { get; set; }
+    [Parameter] public EventCallback OnEdit { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private MudMenu? _menu;
+
+    private string Tip => $"{DisplayDate.Format(Bar.StartDate)} ({Bar.StartPart}) - {DisplayDate.Format(Bar.EndDate)} ({Bar.EndPart})";
+
+    private string Description => $"Time off, {PersonName}, {Tip}";
+
+    // Only the left button drags. A right-click opens the bar menu, as on an Allocation bar.
+    private Task PressAsync(string mode, DateOnly day, PointerEventArgs e) =>
+        e.Button == 0 ? OnPress.InvokeAsync((mode, day)) : Task.CompletedTask;
+
+    private Task OpenMenuAsync(MouseEventArgs e) =>
+        CanEdit && _menu is not null ? _menu.OpenMenuAsync(e) : Task.CompletedTask;
+}

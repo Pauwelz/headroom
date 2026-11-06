@@ -1,0 +1,20 @@
+name: ci
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Test the version check
+        run: .github/scripts/check-version.test.sh
+      - name: Test the package cleanup selection
+        run: .github/scripts/select-stale-package-versions.test.sh
+      - name: Lint workflows
+        run: |
+          docker run --rm -v "$PWD":/repo -w /repo \
+            rhysd/actionlint@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 -color # 1.7.7

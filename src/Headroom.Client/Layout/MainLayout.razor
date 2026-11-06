@@ -1,0 +1,128 @@
+﻿@inherits LayoutComponentBase
+@using Headroom.Client.Help
+@inject SessionApi Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<MudThemeProvider @ref="_themeProvider" Theme="HeadroomTheme.Theme" IsDarkMode="_isDark" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Class="hr-appbar">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       aria-label="Toggle navigation" OnClick="() => _drawerOpen = !_drawerOpen" />
+        <span class="hr-brand">
+            @* Clearance mark: the ceiling above, the work below, room in between. *@
+            <svg class="hr-mark" viewBox="0 0 20 20" aria-hidden="true">
+                <rect x="1" y="2" width="18" height="2.5" rx="1" class="ceiling" />
+                <rect x="4" y="9" width="12" height="9" rx="1.5" class="load" />
+            </svg>
+            <MudText Typo="Typo.h6" Class="hr-wordmark">Headroom</MudText>
+        </span>
+        <MudText Class="ml-4 hr-company" Typo="Typo.subtitle1">@_company</MudText>
+        <MudSpacer />
+        <MudTooltip Text="Help for this screen">
+            <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" Color="Color.Inherit" aria-label="Help for this screen"
+                           OnClick="OpenHelp" />
+        </MudTooltip>
+        <MudTooltip Text="@ThemeTooltip">
+            <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit" aria-label="@ThemeTooltip" OnClick="CycleThemeAsync" />
+        </MudTooltip>
+        <MudText Class="mx-2 hr-user" Typo="Typo.body1">@_me?.Name</MudText>
+        <MudButton Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Logout" OnClick="SignOutAsync">Sign out</MudButton>
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" ClipMode="DrawerClipMode.Always">
+        <MudNavMenu>
+            @foreach (var item in NavItem.For(_me?.IsPlanner == true))
+            {
+                <MudNavLink Href="@item.Href" Icon="@item.Icon">@item.Label</MudNavLink>
+            }
+        </MudNavMenu>
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="my-4">
+            @if (_me is null)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else
+            {
+                @* Pages read the logged-in Person with [CascadingParameter] public MeResponse Me. *@
+                <CascadingValue Value="_me">@Body</CascadingValue>
+            }
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private const string ThemeKey = "headroom.theme";
+
+    private MudThemeProvider? _themeProvider;
+    private MeResponse? _me;
+    private string? _company;
+    private bool _drawerOpen = true;
+    private bool _isDark;
+    private bool _systemIsDark;
+    private ThemeChoice _theme = ThemeChoice.Auto;
+
+    private string ThemeTooltip => $"Theme: {_theme}. Click for {_theme.Next()}.";
+
+    private string ThemeIcon => _theme switch
+    {
+        ThemeChoice.Light => Icons.Material.Filled.LightMode,
+        ThemeChoice.Dark => Icons.Material.Filled.DarkMode,
+        _ => Icons.Material.Filled.BrightnessAuto,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _me = await Session.GetMeAsync();
+        if (_me is null)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+        _company = await Session.GetCompanyNameAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _themeProvider is null) return;
+        _systemIsDark = await _themeProvider.GetSystemDarkModeAsync();
+        _theme = ThemeChoices.Parse(await JS.InvokeAsync<string?>("localStorage.getItem", ThemeKey));
+        _isDark = _theme.IsDark(_systemIsDark);
+        await _themeProvider.WatchSystemDarkModeAsync(OnSystemDarkModeChanged);
+        StateHasChanged();
+    }
+
+    private async Task CycleThemeAsync()
+    {
+        _theme = _theme.Next();
+        _isDark = _theme.IsDark(_systemIsDark);
+        await JS.InvokeVoidAsync("localStorage.setItem", ThemeKey, _theme.ToString());
+    }
+
+    private Task OnSystemDarkModeChanged(bool systemIsDark)
+    {
+        _systemIsDark = systemIsDark;
+        _isDark = _theme.IsDark(systemIsDark);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    // Reads the route on click, so the button follows the Person as they navigate.
+    private void OpenHelp() => Navigation.NavigateTo(HelpTopics.For(Navigation.ToBaseRelativePath(Navigation.Uri)));
+
+    private async Task SignOutAsync()
+    {
+        await Session.SignOutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

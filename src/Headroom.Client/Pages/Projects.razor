@@ -1,0 +1,276 @@
+@page "/projects"
+@page "/projects/{ProjectId:guid}"
+@using Headroom.Client.Projects
+@using Headroom.Client.Schedule
+@inject ProjectsApi Api
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>Projects - Headroom</PageTitle>
+
+<div class="toolbar">
+    <MudTextField T="string" @bind-Value="_search" Immediate="true" Placeholder="Search Client or Project"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="search" />
+    <MudSelect T="StatusFilter" @bind-Value="_status" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Class="status">
+        @foreach (var filter in Enum.GetValues<StatusFilter>())
+        {
+            <MudSelectItem T="StatusFilter" Value="@filter">@filter</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSwitch T="bool" @bind-Value="_hideEnded" Label="Hide ended" Color="Color.Primary" />
+    @if (!Me.IsPlanner)
+    {
+        <MudSwitch T="bool" Value="_onlyMine" ValueChanged="SetOnlyMine" Label="Only my Projects" Color="Color.Primary" />
+    }
+    @if (Me.IsPlanner)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddClient">+ Client</MudButton>
+    }
+</div>
+
+@if (_clients is null)
+{
+    <LoadingSkeleton />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="5">
+            <MudPaper Outlined="true">
+                @foreach (var group in _groups)
+                {
+                    var open = IsOpen(group.Client.Id);
+                    <div class="client-row">
+                        <MudIconButton Icon="@(open ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)"
+                                       Size="Size.Small" aria-label="@(open ? "Collapse" : "Expand")"
+                                       OnClick="@(() => Toggle(group.Client.Id))" />
+                        <span class="name">@group.Client.Name</span>
+                        <MudText Typo="Typo.caption" Class="count">@(group.Total == 0 ? "no Projects" : $"{group.Projects.Count}/{group.Total}")</MudText>
+                        @if (Me.IsPlanner)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" title="New Project for this Client"
+                                           aria-label="New Project for this Client" OnClick="@(() => AddProject(group.Client))" />
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" AriaLabel="Client menu">
+                                <MudMenuItem OnClick="@(() => RenameClient(group.Client))">Rename</MudMenuItem>
+                                <MudMenuItem OnClick="@(() => DeleteClient(group.Client))" Disabled="@(group.Total > 0)">
+                                    @(group.Total > 0 ? "Delete (only without Projects)" : "Delete")
+                                </MudMenuItem>
+                            </MudMenu>
+                        }
+                    </div>
+                    @if (open)
+                    {
+                        @foreach (var project in group.Projects)
+                        {
+                            <div class="project-row @(project.Id == _selectedId ? "selected" : null)" role="button" tabindex="0"
+                                 @onclick="@(() => SelectAsync(project.Id))">
+                                <span class="swatch @project.Status" title="@project.Status"></span>
+                                <span class="name">@project.Name</span>
+                                <MudText Typo="Typo.caption">@Dates(project)</MudText>
+                            </div>
+                        }
+                    }
+                }
+                @if (_groups.Count == 0)
+                {
+                    <MudText Class="pa-3 mud-text-secondary">No Clients or Projects match.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="7">
+            <MudPaper Outlined="true" Class="pa-4">
+                @if (SelectedClient is { } client && Selected is { } project)
+                {
+                    <MudText Typo="Typo.caption">@client.Name</MudText>
+                    <div class="project-head">
+                        <MudText Typo="Typo.h5">@project.Name</MudText>
+                        @if (Me.IsPlanner)
+                        {
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" AriaLabel="Project menu">
+                                <MudMenuItem OnClick="@(() => RenameProject(client, project))">Rename</MudMenuItem>
+                                <MudMenuItem OnClick="@(() => MoveProject(client, project))">Move to another Client</MudMenuItem>
+                                <MudMenuItem OnClick="@(() => DeleteProject(project))">Delete</MudMenuItem>
+                            </MudMenu>
+                        }
+                    </div>
+                    <div class="status-control">
+                        @foreach (var status in ProjectStatusName.All)
+                        {
+                            var archivedBlocksTentative = project.Status == ProjectStatusName.Archived && status == ProjectStatusName.Tentative;
+                            <ReasonTooltip Reason="@(!Me.IsPlanner ? "Only a Planner can change the status." : archivedBlocksTentative ? "An Archived Project can only be unarchived to Confirmed." : null)">
+                                <MudButton Size="Size.Small" Color="Color.Primary"
+                                           Variant="@(project.Status == status ? Variant.Filled : Variant.Outlined)"
+                                           Disabled="@(!Me.IsPlanner || archivedBlocksTentative)"
+                                           OnClick="@(() => SetStatus(client, project, status))">
+                                    @(status == ProjectStatusName.Confirmed && project.Status == ProjectStatusName.Archived ? "Unarchive" : Label(status))
+                                </MudButton>
+                            </ReasonTooltip>
+                        }
+                    </div>
+                    <MudText Class="mt-3">Dates: <b>@Dates(project)</b></MudText>
+                    <MudText Class="mt-1">People: <b>@(_people?.Count ?? 0)</b></MudText>
+                    @if (_people is not null && project.StartDate is { } start && project.EndDate is { } end)
+                    {
+                        @foreach (var person in _people)
+                        {
+                            <div class="person-row @(person.PersonId == Me.Id ? "me" : null)">
+                                <span class="person-name">@person.Name</span>
+                                <div class="timeline" role="img" aria-label="Timeline of @person.Name">
+                                    @foreach (var bar in ProjectTimeline.Bars(start, end, person.Allocations))
+                                    {
+                                        <span class="tl-bar @project.Status" title="@bar.Percentage%"
+                                              style="left:@Css(bar.Left)%;width:@Css(bar.Width)%"></span>
+                                    }
+                                </div>
+                                <ul class="allocations">
+                                    @foreach (var a in person.Allocations)
+                                    {
+                                        <li>@($"{DisplayDate.Format(a.StartDate)} → {DisplayDate.Format(a.EndDate)}, {a.Percentage}%")</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    }
+                    <MudLink Href="schedule" Class="mt-3 d-block">Change Allocations in the Schedule view</MudLink>
+                }
+                else
+                {
+                    <MudText Class="mud-text-secondary">Pick a Project.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+        [CascadingParameter] public MeResponse Me { get; set; } = default!;
+    // Set by the route /projects/{id}, for example from the Schedule view.
+    [Parameter] public Guid? ProjectId { get; set; }
+
+    private List<ClientResponse>? _clients;
+    private string _search = "";
+    private StatusFilter _status = StatusFilter.Active;
+    private Guid? _selectedId;
+    private readonly HashSet<Guid> _collapsed = [];
+
+    private bool _hideEnded = true;
+    private bool _onlyMine;
+    private HashSet<Guid>? _mine;
+    private List<ProjectPersonResponse>? _people;
+
+    private List<ClientGroup> _groups => ProjectFilter.Apply(_clients ?? [],
+        new ProjectFilterOptions(_search, _status, _hideEnded ? ScheduleRange.TodayInBrussels(Time) : null, _onlyMine ? _mine : null));
+
+    private ProjectResponse? Selected => _clients?.SelectMany(c => c.Projects).FirstOrDefault(p => p.Id == _selectedId);
+    private ClientResponse? SelectedClient => _clients?.FirstOrDefault(c => c.Id == Selected?.ClientId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selectedId = ProjectId;
+        await Reload();
+    }
+
+    private static string Css(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private async Task SelectAsync(Guid id)
+    {
+        _selectedId = id;
+        await LoadPeople();
+    }
+
+    private async Task SetOnlyMine(bool value)
+    {
+        _onlyMine = value;
+        _mine ??= await Api.MineAsync();
+    }
+
+    private async Task LoadPeople() => _people = _selectedId is { } id ? await Api.PeopleAsync(id) : null;
+
+    // A search match opens its group, whatever the collapse state.
+    private bool IsOpen(Guid clientId) => _search.Trim().Length > 0 || !_collapsed.Contains(clientId);
+
+    private void Toggle(Guid clientId)
+    {
+        if (!_collapsed.Remove(clientId)) _collapsed.Add(clientId);
+    }
+
+    private static string Dates(ProjectResponse p) =>
+        p.StartDate is { } start && p.EndDate is { } end ? $"{DisplayDate.Format(start)} → {DisplayDate.Format(end)}" : "—";
+
+    private static string Label(string status) => char.ToUpperInvariant(status[0]) + status[1..];
+
+    private async Task Reload()
+    {
+        _clients = await Api.ListAsync();
+        await LoadPeople();
+    }
+
+    // Runs a write, shows the error if any, and reloads the list.
+    private async Task Run(Task<string?> write)
+    {
+        if (await write is { } error) Snackbar.Add(error, Severity.Error);
+        await Reload();
+    }
+
+    private async Task<T?> Ask<T>(string title, DialogParameters<ProjectFormDialog> parameters) where T : class
+    {
+        var dialog = await Dialogs.ShowAsync<ProjectFormDialog>(title, parameters);
+        var result = await dialog.Result;
+        return result is { Canceled: false } ? result.Data as T : null;
+    }
+
+    private async Task AddClient()
+    {
+        if (await Ask<ProjectFormDialog.ProjectForm>("New Client", new()) is { } form)
+            await Run(Api.CreateClientAsync(form.Name));
+    }
+
+    private async Task RenameClient(ClientResponse client)
+    {
+        if (await Ask<ProjectFormDialog.ProjectForm>("Rename Client", new() { { x => x.Name, client.Name } }) is { } form)
+            await Run(Api.RenameClientAsync(client.Id, form.Name));
+    }
+
+    private async Task DeleteClient(ClientResponse client)
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Delete Client", $"Delete {client.Name}?", yesText: "Delete", cancelText: "Cancel") == true)
+            await Run(Api.DeleteClientAsync(client.Id));
+    }
+
+    private async Task AddProject(ClientResponse client)
+    {
+        if (await Ask<ProjectFormDialog.ProjectForm>($"New Project for {client.Name}", new() { { x => x.ShowStatus, true } }) is { } form)
+        {
+            await Run(Api.CreateProjectAsync(client.Id, form.Name, form.Status));
+            _collapsed.Remove(client.Id);
+        }
+    }
+
+    private async Task RenameProject(ClientResponse client, ProjectResponse project)
+    {
+        if (await Ask<ProjectFormDialog.ProjectForm>("Rename Project", new() { { x => x.Name, project.Name } }) is { } form)
+            await Run(Api.UpdateProjectAsync(project.Id, form.Name, client.Id, project.Status));
+    }
+
+    private async Task MoveProject(ClientResponse client, ProjectResponse project)
+    {
+        var parameters = new DialogParameters<ProjectFormDialog>
+        {
+            { x => x.ShowName, false }, { x => x.Clients, _clients!.Where(c => c.InPickers || c.Id == client.Id).ToList() }, { x => x.ClientId, client.Id },
+        };
+        if (await Ask<ProjectFormDialog.ProjectForm>("Move to another Client", parameters) is { } form)
+            await Run(Api.UpdateProjectAsync(project.Id, project.Name, form.ClientId, project.Status));
+    }
+
+    private async Task DeleteProject(ProjectResponse project)
+    {
+        var message = $"Delete {project.Name}? Its {project.AllocationCount} Allocation(s) go with it.";
+        if (await Dialogs.ShowMessageBoxAsync("Delete Project", message, yesText: "Delete", cancelText: "Cancel") == true)
+            await Run(Api.DeleteProjectAsync(project.Id));
+    }
+
+    private Task SetStatus(ClientResponse client, ProjectResponse project, string status) =>
+        status == project.Status ? Task.CompletedTask : Run(Api.UpdateProjectAsync(project.Id, project.Name, client.Id, status));
+}

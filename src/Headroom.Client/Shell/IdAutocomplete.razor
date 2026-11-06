@@ -1,0 +1,14 @@
+@* A search field that picks one item by its id. It shows the label and searches it with AutocompleteSearch. An empty field shows all items. *@
+<MudAutocomplete T="Guid" Value="Value" ValueChanged="ValueChanged" Label="@Label" Variant="Variant"
+                 ResetValueOnEmptyText="false" MaxItems="null"
+                 SearchFunc="@AutocompleteSearch.For(Items.Select(i => i.Id), LabelOf)" ToStringFunc="LabelOf" />
+
+@code {
+    [Parameter] public Guid Value { get; set; }
+    [Parameter] public EventCallback<Guid> ValueChanged { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<(Guid Id, string Label)> Items { get; set; } = [];
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public Variant Variant { get; set; } = Variant.Outlined;
+
+    private string LabelOf(Guid id) => Items.FirstOrDefault(i => i.Id == id).Label ?? "";
+}

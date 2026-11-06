@@ -1,0 +1,29 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
+    <link rel="stylesheet" href="@Assets["brand.css"]" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["Headroom.styles.css"]" />
+    <ImportMap />
+    <HeadOutlet @rendermode="WebAssemblyWithoutPrerendering" />
+</head>
+
+<body>
+    <Routes @rendermode="WebAssemblyWithoutPrerendering" />
+    <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>
+
+@code {
+    // No prerendering: the server sends an empty shell and WebAssembly renders the page.
+    private static readonly IComponentRenderMode WebAssemblyWithoutPrerendering =
+        new InteractiveWebAssemblyRenderMode(prerender: false);
+}

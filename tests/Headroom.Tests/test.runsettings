@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <!-- Testcontainers follows the active Docker context; force the local daemon so tests never start containers on a remote host. -->
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+    </EnvironmentVariables>
+  </RunConfiguration>
+  <!-- Cap test threads so a full run, or several agent runs at once, do not saturate the CPU. -->
+  <xUnit>
+    <MaxParallelThreads>4</MaxParallelThreads>
+  </xUnit>
+</RunSettings>

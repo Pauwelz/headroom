@@ -1,0 +1,16 @@
+@* The date range picker of the app: Belgian format and weeks that start on Monday. *@
+<MudDateRangePicker DateRange="DateRange" DateRangeChanged="DateRangeChanged" Label="@Label" Variant="Variant"
+                    DateFormat="@DisplayDate.Pattern" FirstDayOfWeek="DayOfWeek.Monday" AutoClose="true" />
+
+@code {
+    [Parameter] public DateRange? DateRange { get; set; }
+    [Parameter] public EventCallback<DateRange?> DateRangeChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public Variant Variant { get; set; } = Variant.Outlined;
+
+    public static DateRange Of(DateOnly from, DateOnly to) => new(from.ToDateTime(TimeOnly.MinValue), to.ToDateTime(TimeOnly.MinValue));
+
+    /// <summary>The first and last day, or null while one of them is missing.</summary>
+    public static (DateOnly From, DateOnly To)? Days(DateRange? range) =>
+        range is { Start: { } start, End: { } end } ? (DateOnly.FromDateTime(start), DateOnly.FromDateTime(end)) : null;
+}

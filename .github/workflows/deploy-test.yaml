@@ -1,0 +1,157 @@
+name: deploy-test
+# Rolls an image onto the Test Instance of the maintainer. It never deploys production and builds nothing.
+# The Azure resources and the app settings come from the private repo of the maintainer. This workflow only
+# resets the database and starts a new revision with the image. The app migrates and seeds the database at start.
+# Run it by hand from the main branch, or call it from the workflow dev. The release flow is in docs/releasing.md.
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'dev: the newest main (tag dev). pr: the image of a PR. version: a release.'
+        required: true
+        type: choice
+        options: [dev, pr, version]
+        default: dev
+      pr:
+        description: 'The PR number. Required when image is pr.'
+        required: false
+        type: string
+      version:
+        description: 'The release, for example 1.2.3 or 1.2.3-rc.1. Required when image is version.'
+        required: false
+        type: string
+      keep-data:
+        description: 'Keep the database and upgrade it. Allowed with image version only. Otherwise the database is reset and seeded.'
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      image:
+        required: false
+        type: string
+        default: dev
+      pr:
+        required: false
+        type: string
+      version:
+        required: false
+        type: string
+      keep-data:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+# One deploy at a time: a reset must not run while another run deploys.
+concurrency:
+  group: deploy-test
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: test
+    env:
+      IMAGE_KIND: ${{ inputs.image }}
+      PR: ${{ inputs.pr }}
+      RAW_VERSION: ${{ inputs.version }}
+      KEEP_DATA: ${{ inputs.keep-data }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Resolve the image
+        env:
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+        run: |
+          [ "$ENVIRONMENT_NAME" = test ] \
+            || { echo "Environment variable ENVIRONMENT_NAME is '$ENVIRONMENT_NAME'. It must be 'test'." >&2; exit 1; }
+          [ "$KEEP_DATA" != true ] || [ "$IMAGE_KIND" = version ] \
+            || { echo "keep-data is allowed with image version only." >&2; exit 1; }
+          repository="${GITHUB_REPOSITORY_OWNER,,}/headroom"
+          case "$IMAGE_KIND" in
+            dev) tag=dev ;;
+            pr)
+              [[ "$PR" =~ ^[0-9]+$ ]] || { echo "Image pr needs the input pr: a PR number." >&2; exit 1; }
+              tag="pr-$PR" ;;
+            version)
+              [ -n "$RAW_VERSION" ] || { echo "Image version needs the input version." >&2; exit 1; }
+              tag=$(.github/scripts/check-version.sh "$RAW_VERSION") ;;
+            *) echo "Image '$IMAGE_KIND' must be dev, pr or version." >&2; exit 1 ;;
+          esac
+          digest=$(.github/scripts/resolve-digest.sh "$repository" "$tag")
+          RESET_DATABASE=true
+          [ "$KEEP_DATA" != true ] || RESET_DATABASE=false
+          echo "Deploying ghcr.io/$repository:$tag at $digest (database reset: $RESET_DATABASE)" >> "$GITHUB_STEP_SUMMARY"
+          { echo "IMAGE=ghcr.io/$repository@$digest"; echo "RESET_DATABASE=$RESET_DATABASE"; } >> "$GITHUB_ENV"
+
+      - name: Sign in to Azure
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          # The token response is JSON with a "value" field. A JWT has no quote characters.
+          TOKEN=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" \
+            | sed -n 's/.*"value" *: *"\([^"]*\)".*/\1/p')
+          [ -n "$TOKEN" ] || { echo "No OIDC token received" >&2; exit 1; }
+          echo "::add-mask::$TOKEN"
+          az login --service-principal --username "$AZURE_CLIENT_ID" --tenant "$AZURE_TENANT_ID" \
+            --federated-token "$TOKEN" --output none
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          az extension add --name containerapp --version 0.3.55 --yes --only-show-errors
+
+      - name: Reset the Test Instance database
+        if: env.RESET_DATABASE == 'true'
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          SQL_SERVER: ${{ vars.SQL_SERVER }}
+          SQL_DATABASE: ${{ vars.SQL_DATABASE }}
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+        run: |
+          # Never reset another Instance. The Environment rules alone are not enough.
+          if [ "$ENVIRONMENT_NAME" != test ]; then
+            echo "Refused: reset only the Test Instance (ENVIRONMENT_NAME '$ENVIRONMENT_NAME')." >&2
+            exit 1
+          fi
+          NEXT="$SQL_DATABASE-next"
+          for name in "$SQL_DATABASE" "$NEXT"; do
+            [[ "$name" == *-test-* ]] || { echo "Refused: database '$name' is not a Test Instance database." >&2; exit 1; }
+          done
+          sql=(--resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER")
+          # The order keeps the old database until its replacement exists: create <db>-next, delete <db>, rename <db>-next.
+          # The replacement gets the same settings as the old database.
+          db=$(az sql db show "${sql[@]}" --name "$SQL_DATABASE" --output json)
+          get() { jq -r --arg k "$1" '.[$k] // empty' <<< "$db"; }
+          args=(--service-objective "$(get currentServiceObjectiveName)")
+          [ -z "$(get maxSizeBytes)" ] || args+=(--max-size "$(get maxSizeBytes)B")
+          [ -z "$(get requestedBackupStorageRedundancy)" ] || args+=(--backup-storage-redundancy "$(get requestedBackupStorageRedundancy)")
+          [ -z "$(get autoPauseDelay)" ] || args+=(--auto-pause-delay "$(get autoPauseDelay)")
+          [ -z "$(get minCapacity)" ] || args+=(--min-capacity "$(get minCapacity)")
+          # shortcut: a free-offer database allows no second database at the same time. Delete first, then create (a failed create loses the old database).
+          if [ "$(jq -r '.useFreeLimit == true' <<< "$db")" = true ]; then
+            echo "The database uses the free offer. Deleting it before the create."
+            args+=(--use-free-limit true)
+            [ -z "$(get freeLimitExhaustionBehavior)" ] || args+=(--free-limit-exhaustion-behavior "$(get freeLimitExhaustionBehavior)")
+            az sql db delete "${sql[@]}" --name "$SQL_DATABASE" --yes
+            az sql db create "${sql[@]}" --name "$SQL_DATABASE" "${args[@]}" --output none
+            exit 0
+          fi
+          # A leftover <db>-next from an earlier failed run would block the create.
+          if az sql db show "${sql[@]}" --name "$NEXT" --output none 2>/dev/null; then az sql db delete "${sql[@]}" --name "$NEXT" --yes; fi
+          echo "Creating $NEXT (${args[*]})"
+          az sql db create "${sql[@]}" --name "$NEXT" "${args[@]}" --output none
+          az sql db delete "${sql[@]}" --name "$SQL_DATABASE" --yes
+          az sql db rename "${sql[@]}" --name "$NEXT" --new-name "$SQL_DATABASE"
+
+      - name: Roll the image onto the Container App
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          CONTAINER_APP: ${{ vars.CONTAINER_APP }}
+        run: |
+          az containerapp update --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" --image "$IMAGE" \
+            --query properties.configuration.ingress.fqdn --output tsv

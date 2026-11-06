@@ -1,0 +1,15 @@
+/* A sticky nav beside the long page. On a narrow screen the nav moves above the page. */
+.settings { display: flex; align-items: flex-start; gap: 24px; }
+.settings-nav { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 4px; width: 200px; flex-shrink: 0; }
+.settings-nav a { color: inherit; text-decoration: none; padding: 2px 0; }
+.settings-nav a:hover, .settings-nav a:focus-visible { text-decoration: underline; }
+.settings-body { flex-grow: 1; min-width: 0; }
+/* Long URLs and client IDs wrap, so the tables fit beside the nav. */
+.settings-body td { overflow-wrap: anywhere; }
+.badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--mud-palette-warning); color: var(--mud-palette-warning-text); font-size: .75rem; text-align: center; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 960px) {
+    .settings { flex-direction: column; align-items: stretch; gap: 8px; }
+    .settings-nav { position: static; width: auto; }
+}

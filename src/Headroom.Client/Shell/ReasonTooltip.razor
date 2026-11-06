@@ -1,0 +1,13 @@
+@* A disabled control says why. Wrap the control and give the reason, or null when the control is enabled:
+   <ReasonTooltip Reason="@(locked ? "Archived Projects are read-only." : null)">
+       <MudButton Disabled="@locked">Save</MudButton>
+   </ReasonTooltip>
+   The span is needed: a disabled button gets no mouse events, so it cannot show a tooltip itself. *@
+<MudTooltip Text="@Reason" Disabled="@string.IsNullOrEmpty(Reason)">
+    <span class="d-inline-block">@ChildContent</span>
+</MudTooltip>
+
+@code {
+    [Parameter] public string? Reason { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

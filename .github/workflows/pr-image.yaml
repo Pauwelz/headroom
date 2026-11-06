@@ -1,0 +1,36 @@
+name: pr-image
+# Builds an image of each PR for the Test Instance. It runs next to the tests.
+# Deploy it with the workflow deploy-test (image pr) only after the checks of the PR are green.
+# Forks get a read-only token and cannot push.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # The checkout is the merge of the PR and its base. The full history lets git find the latest tag.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 10.0.x
+      - name: Build and push the image
+        env:
+          SDK_CONTAINER_REGISTRY_UNAME: ${{ github.actor }}
+          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          base=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+          VERSION="${base#v}-pr.$PR.$GITHUB_RUN_NUMBER"
+          # pr-<number> moves to the newest build. The version tag never moves.
+          digest=$(.github/scripts/publish-image.sh "$VERSION" "pr-$PR" "$VERSION")
+          echo "Image ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/headroom:pr-$PR, version $VERSION, digest $digest" >> "$GITHUB_STEP_SUMMARY"

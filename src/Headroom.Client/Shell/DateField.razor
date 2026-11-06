@@ -1,0 +1,12 @@
+@* The date picker of the app for one day (DateRangeField picks a range): Belgian format and weeks that start on Monday. *@
+<MudDatePicker Date="Date" DateChanged="DateChanged" Label="@Label" Variant="Variant"
+               DateFormat="@DisplayDate.Pattern" FirstDayOfWeek="DayOfWeek.Monday"
+               Required="Required" RequiredError="Enter a date." />
+
+@code {
+    [Parameter] public DateTime? Date { get; set; }
+    [Parameter] public EventCallback<DateTime?> DateChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public Variant Variant { get; set; } = Variant.Outlined;
+    [Parameter] public bool Required { get; set; }
+}

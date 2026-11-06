@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions
+    url: https://github.com/Pauwelz/headroom/discussions
+    about: Ask a question or share an idea in Discussions.
+  - name: Security
+    url: https://github.com/Pauwelz/headroom/security/advisories/new
+    about: Report a vulnerability privately. Do not open a public issue.

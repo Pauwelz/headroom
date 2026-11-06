@@ -1,0 +1,531 @@
+@using System.Globalization
+@using Headroom.Client.People
+@inject TimeOffApi TimeOff
+@inject ScheduleApi Api
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@* Our own CSS grid. One grid per row: a label column, then one column per day.
+   Every row uses the same --cols, so the day columns line up. Bars are placed with grid-column.
+   Extension points for the Allocation and Time off tickets: the .cell elements of a sub-row (click, drag)
+   and the .bar elements (drag, menu). See ticket-38-conventions.md. *@
+
+<div @ref="_grid" class="schedule @(Narrow ? "narrow" : null)" style="--cols:@_days;--visible:@ShownDays" tabindex="-1" @onpointerup="CancelDrag" @onkeydown="CancelOnEscape">
+    @* One cell per month above the days. *@
+    <div class="row months">
+        <div class="label"></div>
+        @foreach (var month in Dates.GroupBy(d => (d.Year, d.Month)))
+        {
+            var first = month.First();
+            <div class="month" style="grid-column:@(first.DayNumber - Data.StartDate.DayNumber + 2) / span @month.Count()">
+                <span class="mname">@DisplayDate.Month(first, VisibleDaysIn(month) < 4)</span>
+            </div>
+        }
+    </div>
+    <div class="row header">
+        <div class="label"></div>
+        @foreach (var day in Dates)
+        {
+            <div class="@CellClass(day, "head")" title="@DayTitle(day)">
+                @if (!Narrow)
+                {
+                    <span class="weekday">@day.ToString("ddd", CultureInfo.InvariantCulture)[..1]</span>
+                }
+                <span class="num">@day.Day</span>
+            </div>
+        }
+    </div>
+
+    @foreach (var person in Data.People)
+    {
+        var open = _open.Contains(person.Id);
+        var mine = person.Id == MeId;
+        <div class="row group @(mine ? "me" : null)">
+            <div class="label">
+                <MudIconButton Icon="@(open ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)"
+                               Size="Size.Small" aria-label="@($"{(open ? "Collapse" : "Expand")} {person.Name}")"
+                               OnClick="@(() => Toggle(person.Id))" />
+                <span class="name">@person.Name</span>
+                @if (person.Status != PersonStatus.Active)
+                {
+                    <MudChip T="string" Size="Size.Small" Class="ma-0">@person.Status</MudChip>
+                }
+            </div>
+            @foreach (var day in person.Days)
+            {
+                <div class="@CellClass(day.Date, "cell") @(OnTimeOff(person, day.Date) ? "b-off" : null)" title="@LoadTitle(day)">
+                    @if (day.Utilisation is { } load)
+                    {
+                        <span class="load @(load > 1 ? "over" : null)" style="height:@(Height(load))%"></span>
+                    }
+                </div>
+            }
+        </div>
+        @if (open)
+        {
+            @foreach (var project in Rows(person))
+            {
+                var editable = CanEdit && project.Status != ProjectStatusName.Archived;
+                <div class="row sub @(_drag is not null || _adrag is not null || _start is not null ? "dragging" : null)">
+                    <div class="label sub-label">
+                        <div class="name">
+                            <small class="client">@project.ClientName</small>
+                            <MudLink Href="@($"/projects/{project.ProjectId}")" Typo="Typo.body2">@project.ProjectName</MudLink>
+                        </div>
+                    </div>
+                    @foreach (var day in Dates)
+                    {
+                        if (editable)
+                        {
+                            <div class="@CellClass(day, "cell") editable" style="@Col(day)" @onclick="@(() => PickAsync(person.Id, project.ProjectId, day))"
+                                 @onmouseenter="@(() => { if (Pending(person.Id, project.ProjectId)) _hover = day; })"
+                                 @onpointerenter="() => EnterAlloc(person.Id, project.ProjectId, day)"
+                                 @onpointerup="() => DropAsync(person.Id, project.ProjectId, day)" @onpointerup:stopPropagation="true"></div>
+                        }
+                        else
+                        {
+                            <div class="@CellClass(day, "cell")" style="@Col(day)"></div>
+                        }
+                    }
+                    @foreach (var a in project.Allocations)
+                    {
+                        var (first, last) = Preview(a);
+                        <AllocationBar @key="a.Id" Bar="a" Status="@project.Status" RowName="@($"{person.Name}, {project.ProjectName}")" Editable="editable" First="first" Last="last"
+                                       Style="@Span(first, last)" Days="@VisibleDays(first, last)"
+                                       OnPress="@(p => StartDrag(person.Id, project.ProjectId, a, p.Mode, p.Day, p.Args))"
+                                       OnRelease="@(day => DropAsync(person.Id, project.ProjectId, day))"
+                                       OnPercentage="OnPercentage" OnEdit="() => EditAsync(person, project, a)"
+                                       OnSplit="at => RunAsync(Api.SplitAllocationAsync(a.Id, at))"
+                                       OnDelete="() => RunAsync(Api.DeleteAllocationAsync(a.Id))" />
+                    }
+                    @if (Pending(person.Id, project.ProjectId) && _start is { } s)
+                    {
+                        <div class="bar preview" style="@Span(Earlier(s.Day, _hover), Later(s.Day, _hover))"></div>
+                    }
+                </div>
+            }
+            @if (CanEdit)
+            {
+                <div class="row sub">
+                    <div class="label sub-label">
+                        @{ var choices = Choices(person); }
+                        <ReasonTooltip Reason="@(choices.Count == 0 ? "There is no other Project to add." : null)">
+                            @* A new key after each pick rebuilds the field, so the typed text clears. *@
+                            <MudAutocomplete @key="@((person.Id, AddCount(person.Id)))" T="ScheduleProject" Placeholder="+ Project" Dense="true" Margin="Margin.Dense"
+                                             Disabled="@(choices.Count == 0)" MaxItems="null"
+                                             SearchFunc="@AutocompleteSearch.For(choices, ChoiceLabel)" ToStringFunc="@(c => c is null ? null : ChoiceLabel(c))"
+                                             ValueChanged="@((ScheduleProject? c) => AddChoice(person.Id, c))" />
+                        </ReasonTooltip>
+                    </div>
+                </div>
+            }
+            <div class="row sub timeoff-row @(_drag is not null ? "dragging" : null)">
+                <div class="label sub-label"><span class="name">Time off</span></div>
+                @foreach (var day in Dates)
+                {
+                    <div class="@CellClass(day, "cell") @(CanEdit ? "editable" : null)"
+                         style="@Col(day)" title="@(CanEdit ? "Click the first day, then the last day, to add Time off" : null)"
+                         @onclick="() => ClickAsync(person.Id, day)"
+                         @onmouseenter="@(() => { if (_pick?.Person == person.Id) _hover = day; })"
+                         @onpointerenter="() => Enter(person.Id, day)"
+                         @onpointerup="() => DropAsync(person.Id, day)" @onpointerup:stopPropagation="true"></div>
+                }
+                @foreach (var t in person.TimeOff)
+                {
+                    var (first, last) = Preview(t);
+                    <TimeOffBar @key="t.Id" Bar="t" PersonName="@person.Name" CanEdit="CanEdit" Style="@Span(first, last)" Days="@VisibleDays(first, last)"
+                                OnPress="@(p => StartDrag(person.Id, t, p.Mode, p.Day))"
+                                OnChange="request => ChangeAsync(t, request)" OnEdit="() => EditAsync(t)" OnDelete="() => DeleteAsync(t)" />
+                }
+                @if (_pick is { } p && p.Person == person.Id)
+                {
+                    <div class="bar preview timeoff" style="@Span(Earlier(p.Day, _hover), Later(p.Day, _hover))"></div>
+                }
+            </div>
+        }
+    }
+    @if (Data.People.Count == 0)
+    {
+        <MudText Class="pa-3 mud-text-secondary">No People in this range.</MudText>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ScheduleResponse Data { get; set; } = default!;
+
+    /// <summary>The group of this Person is highlighted.</summary>
+    [Parameter] public Guid? MeId { get; set; }
+
+    /// <summary>A Planner may create and change Time off. The server enforces it too.</summary>
+    [Parameter] public bool CanEdit { get; set; }
+
+    /// <summary>Raised after a write, so the page reloads the Schedule.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>The Projects "+ Project" can add (Archived ones are left out).</summary>
+    [Parameter] public IReadOnlyList<ClientResponse> Clients { get; set; } = [];
+
+    [Parameter] public EventCallback<(ScheduleAllocation Allocation, int Percentage)> OnPercentage { get; set; }
+
+    // The short month name is for a month with fewer than 4 visible days, not loaded days.
+    private int VisibleDaysIn(IEnumerable<DateOnly> month) =>
+        month.Count(d => d >= FirstDay && d < FirstDay.AddDays(ShownDays));
+
+    // From 46 days, the header shows only the day number.
+    private bool Narrow => ShownDays > 45;
+
+    // Time off on a working day. Weekends and days off keep their own shading.
+    private bool OnTimeOff(SchedulePerson person, DateOnly day) =>
+        IsWorkingDay(day) && person.TimeOff.Any(t => day >= t.StartDate && day <= t.EndDate);
+
+    /// <summary>The first visible day. The grid scrolls to it when it or the window changes.</summary>
+    [Parameter] public DateOnly FirstDay { get; set; }
+
+    /// <summary>The number of days that fit the width.</summary>
+    [Parameter] public int ShownDays { get; set; }
+
+    /// <summary>Raised when a scroll stops: the first visible day, and whether a drag is active. A pick may load new days.</summary>
+    [Parameter] public EventCallback<(DateOnly First, bool Busy)> OnScrolled { get; set; }
+
+    private ElementReference _grid;
+    private IJSObjectReference? _module, _scrollSync;
+    private DotNetObjectReference<ScheduleGrid>? _self;
+    private (DateOnly First, DateOnly Window, int Shown)? _scrolledTo;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Schedule/ScheduleGrid.razor.js");
+            _self = DotNetObjectReference.Create(this);
+            _scrollSync = await _module.InvokeAsync<IJSObjectReference>("init", _grid, _self);
+        }
+        var target = (FirstDay, Data.StartDate, ShownDays);
+        if (_module is null || _scrolledTo == target) return;
+        _scrolledTo = target;
+        await _module.InvokeVoidAsync("scrollToDay", _grid, FirstDay.DayNumber - Data.StartDate.DayNumber);
+    }
+
+    [JSInvokable]
+    public Task Scrolled(int index)
+    {
+        var first = Data.StartDate.AddDays(Math.Clamp(index, 0, _days - 1));
+        _scrolledTo = (first, Data.StartDate, ShownDays);
+        // Only a drag keeps the loaded days: a dragged bar must stay in the data. A pick may load new days.
+        return OnScrolled.InvokeAsync((first, _drag is not null || _adrag is not null));
+    }
+
+    // A release outside the grid ends the drag too. A release on a day cell has dropped it already.
+    [JSInvokable]
+    public void Released()
+    {
+        if (_drag is null && _adrag is null) return;
+        CancelDrag();
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_scrollSync is not null) { await _scrollSync.InvokeVoidAsync("dispose"); await _scrollSync.DisposeAsync(); }
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+        _self?.Dispose();
+    }
+
+    private readonly HashSet<Guid> _open = [];
+    // Sub-rows added with "+ Project" that have no Allocation yet.
+    private readonly Dictionary<Guid, List<ScheduleProject>> _added = [];
+    private (Guid PersonId, Guid ProjectId, DateOnly Day)? _start;
+    private DateOnly? _hover;
+    private Dictionary<DateOnly, ScheduleDayOff> _daysOff = [];
+
+    private int _days => Data.EndDate.DayNumber - Data.StartDate.DayNumber + 1;
+
+    private IEnumerable<DateOnly> Dates => Enumerable.Range(0, _days).Select(Data.StartDate.AddDays);
+
+    private ScheduleResponse? _previous;
+
+    protected override void OnParametersSet()
+    {
+        _daysOff = Data.DaysOff.GroupBy(d => d.Date).ToDictionary(g => g.Key, g => g.First());
+        // New days can have no Allocation on a Project of an open Person. The row stays, so the rows do not jump.
+        // A pick on that row can then go on.
+        if (_previous is not null && !ReferenceEquals(_previous, Data))
+            foreach (var before in _previous.People.Where(p => _open.Contains(p.Id)))
+                foreach (var project in EmptiedRows(Rows(before), Data.People.FirstOrDefault(p => p.Id == before.Id)))
+                    Add(before.Id, project);
+        _previous = Data;
+    }
+
+    /// <summary>The Projects a Person had before, and has no Allocation on in the new days, as empty rows.</summary>
+    public static IEnumerable<ScheduleProject> EmptiedRows(IEnumerable<ScheduleProject> before, SchedulePerson? now) =>
+        now is null ? [] : before.Where(r => now.Projects.All(n => n.ProjectId != r.ProjectId)).Select(r => r with { Allocations = [] });
+
+    // Sub-rows are sorted by Client, then Project.
+    private IReadOnlyList<ScheduleProject> Rows(SchedulePerson person) =>
+        !_added.TryGetValue(person.Id, out var extra) ? person.Projects
+        : person.Projects.Concat(extra.Where(e => person.Projects.All(p => p.ProjectId != e.ProjectId)))
+            .OrderBy(p => p.ClientName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.ProjectName, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private IReadOnlyList<ScheduleProject> Choices(SchedulePerson person)
+    {
+        var shown = Rows(person).Select(p => p.ProjectId).ToHashSet();
+        return Clients.Where(c => c.InPickers).SelectMany(c => c.Projects
+                .Where(p => p.Status != ProjectStatusName.Archived && !shown.Contains(p.Id))
+                .Select(p => new ScheduleProject(p.Id, c.Id, c.Name, p.Name, p.Status, [])))
+            .ToList();
+    }
+
+    // One counter for each Person, so only that row rebuilds after a pick.
+    private readonly Dictionary<Guid, int> _addCounts = [];
+    private int AddCount(Guid personId) => _addCounts.GetValueOrDefault(personId);
+
+    private static string ChoiceLabel(ScheduleProject project) => $"{project.ClientName} / {project.ProjectName}";
+
+    private void AddChoice(Guid personId, ScheduleProject? project)
+    {
+        if (project is null) return;
+        Add(personId, project);
+        _addCounts[personId] = AddCount(personId) + 1;
+    }
+
+    private void Add(Guid personId, ScheduleProject project)
+    {
+        if (!_added.TryGetValue(personId, out var list)) _added[personId] = list = [];
+        if (list.All(p => p.ProjectId != project.ProjectId)) list.Add(project);
+    }
+
+    private const int DefaultPercentage = 50;
+
+    // First click sets the start day. A click on the same sub-row sets the end day and opens the dialog for the new Allocation.
+    private async Task PickAsync(Guid personId, Guid projectId, DateOnly day)
+    {
+        if (_start is not { } s || s.PersonId != personId || s.ProjectId != projectId)
+        {
+            (_start, _pick, _hover) = ((personId, projectId, day), null, day);
+            return;
+        }
+        _start = null;
+        var bar = new ScheduleAllocation(Guid.Empty, Earlier(s.Day, day), Later(s.Day, day), DefaultPercentage);
+        await ShowAllocationDialogAsync("New Allocation", personId, projectId, bar);
+    }
+
+    // Only the sub-row with a start day reacts to the mouse, so the grid does not redraw on every move.
+    private bool Pending(Guid personId, Guid projectId) => _start is { } s && s.PersonId == personId && s.ProjectId == projectId;
+
+    private static DateOnly Earlier(DateOnly day, DateOnly? other) => other is { } o && o < day ? o : day;
+
+    private static DateOnly Later(DateOnly day, DateOnly? other) => other is { } o && o > day ? o : day;
+
+    private void Toggle(Guid id)
+    {
+        if (!_open.Remove(id)) _open.Add(id);
+    }
+
+    private bool IsWorkingDay(DateOnly day) =>
+        !_daysOff.ContainsKey(day) && day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+
+    // Shading behind the rows: weekends, public holidays and Company days off.
+    private string CellClass(DateOnly day, string kind)
+    {
+        var shade = _daysOff.TryGetValue(day, out var off) ? (off.Type == "PublicHoliday" ? "ph" : "co")
+            : IsWorkingDay(day) ? "" : "weekend";
+        return $"{kind} {shade}";
+    }
+
+    private string DayTitle(DateOnly day) =>
+        DisplayDate.Format(day) + (_daysOff.TryGetValue(day, out var off) ? $" - {off.Name}" : "");
+
+    private static string LoadTitle(ScheduleDay day) =>
+        day.Utilisation is { } load
+            ? $"{DisplayDate.Format(day.Date)}: {day.Hours:0.##} of {day.Capacity:0.##} h ({load:P0})"
+            : $"{DisplayDate.Format(day.Date)}: no Capacity";
+
+    // A bar above 100% fills the cell and turns red.
+    private static int Height(decimal load) => (int)Math.Round(Math.Min(load, 1m) * 100);
+
+    // Cells get explicit columns, so a bar on the same grid row does not push them aside.
+    private string Col(DateOnly day) => $"grid-column:{day.DayNumber - Data.StartDate.DayNumber + 2}";
+
+    private IEnumerable<DateOnly> VisibleDays(DateOnly first, DateOnly last) => Dates.Where(d => d >= first && d <= last);
+
+    // Grid line 1 is the label. Day i starts at line i + 2. The end line is exclusive.
+    private string Span(DateOnly start, DateOnly end)
+    {
+        var first = Math.Max(0, start.DayNumber - Data.StartDate.DayNumber);
+        var last = Math.Min(_days - 1, end.DayNumber - Data.StartDate.DayNumber);
+        return $"grid-column:{first + 2} / {last + 3}";
+    }
+
+    // --- Time off gestures ---
+
+    private sealed class TimeOffDrag(Guid personId, ScheduleTimeOff bar, string mode, DateOnly anchor)
+    {
+        public Guid PersonId { get; } = personId;
+        public ScheduleTimeOff Bar { get; } = bar;
+        public string Mode { get; } = mode;
+        public DateOnly Anchor { get; } = anchor;
+        public DateOnly Current { get; set; } = anchor;
+    }
+
+    private (Guid Person, DateOnly Day)? _pick;
+    private TimeOffDrag? _drag;
+
+    private TimeOffRequest DragRequest(TimeOffDrag d) => d.Mode switch
+    {
+        "move" => TimeOffChanges.Move(d.Bar, d.Current.DayNumber - d.Anchor.DayNumber),
+        "start" => TimeOffChanges.ResizeStart(d.Bar, d.Current),
+        _ => TimeOffChanges.ResizeEnd(d.Bar, d.Current),
+    };
+
+    // The bar follows the pointer while a drag runs.
+    private (DateOnly First, DateOnly Last) Preview(ScheduleTimeOff t)
+    {
+        var r = _drag?.Bar.Id == t.Id ? DragRequest(_drag) : TimeOffChanges.Move(t, 0);
+        return (r.StartDate, r.EndDate);
+    }
+
+    private void StartDrag(Guid personId, ScheduleTimeOff bar, string mode, DateOnly day)
+    {
+        if (CanEdit) _drag = new TimeOffDrag(personId, bar, mode, day);
+    }
+
+    private void Enter(Guid personId, DateOnly day)
+    {
+        if (_drag is not { } d || d.PersonId != personId) return;
+        var previous = d.Current;
+        d.Current = day;
+        // A resize past the other edge is not a valid bar: keep the last good day.
+        if (DragRequest(d) is var r && r.EndDate < r.StartDate) d.Current = previous;
+    }
+
+    private void CancelDrag() => (_drag, _adrag) = (null, null);
+
+    // Escape cancels a picked start day and a running drag.
+    private void CancelOnEscape(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") (_start, _hover, _pick, _drag, _adrag) = (null, null, null, null, null);
+    }
+
+    // --- Allocation gestures ---
+
+    private sealed class AllocationDrag(Guid personId, Guid projectId, ScheduleAllocation bar, string mode, DateOnly anchor)
+    {
+        public Guid PersonId { get; } = personId;
+        public Guid ProjectId { get; } = projectId;
+        public ScheduleAllocation Bar { get; } = bar;
+        public string Mode { get; } = mode;
+        public DateOnly Anchor { get; } = anchor;
+        public DateOnly Current { get; set; } = anchor;
+    }
+
+    private AllocationDrag? _adrag;
+
+    private (DateOnly Start, DateOnly End) DragDates(AllocationDrag d) => d.Mode switch
+    {
+        "move" => AllocationChanges.Move(d.Bar, d.Current.DayNumber - d.Anchor.DayNumber),
+        "start" => AllocationChanges.ResizeStart(d.Bar, d.Current),
+        _ => AllocationChanges.ResizeEnd(d.Bar, d.Current),
+    };
+
+    // The bar follows the pointer while a drag runs.
+    private (DateOnly First, DateOnly Last) Preview(ScheduleAllocation a) =>
+        _adrag?.Bar.Id == a.Id ? DragDates(_adrag) : (a.StartDate, a.EndDate);
+
+    private void StartDrag(Guid personId, Guid projectId, ScheduleAllocation bar, string mode, DateOnly day, PointerEventArgs e)
+    {
+        if (CanEdit && e.Button == 0) _adrag = new AllocationDrag(personId, projectId, bar, mode, day);
+    }
+
+    private void EnterAlloc(Guid personId, Guid projectId, DateOnly day)
+    {
+        if (_adrag is not { } d || d.PersonId != personId || d.ProjectId != projectId) return;
+        var previous = d.Current;
+        d.Current = day;
+        // A resize past the other edge is not a valid bar: keep the last good day.
+        if (DragDates(d) is var r && r.End < r.Start) d.Current = previous;
+    }
+
+    private async Task DropAsync(Guid personId, Guid projectId, DateOnly day)
+    {
+        if (_adrag is not { } d || d.PersonId != personId || d.ProjectId != projectId) { _adrag = null; return; }
+        EnterAlloc(personId, projectId, day);
+        _adrag = null;
+        var (start, end) = DragDates(d);
+        // A click on a bar only ends a pick that started on an empty day (E5). It never starts one, so a stray click changes nothing.
+        if (d.Mode == "move" && d.Current == d.Anchor) { if (Pending(personId, projectId)) await PickAsync(personId, projectId, day); }
+        else if ((start, end) != (d.Bar.StartDate, d.Bar.EndDate))
+            await RunAsync(Api.UpdateAllocationAsync(d.Bar.Id, start, end, d.Bar.Percentage));
+    }
+
+    private Task EditAsync(SchedulePerson person, ScheduleProject project, ScheduleAllocation a) =>
+        ShowAllocationDialogAsync("Edit Allocation", person.Id, project.ProjectId, a);
+
+    private async Task ShowAllocationDialogAsync(string title, Guid personId, Guid projectId, ScheduleAllocation bar)
+    {
+        var projects = Clients.Where(c => c.InPickers).SelectMany(c => c.Projects
+            .Where(p => p.Status != ProjectStatusName.Archived).Select(p => new AllocationDialog.ProjectChoice(p.Id, $"{c.Name} / {p.Name}"))).ToList();
+        var parameters = new DialogParameters<AllocationDialog>
+        {
+            { x => x.Bar, bar }, { x => x.PersonId, personId }, { x => x.ProjectId, projectId },
+            { x => x.People, Data.People }, { x => x.Projects, projects },
+        };
+        var dialog = await Dialogs.ShowAsync<AllocationDialog>(title, parameters, new DialogOptions { MaxWidth = MaxWidth.Small });
+        if (!(await dialog.Result)!.Canceled) await OnChanged.InvokeAsync();
+    }
+
+    // Shows the error, if any, and reloads the Schedule either way.
+    private async Task RunAsync(Task<string?> write)
+    {
+        if (await write is { } error) Snackbar.Add(error, Severity.Error);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task DropAsync(Guid personId, DateOnly day)
+    {
+        if (_drag is not { } d || d.PersonId != personId) { _drag = null; return; }
+        Enter(personId, day);
+        _drag = null;
+        var request = DragRequest(d);
+        if (request != TimeOffChanges.Move(d.Bar, 0)) await RunAsync(() => TimeOff.EditAsync(d.Bar.Id, request));
+    }
+
+    // First click picks the start day. Second click on the same Person's row creates the Time off.
+    private async Task ClickAsync(Guid personId, DateOnly day)
+    {
+        if (!CanEdit || _drag is not null) return;
+        if (_pick is not { } pick || pick.Person != personId) { (_pick, _start, _hover) = ((personId, day), null, day); return; }
+        _pick = null;
+        await RunAsync(() => TimeOff.AddAsync(personId, TimeOffChanges.Create(pick.Day, day)));
+    }
+
+    private Task ChangeAsync(ScheduleTimeOff t, TimeOffRequest request) => RunAsync(() => TimeOff.EditAsync(t.Id, request));
+
+    private Task DeleteAsync(ScheduleTimeOff t) => RunAsync(() => TimeOff.DeleteAsync(t.Id));
+
+    private async Task EditAsync(ScheduleTimeOff t)
+    {
+        var parameters = new DialogParameters<TimeOffDialog> { { x => x.Bar, t } };
+        var dialog = await Dialogs.ShowAsync<TimeOffDialog>("Edit Time off", parameters, new DialogOptions { MaxWidth = MaxWidth.Small });
+        if (!(await dialog.Result)!.Canceled) await OnChanged.InvokeAsync();
+    }
+
+    private async Task RunAsync(Func<Task> write)
+    {
+        try
+        {
+            await write();
+            await OnChanged.InvokeAsync();
+        }
+        catch (ApiException e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+    }
+}

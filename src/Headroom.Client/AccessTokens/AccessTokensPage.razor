@@ -1,0 +1,114 @@
+@page "/access-tokens"
+@inject AccessTokenApi Api
+
+<PageTitle>Access tokens</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Access tokens</MudText>
+
+<MudPaper Class="pa-4">
+    <MudText Typo="Typo.body2" Class="mb-2">
+        An Access token lets a script or an AI assistant act as you. It has your rights.
+        It can only read, unless a Planner allows it to change things (Can change). It stops working when it expires. Send it in the header <code>Authorization: Bearer &lt;token&gt;</code>.
+    </MudText>
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _error = null">@_error</MudAlert>
+    }
+    @if (_newSecret is not null)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _newSecret = null">
+            Copy this token now. Headroom shows it only once: <code>@_newSecret</code>
+        </MudAlert>
+    }
+    <ValidatedForm @ref="_form" @bind-IsValid="_valid">
+    <MudSimpleTable Dense="true">
+        <thead><tr><th>Name</th><th>Created</th><th>Expires</th><th>Can change</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var token in _tokens)
+            {
+                <tr>
+                    <td><b>@token.Name</b></td>
+                    <td>@DisplayDate.Format(DateOnly.FromDateTime(token.DateCreated.LocalDateTime))</td>
+                    <td>
+                        @AccessTokenExpiry.Text(token.ExpiresAt, DateTimeOffset.UtcNow)
+                        @if (AccessTokenExpiry.ExpiresSoon(token.ExpiresAt, DateTimeOffset.UtcNow))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">Expires soon</MudChip>
+                        }
+                    </td>
+                    <td>@(token.CanChange ? "Yes" : "No")</td>
+                    <td><MudButton Color="Color.Error" OnClick="() => RevokeAsync(token)">Revoke</MudButton></td>
+                </tr>
+            }
+            <tr>
+                <td><MudTextField @bind-Value="_name" Label="Name, for example Claude" MaxLength="200" Immediate="true"
+                                  Required="true" RequiredError="Enter a name." /></td>
+                <td>
+                    <MudSelect T="string" @bind-Value="_expiry" Label="Expires after">
+                        @foreach (var choice in AccessTokenExpiry.Choices)
+                        {
+                            <MudSelectItem T="string" Value="@choice.Code">@choice.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </td>
+                <td>
+                    @if (Me.IsPlanner)
+                    {
+                        <MudCheckBox T="bool" @bind-Value="_canChange" Label="Can change" />
+                    }
+                </td>
+                <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAsync" Disabled="@(!_valid)">Create</MudButton></td>
+            </tr>
+        </tbody>
+    </MudSimpleTable>
+    </ValidatedForm>
+</MudPaper>
+
+<MudPaper Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6">Connections</MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">
+        A Connection lets a Connected app, such as Claude, act as you. It has your rights. Revoke it to stop the app at once.
+    </MudText>
+    <ConnectionsTable Connections="_connections" OnRevoke="RevokeConnectionAsync" />
+</MudPaper>
+
+@code {
+    [CascadingParameter] public MeResponse Me { get; set; } = default!;
+    private ValidatedForm? _form;
+    private bool _valid;
+    private bool _canChange;
+    private List<AccessTokenResponse> _tokens = [];
+    private List<ConnectionResponse> _connections = [];
+    private string _name = "";
+    private string _expiry = AccessTokenExpiry.DefaultChoice;
+    private string? _newSecret;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tokens = await Api.GetAsync();
+        _connections = await Api.GetConnectionsAsync();
+    }
+
+    private async Task AddAsync()
+    {
+        var (created, error) = await Api.AddAsync(_name, _expiry, _canChange);
+        _error = error;
+        if (created is null) return;
+        (_newSecret, _name, _canChange) = (created.Secret, "", false);
+        _form?.ResetValidation();
+        _tokens = await Api.GetAsync();
+    }
+
+    private async Task RevokeAsync(AccessTokenResponse token)
+    {
+        _error = await Api.RevokeAsync(token.Id) ? null : "Headroom could not revoke this token.";
+        _tokens = await Api.GetAsync();
+    }
+
+    private async Task RevokeConnectionAsync(ConnectionResponse connection)
+    {
+        _error = await Api.RevokeConnectionAsync(connection.Id) ? null : "Headroom could not revoke this Connection.";
+        _connections = await Api.GetConnectionsAsync();
+    }
+}

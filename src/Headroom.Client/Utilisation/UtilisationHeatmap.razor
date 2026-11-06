@@ -1,0 +1,128 @@
+@using System.Globalization
+@using Headroom.Client.Schedule
+
+@* Heatmap tab: People down, periods across, the whole range last. Read-only. *@
+
+<div class="toolbar">
+    <MudToggleGroup T="string" Value="@Data.Period" ValueChanged="OnPeriod"
+                    SelectionMode="SelectionMode.SingleSelection" Size="Size.Small" Outlined="true" Color="Color.Primary">
+        <MudToggleItem Value="@("week")" Text="Week" />
+        <MudToggleItem Value="@("month")" Text="Month" />
+    </MudToggleGroup>
+    <span class="legend">
+        <span><i class="sw low"></i>under 75%</span>
+        <span><i class="sw ideal"></i>75-90%</span>
+        <span><i class="sw high"></i>90-100%</span>
+        <span><i class="sw over"></i>above 100%</span>
+        <span><i class="sw none"></i>no Capacity</span>
+        <span><i class="sw tent"></i>Tentative part</span>
+        <span>!n = over-allocated days</span>
+    </span>
+</div>
+
+<div class="scroll">
+    <table class="heat">
+        <thead>
+            <tr>
+                <th class="who"></th>
+                @foreach (var p in Data.Periods)
+                {
+                    <th class="@(p.EndDate < Today ? "past" : null)" title="@DisplayDate.Format(p.StartDate) - @DisplayDate.Format(p.EndDate)">
+                        @Label(p)@(Now(p) ? " •" : "")
+                        <small>@DisplayDate.Format(p.StartDate)</small>
+                    </th>
+                }
+                <th>Range</th>
+            </tr>
+        </thead>
+        <tbody>
+            @Row(Data.All)
+            @foreach (var person in Data.People)
+            {
+                @Row(person)
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (_selected is { } s)
+{
+    <MudPaper Class="pa-4 mt-4 breakdown" Outlined="true">
+        <div class="d-flex align-center">
+            <MudText Typo="Typo.h6">@s.Title</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" aria-label="Close" OnClick="@(() => _selected = null)" />
+        </div>
+        <table class="lines">
+            <tr><td>Contract hours</td><td>@UtilisationBand.Hours(s.Cell.ContractHours) h</td></tr>
+            <tr><td>- Public holidays</td><td>@UtilisationBand.Hours(s.Cell.PublicHolidayHours) h</td></tr>
+            <tr><td>- Company days off</td><td>@UtilisationBand.Hours(s.Cell.CompanyDayOffHours) h</td></tr>
+            <tr><td>- Time off</td><td>@UtilisationBand.Hours(s.Cell.TimeOffHours) h</td></tr>
+            <tr class="total"><td>Capacity</td><td>@UtilisationBand.Hours(s.Cell.Capacity) h</td></tr>
+        </table>
+        <table class="lines">
+            @foreach (var project in s.Cell.Projects)
+            {
+                <tr>
+                    <td>@project.ProjectName <small>@project.ClientName, @project.Status</small></td>
+                    <td>@UtilisationBand.Hours(project.Hours) h</td>
+                </tr>
+            }
+            @if (s.Cell.Projects.Count == 0)
+            {
+                <tr><td><small>No Allocations</small></td><td></td></tr>
+            }
+            <tr class="total"><td>Allocated</td><td>@UtilisationBand.Hours(UtilisationBand.Allocated(s.Cell)) h</td></tr>
+        </table>
+        <MudText>Utilisation: @UtilisationBand.Percent(s.Cell.Utilisation) @UtilisationBand.TentativeNote(s.Cell)</MudText>
+        @if (s.Cell.OverDays > 0)
+        {
+            <MudText Color="Color.Error">@s.Cell.OverDays over-allocated day(s)</MudText>
+        }
+    </MudPaper>
+}
+
+@code {
+    [Parameter, EditorRequired] public UtilisationResponse Data { get; set; } = default!;
+    [Parameter] public Guid MeId { get; set; }
+    [Parameter] public DateOnly Today { get; set; }
+    [Parameter] public EventCallback<string> OnPeriod { get; set; }
+
+    private record Selection(Guid? Key, int Index, string Title, UtilisationCell Cell);
+
+    private Selection? _selected;
+
+    private bool Now(UtilisationPeriod p) => p.StartDate <= Today && Today <= p.EndDate;
+
+    private string Label(UtilisationPeriod p) => Data.Period == "week"
+        ? $"W{ISOWeek.GetWeekOfYear(p.StartDate.ToDateTime(TimeOnly.MinValue))}"
+        : p.StartDate.ToString("MMM yyyy", CultureInfo.InvariantCulture);
+
+    private RenderFragment Row(UtilisationRow row) => @<tr class="@(row.PersonId == MeId && row.PersonId is not null ? "me" : null) @(row.PersonId is null ? "all" : null)">
+        <th class="who">@row.Name</th>
+        @for (var i = 0; i < Data.Periods.Count; i++)
+        {
+            var index = i;
+            var past = Data.Periods[i].EndDate < Today;
+            var title = $"{row.Name}, {Label(Data.Periods[i])}";
+            @Cell(row.Cells[i], row.PersonId, index, title, past)
+        }
+        @Cell(row.Total, row.PersonId, -1, $"{row.Name}, whole range", false)
+    </tr>;
+
+    private RenderFragment Cell(UtilisationCell c, Guid? key, int index, string title, bool past) => @<td class="cell @UtilisationBand.Of(c) @(past ? "past" : null) @(_selected is { } s && s.Key == key && s.Index == index ? "sel" : null)">
+        <button type="button" title="@UtilisationBand.Hours(UtilisationBand.Allocated(c)) h of @UtilisationBand.Hours(c.Capacity) h"
+                @onclick="@(() => _selected = new Selection(key, index, title, c))">
+            <span class="big">@UtilisationBand.Percent(c.Utilisation)</span>
+            @if (UtilisationBand.TentativeNote(c) is { } note)
+            {
+                <small>@note</small>
+                <span class="strip" style="height:@(Math.Max(3, Math.Min(1m, c.Tentative / c.Capacity) * 14).ToString("0.#", CultureInfo.InvariantCulture))px"></span>
+            }
+            @if (c.OverDays > 0)
+            {
+                <span class="od">!@c.OverDays</span>
+            }
+        </button>
+    </td>;
+}

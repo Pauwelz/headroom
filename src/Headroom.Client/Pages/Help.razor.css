@@ -1,0 +1,98 @@
+/* A reading column for text. Screenshots may run wider than the text. */
+.help {
+    --measure: 42rem; /* about 68 characters of body text */
+    max-width: 880px;
+    padding: 8px 0 64px;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--mud-palette-text-primary);
+}
+
+.help ::deep h1,
+.help ::deep h2,
+.help ::deep h3,
+.help ::deep p,
+.help ::deep ul,
+.help ::deep ol,
+.help ::deep table { max-width: var(--measure); }
+
+.back {
+    display: inline-block;
+    margin-bottom: 24px;
+    color: var(--mud-palette-text-secondary);
+    text-decoration: none;
+}
+.back:hover, .back:focus-visible { color: var(--mud-palette-primary); text-decoration: underline; }
+
+.help ::deep h1,
+.help ::deep h2,
+.help ::deep h3 {
+    font-family: "Barlow Semi Condensed", Barlow, system-ui, sans-serif;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--mud-palette-text-primary);
+}
+
+/* The amber bar above the title is the "ceiling" of the Headroom mark. */
+.help ::deep h1 {
+    font-size: 2.25rem;
+    letter-spacing: -.01em;
+    margin: 0 0 16px;
+    padding-top: 18px;
+    background: linear-gradient(var(--mud-palette-warning), var(--mud-palette-warning)) left top / 48px 4px no-repeat;
+}
+.help ::deep h1 + p { font-size: 1.125rem; color: var(--mud-palette-text-secondary); }
+
+.help ::deep h2 {
+    font-size: 1.5rem;
+    margin: 36px 0 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+.help ::deep h1 + h2 { border-top: 0; margin-top: 24px; padding-top: 0; }
+.help ::deep h3 { font-size: 1.1875rem; margin: 32px 0 8px; }
+
+.help ::deep p { margin: 0 0 12px; }
+.help ::deep ul,
+.help ::deep ol { margin: 0 0 16px; padding-left: 1.5em; }
+.help ::deep li { margin: 0 0 6px; padding-left: 4px; }
+.help ::deep li > ul,
+.help ::deep li > ol { margin: 6px 0 0; }
+.help ::deep ol > li::marker { color: var(--mud-palette-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.help ::deep ul > li::marker { color: var(--mud-palette-text-secondary); }
+.help ::deep strong { font-weight: 600; }
+
+.help ::deep a { color: var(--mud-palette-primary); text-underline-offset: 2px; }
+
+/* Markdig puts each image in its own paragraph; let that paragraph use the full width. */
+.help ::deep p:has(> img) { max-width: none; margin: 20px 0 28px; }
+.help ::deep img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 6px;
+}
+.help ::deep li img { margin: 12px 0; }
+
+.help ::deep code {
+    font-size: .9em;
+    background: var(--mud-palette-background-gray);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+.help ::deep blockquote {
+    margin: 0 0 16px;
+    padding: 4px 16px;
+    border-left: 3px solid var(--mud-palette-primary);
+    color: var(--mud-palette-text-secondary);
+}
+.help ::deep table { border-collapse: collapse; margin: 0 0 16px; }
+.help ::deep th,
+.help ::deep td { border-bottom: 1px solid var(--mud-palette-lines-default); padding: 6px 12px 6px 0; text-align: left; vertical-align: top; }
+.help ::deep th { font-weight: 600; }
+
+@media (max-width: 600px) {
+    .help ::deep h1 { font-size: 1.75rem; }
+    .help ::deep h2 { font-size: 1.3rem; margin-top: 36px; }
+}

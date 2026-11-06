@@ -1,0 +1,38 @@
+name: cleanup-test-images
+# Deletes the images of PR builds and dev builds that nobody needs. It never deletes a release.
+# The selection is in .github/scripts/select-stale-package-versions.sh.
+# The token needs the right to delete package versions. For a package of a user account, give this repo
+# the role Admin on the package (package settings, Manage Actions access). Without it, the job fails.
+on:
+  schedule:
+    - cron: '17 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Delete the stale versions
+        run: |
+          set -euo pipefail
+          package="/users/$GITHUB_REPOSITORY_OWNER/packages/container/headroom/versions"
+          open_prs=$(gh pr list --state open --limit 1000 --json number --jq '.[].number')
+          # shellcheck disable=SC2086
+          ids=$(gh api --paginate --slurp "$package?per_page=100" | jq 'add // []' \
+            | .github/scripts/select-stale-package-versions.sh $open_prs)
+          for id in $ids; do
+            echo "Deleting package version $id"
+            # GitHub refuses to delete the last version of a package. That is no failure.
+            if ! out=$(gh api --method DELETE "$package/$id" 2>&1); then
+              if grep -qi "last" <<< "$out"; then echo "::notice::Version $id is the last version. Kept."; else echo "$out" >&2; exit 1; fi
+            fi
+          done

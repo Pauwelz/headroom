@@ -1,0 +1,103 @@
+@* One Allocation bar of a sub-row. The grid owns the drag state and the writes.
+   This component draws the bar and raises events. *@
+@if (!Editable)
+{
+    <div class="bar @BarClass" style="@Style" title="@Tip">
+        <span class="pct" aria-hidden="true">@($"{Bar.Percentage}%")</span><span class="sr-only">@Description</span>
+    </div>
+}
+else
+{
+    @* One segment per visible day, so a pointer-down knows its day. *@
+    <div class="bar alloc @BarClass" style="@Style" title="@Tip">
+        @foreach (var day in Days)
+        {
+            <span class="seg"
+                  @onpointerdown='e => PressAsync("move", day, e)'
+                  @onpointerup="() => OnRelease.InvokeAsync(day)" @onpointerup:stopPropagation="true"
+                  @oncontextmenu="e => OpenMenuAsync(day, e)" @oncontextmenu:preventDefault="true">
+                @if (day == First)
+                {
+                    <i class="edge l" @onpointerdown='e => PressAsync("start", day, e)' @onpointerdown:stopPropagation="true"></i>
+                }
+                @if (day == Last)
+                {
+                    <i class="edge r" @onpointerdown='e => PressAsync("end", day, e)' @onpointerdown:stopPropagation="true"></i>
+                }
+            </span>
+        }
+        @* The percentage control: a menu of 5% steps. A short bar has only the bar menu. *@
+        @if (Last.DayNumber - First.DayNumber >= 2)
+        {
+            <MudMenu Label="@($"{Bar.Percentage}%")" title="@($"{Tip}. Change the percentage.")" Dense="true" MaxHeight="320"
+                     AriaLabel="@($"Change the percentage of {Description}")"
+                     Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit" Class="pct">
+                @foreach (var step in Steps)
+                {
+                    <MudMenuItem OnClick="@(() => OnPercentage.InvokeAsync((Bar, step)))">@step%</MudMenuItem>
+                }
+            </MudMenu>
+        }
+        <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more"
+                 AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
+            <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
+            <MudMenuItem Disabled="@(AllocationChanges.SplitDay(Bar, null) is null)" OnClick="SplitAsync">Split here</MudMenuItem>
+            <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+        </MudMenu>
+    </div>
+}
+
+@code {
+    private static readonly int[] Steps = Enumerable.Range(1, 20).Select(i => i * 5).ToArray();
+
+    [Parameter, EditorRequired] public ScheduleAllocation Bar { get; set; } = default!;
+
+    /// <summary>The status of the Project: it sets the colour.</summary>
+    [Parameter, EditorRequired] public string Status { get; set; } = "";
+
+    /// <summary>The Person and Project of the row. Screen readers need them: they do not see the row labels next to the bar.</summary>
+    [Parameter, EditorRequired] public string RowName { get; set; } = "";
+
+    /// <summary>A Planner may change a bar of a Project that is not Archived. Other bars only show.</summary>
+    [Parameter] public bool Editable { get; set; }
+
+    /// <summary>The first and last day of the bar, also while a drag runs.</summary>
+    [Parameter] public DateOnly First { get; set; }
+    [Parameter] public DateOnly Last { get; set; }
+
+    /// <summary>The visible days of the bar. The grid column style places the bar.</summary>
+    [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
+    [Parameter] public string Style { get; set; } = "";
+
+    [Parameter] public EventCallback<(string Mode, DateOnly Day, PointerEventArgs Args)> OnPress { get; set; }
+    [Parameter] public EventCallback<DateOnly> OnRelease { get; set; }
+    [Parameter] public EventCallback<(ScheduleAllocation Allocation, int Percentage)> OnPercentage { get; set; }
+    [Parameter] public EventCallback OnEdit { get; set; }
+    [Parameter] public EventCallback<DateOnly> OnSplit { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    // The day last pressed on the bar: "Split here" splits there.
+    private DateOnly? _lastDay;
+    private MudMenu? _menu;
+
+    private string BarClass => Status == ProjectStatusName.Tentative ? ProjectStatusName.Tentative : ProjectStatusName.Confirmed;
+
+    private string Tip => $"{DisplayDate.Format(Bar.StartDate)} - {DisplayDate.Format(Bar.EndDate)}, {Bar.Percentage}%";
+
+    private string Description => $"Allocation, {RowName}, {Tip}";
+
+    private Task PressAsync(string mode, DateOnly day, PointerEventArgs e)
+    {
+        _lastDay = day;
+        return OnPress.InvokeAsync((mode, day, e));
+    }
+
+    private Task OpenMenuAsync(DateOnly day, MouseEventArgs e)
+    {
+        _lastDay = day;
+        return _menu is null ? Task.CompletedTask : _menu.OpenMenuAsync(e);
+    }
+
+    private Task SplitAsync() =>
+        AllocationChanges.SplitDay(Bar, _lastDay) is { } at ? OnSplit.InvokeAsync(at) : Task.CompletedTask;
+}

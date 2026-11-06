@@ -1,0 +1,105 @@
+# Headroom
+
+A resource allocation tool for small companies (up to 50 people). Planners schedule People on Projects over time. Each company runs its own Instance.
+
+## Language
+
+**Instance**:
+One installation of the tool with its own data, used by one company.
+_Avoid_: Tenant, workspace
+
+**Operator**:
+Whoever installs, upgrades and restores an Instance in the company's own cloud subscription. It can be the company's IT, a partner or us. An Operator is not a Planner and does not need to be a Person in the Instance.
+_Avoid_: Admin, installer, host
+
+**Test Instance**:
+An Instance that runs a Test build or a release candidate before it goes to production. It holds only made-up data and is never used by the company for planning.
+_Avoid_: Staging, acceptance, preview
+
+**Test build**:
+The image of one open pull request, built from the merge of the PR and `main` and checked on the Test Instance before the PR is merged. The image of `main` (tag `dev`) is deployed to the Test Instance after each merge. Neither is ever released or goes to production.
+_Avoid_: Preview, staging build, integration build
+
+**Person**:
+Someone who works for the company, as an employee or a freelancer, and can be scheduled. Only humans are scheduled, never rooms or equipment.
+_Avoid_: Resource, employee, user
+
+**Planner**:
+A Person who can create and change Allocations. Usually a managing partner. Other People can only view the schedule.
+_Avoid_: Resource manager, scheduler, admin
+
+**Client**:
+The customer a Project is for.
+_Avoid_: Customer, account
+
+**Project**:
+A piece of work for a Client that People are allocated to. A Project is Tentative, Confirmed or Archived.
+_Avoid_: Engagement, job
+
+**Allocation**:
+A Person assigned to a Project for a percentage of their contract hours over a date range. A Planner creates it directly, without a request or approval. For one Person and Project, only one Allocation covers a given day.
+_Avoid_: Assignment, booking, reservation
+
+**Over-allocation**:
+A day on which the Allocations of a Person add up to more hours than their Capacity. It is allowed and shown, never blocked.
+_Avoid_: Overbooking, conflict
+
+**Tentative**:
+The status of a Project that is not yet signed. All its Allocations are Tentative too. It is the opposite of Confirmed.
+_Avoid_: Pencilled, soft booking
+
+**Capacity**:
+The hours a Person can work in a period: contract hours minus Time off, public holidays and Company days off.
+_Avoid_: Availability
+
+**Contract**:
+The hours a Person works on each weekday, valid from a start date until the next Contract of that Person starts. A Person has one or more Contracts over time.
+_Avoid_: Work pattern, working hours, schedule
+
+**Time off**:
+A period in which a Person does not work. It has no type: leave, sickness and other absence are all the same Time off. It starts and ends on a morning or an afternoon, so only its first and last day can be a half day.
+_Avoid_: Absence, leave (as a general term)
+
+**Company day off**:
+A date on which no Person in the Instance works, set by a Planner. Examples: a replacement day for a public holiday, a bridge day, a closure, a mandatory training day. It reduces Capacity like a public holiday.
+_Avoid_: Holiday (for these days), closure day
+
+**Archived**:
+The status of a Project whose work is finished. Its Allocations stay but are read-only: a Planner cannot add, change or delete them. Unarchive sets the Project to Confirmed.
+_Avoid_: Closed, inactive
+
+**Ended**:
+A Project whose last Allocation is before today. It is a filter on the Projects page, not a status. An ended Project can still be Tentative or Confirmed.
+_Avoid_: Finished, done (for this filter)
+
+**Erase personal details**:
+The step that removes the name and email of a Person who has left. Their Contracts, Time off and Allocations stay, under a placeholder name such as "Former Person 7". It runs 12 months after the end date, or earlier when a Planner chooses it. It cannot be undone. The result is not anonymous: in a small company, colleagues can still tell who it was.
+_Avoid_: Anonymise, delete (for this step)
+
+**Utilisation**:
+Allocated hours divided by Capacity for a Person or group in a period.
+_Avoid_: Occupancy, load
+
+**Login code**:
+The 6-digit code that Headroom sends by email to a Person so they can log in. It works for a short time and only once. The first Planner gets one during setup.
+_Avoid_: OTP, password, magic link
+
+**Event**:
+A message that Headroom sends when an Allocation, Time off or Project status changes. It carries the full record. Headroom sends it to every Webhook, and the receiver decides what to do with it.
+_Avoid_: Notification, hook
+
+**Webhook**:
+A URL that a Planner adds in Settings. Headroom sends each Event to it.
+_Avoid_: Subscription, endpoint, integration
+
+**Access token**:
+A secret that belongs to one Person, so that an AI assistant or a script can call Headroom for that Person. It has the rights of its Person, and no more. It is read only unless its Person allows it to change things. It can have an expiry date.
+_Avoid_: API key, password
+
+**Connected app**:
+An application, such as Claude or Copilot Studio, that a Planner adds in Settings so that each Person can connect it to Headroom with their own login. It acts only through a Connection.
+_Avoid_: OAuth client, application, integration
+
+**Connection**:
+The permission that one Person gives one Connected app to act for them. It has the rights of its Person, and no more. It is read only unless its Person allows it to change things. The Person or a Planner can revoke it.
+_Avoid_: Grant, authorization, session

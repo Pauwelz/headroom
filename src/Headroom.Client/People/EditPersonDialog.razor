@@ -1,0 +1,42 @@
+@inject PeopleApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+            <MudTextField @bind-Value="_name" Label="Name" Required="true" MaxLength="200" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_email" Label="Email" Required="true" MaxLength="254" InputType="InputType.Email"
+                          Variant="Variant.Outlined" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public PersonResponse Person { get; set; } = default!;
+
+    private string _name = "", _email = "";
+    private string? _error;
+    private bool _busy;
+
+    protected override void OnInitialized() => (_name, _email) = (Person.Name, Person.Email ?? "");
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Api.EditAsync(Person.Id, new EditPersonRequest(_name, _email, Person.IsPlanner));
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException e) { _error = e.Message; }
+        _busy = false;
+    }
+}

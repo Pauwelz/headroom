@@ -1,0 +1,39 @@
+@* Table tab: totals for the whole range, one row per Person. Same Total cells as the Heatmap. *@
+
+<div class="wrap">
+@* The height leaves room for the app bar, the page toolbar and the tabs, so the table scrolls inside the page. *@
+<MudTable Items="Data.People" Dense="true" Hover="true" Elevation="0" Class="table" RowClassFunc="RowClass"
+          FixedHeader="true" Height="calc(100vh - 280px)">
+    <HeaderContent>
+        <MudTh><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => r.Name))" InitialDirection="SortDirection.Ascending">Person</MudTableSortLabel></MudTh>
+        <MudTh Class="n"><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => r.Total.Capacity))">Capacity h</MudTableSortLabel></MudTh>
+        <MudTh Class="n"><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => r.Total.Confirmed))">Confirmed h</MudTableSortLabel></MudTh>
+        <MudTh Class="n"><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => r.Total.Tentative))">Tentative h</MudTableSortLabel></MudTh>
+        <MudTh Class="n"><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => r.Total.Archived))">Archived h</MudTableSortLabel></MudTh>
+        <MudTh Class="n"><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => UtilisationBand.Free(r.Total)))">Free h</MudTableSortLabel></MudTh>
+        <MudTh Class="n"><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => r.Total.Utilisation ?? -1m))">Utilisation</MudTableSortLabel></MudTh>
+        <MudTh Class="n"><MudTableSortLabel SortBy="@(new Func<UtilisationRow, object>(r => r.Total.OverDays))">Over days</MudTableSortLabel></MudTh>
+    </HeaderContent>
+    <RowTemplate>@Line(context)</RowTemplate>
+    <FooterContent>@Line(Data.All)</FooterContent>
+</MudTable>
+</div>
+<MudText Typo="Typo.caption" Class="mt-2">Free h = Capacity - Allocated hours (Confirmed + Tentative + Archived). Negative = over-allocated.</MudText>
+
+@code {
+    [Parameter, EditorRequired] public UtilisationResponse Data { get; set; } = default!;
+    [Parameter] public Guid MeId { get; set; }
+
+    private string RowClass(UtilisationRow row, int index) => row.PersonId == MeId ? "me" : "";
+
+    private RenderFragment Line(UtilisationRow row) => @<text>
+        <MudTd><b class="@(row.PersonId is null ? "all" : null)">@row.Name</b></MudTd>
+        <MudTd Class="n">@UtilisationBand.Hours(row.Total.Capacity)</MudTd>
+        <MudTd Class="n">@UtilisationBand.Hours(row.Total.Confirmed)</MudTd>
+        <MudTd Class="n">@UtilisationBand.Hours(row.Total.Tentative)</MudTd>
+        <MudTd Class="n">@UtilisationBand.Hours(row.Total.Archived)</MudTd>
+        <MudTd Class="n">@(row.Total.Capacity > 0 ? UtilisationBand.Hours(UtilisationBand.Free(row.Total)) : "—")</MudTd>
+        <MudTd Class="@("n " + UtilisationBand.Of(row.Total))">@UtilisationBand.Percent(row.Total.Utilisation)</MudTd>
+        <MudTd Class="n">@(row.Total.OverDays > 0 ? row.Total.OverDays.ToString() : "")</MudTd>
+    </text>;
+}

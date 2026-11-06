@@ -1,0 +1,29 @@
+@* Hours Monday to Sunday with presets. Edits the array in place. *@
+<MudStack Spacing="2">
+    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+        @foreach (var (label, hours) in WeekHours.Presets)
+        {
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="() => Apply(hours)">@label</MudButton>
+        }
+    </MudStack>
+    <MudGrid Spacing="1">
+        @for (var i = 0; i < Days.Length; i++)
+        {
+            var day = i;
+            <MudItem xs="4" sm="3">
+                <MudNumericField T="decimal" Label="@Days[day]" Min="0" Max="24" Step="0.25m" Variant="Variant.Outlined"
+                                 Margin="Margin.Dense" Style="min-width: 5.5rem"
+                                 Value="Hours[day]" ValueChanged="v => Hours[day] = v" />
+            </MudItem>
+        }
+    </MudGrid>
+    <MudText Typo="Typo.body2">Hours per week: @Hours.Sum()</MudText>
+</MudStack>
+
+@code {
+    private static readonly string[] Days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    [Parameter, EditorRequired] public decimal[] Hours { get; set; } = default!;
+
+    private void Apply(WeekHours preset) => preset.ToArray().CopyTo(Hours, 0);
+}

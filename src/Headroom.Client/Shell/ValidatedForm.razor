@@ -1,0 +1,21 @@
+@* A MudForm that reports IsValid. Call ResetValidation after you clear the fields, so no "required" error shows on them. *@
+<MudForm @ref="_form" IsValid="IsValid" IsValidChanged="IsValidChanged">@ChildContent</MudForm>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public bool IsValid { get; set; }
+    [Parameter] public EventCallback<bool> IsValidChanged { get; set; }
+
+    private MudForm? _form;
+    private bool _resetPending;
+
+    // The fields re-validate when they get their new value. So the reset must run after the next render.
+    public void ResetValidation() => _resetPending = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_resetPending || _form is null) return;
+        _resetPending = false;
+        await _form.ResetValidationAsync();
+    }
+}

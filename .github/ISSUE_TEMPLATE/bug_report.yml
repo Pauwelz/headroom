@@ -1,0 +1,28 @@
+name: Bug report
+description: Something does not work as the user guide says.
+labels: [needs-triage]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: 'The line at the bottom of the Help page, for example "Headroom 0.1.0 (5f3c2a1)".'
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Extra information
+      description: 'Remove names, email addresses and Login codes from logs and screenshots.'

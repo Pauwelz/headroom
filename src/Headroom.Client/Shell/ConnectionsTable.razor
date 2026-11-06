@@ -1,0 +1,30 @@
+<MudSimpleTable Dense="true">
+    <thead>
+        <tr>
+            <th>Connected app</th>
+            @if (ShowPerson) { <th>Person</th> }
+            <th>Created</th><th>Last used</th><th>Can change</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var connection in Connections)
+        {
+            <tr>
+                <td><b>@connection.ConnectedApp</b></td>
+                @if (ShowPerson) { <td>@connection.Owner</td> }
+                <td>@Date(connection.DateCreated)</td>
+                <td>@(connection.LastUsed is { } used ? Date(used) : "Never")</td>
+                <td>@(connection.CanChange ? "Yes" : "No")</td>
+                <td><MudButton Color="Color.Error" OnClick="() => OnRevoke.InvokeAsync(connection)">Revoke</MudButton></td>
+            </tr>
+        }
+    </tbody>
+</MudSimpleTable>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ConnectionResponse> Connections { get; set; } = [];
+    [Parameter] public bool ShowPerson { get; set; }
+    [Parameter] public EventCallback<ConnectionResponse> OnRevoke { get; set; }
+
+    private static string Date(DateTimeOffset time) => DisplayDate.Format(DateOnly.FromDateTime(time.LocalDateTime));
+}

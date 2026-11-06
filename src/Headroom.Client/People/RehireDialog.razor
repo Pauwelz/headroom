@@ -1,0 +1,50 @@
+@inject PeopleApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            }
+            <MudText Typo="Typo.body2">
+                @Person.Name left on @DisplayDate.Format(Person.EndDate). A 0-hour Contract fills the gap before the return date.
+            </MudText>
+            <DateField @bind-Date="_return" Label="Return date" />
+            <HoursEditor Hours="_hours" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Rehire</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public PersonResponse Person { get; set; } = default!;
+
+    private DateTime? _return;
+    private decimal[] _hours = [];
+    private string? _error;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _return = Person.EndDate!.Value.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        _hours = EmploymentText.DefaultRehireHours(Person).ToArray();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_return is null) { _error = "Enter the return date."; return; }
+        _busy = true;
+        try
+        {
+            await Api.RehireAsync(Person.Id, new RehireRequest(DateOnly.FromDateTime(_return.Value), WeekHours.From(_hours)));
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (ApiException e) { _error = e.Message; }
+        _busy = false;
+    }
+}

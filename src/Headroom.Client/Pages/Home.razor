@@ -1,0 +1,9 @@
+﻿@page "/"
+@inject NavigationManager Navigation
+
+<PageTitle>Headroom</PageTitle>
+
+@code {
+    // The Schedule is the main screen.
+    protected override void OnInitialized() => Navigation.NavigateTo("/schedule", replace: true);
+}

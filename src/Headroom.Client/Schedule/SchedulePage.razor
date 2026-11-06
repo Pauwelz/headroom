@@ -1,0 +1,135 @@
+@page "/schedule"
+@using Headroom.Client.Schedule
+@using Headroom.Client.Projects
+@inject ScheduleApi Api
+@inject ProjectsApi ProjectList
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>Schedule - Headroom</PageTitle>
+
+<div class="d-flex align-center gap-2 mb-3 flex-wrap">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" aria-label="Previous" OnClick="@(() => ChangeAsync(_range.Move(-1)))" />
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" aria-label="Next" OnClick="@(() => ChangeAsync(_range.Move(1)))" />
+    @* No width limit: a narrow picker cuts off the calendar. *@
+    <MudDateRangePicker @key="_pickerKey" DateRange="_picked" DateRangeChanged="RangePickedAsync" Label="Range" Editable="true" AutoClose="true"
+                        DateFormat="@DisplayDate.Pattern" FirstDayOfWeek="DayOfWeek.Monday" ShowToolbar="false" Variant="Variant.Text" />
+    <MudText Typo="Typo.body2" Class="mud-text-secondary">@_range.Days days</MudText>
+    <MudSpacer />
+    <MudToggleGroup T="ScheduleRange.Preset" Value="@ActivePreset" ValueChanged="PresetPickedAsync"
+                    SelectionMode="SelectionMode.SingleSelection" Size="Size.Small" Outlined="true" Color="Color.Primary">
+        @foreach (var preset in ScheduleRange.Presets)
+        {
+            <MudToggleItem Value="@preset" Text="@preset.Label" />
+        }
+    </MudToggleGroup>
+    @if (!Me.IsPlanner)
+    {
+        <MudToggleGroup T="bool" @bind-Value="_onlyMe" SelectionMode="SelectionMode.SingleSelection" Size="Size.Small" Outlined="true" Color="Color.Primary">
+            <MudToggleItem Value="false" Text="Everyone" />
+            <MudToggleItem Value="true" Text="Only me" />
+        </MudToggleGroup>
+    }
+</div>
+
+@if (_data is null)
+{
+    <LoadingSkeleton />
+}
+else
+{
+    <ScheduleGrid Data="@Shown" MeId="@Me.Id" CanEdit="@Me.IsPlanner" Clients="@_clients"
+                  FirstDay="@_range.From" ShownDays="@_range.Days" OnScrolled="ScrolledAsync"
+                  OnChanged="ReloadAsync" OnPercentage="SetPercentageAsync" />
+}
+
+@code {
+    [CascadingParameter] public MeResponse Me { get; set; } = default!;
+
+    private ScheduleRange _range = default!;
+    // The picker keeps its own instance, so typed text is not reset on every render.
+    private DateRange _picked = new();
+    // MudBlazor compares a DateRange by value, so the same range does not reset typed text. A new key rebuilds the picker.
+    private int _pickerKey;
+    // The first loaded day. The grid scrolls through _range.WindowDays days from here.
+    private DateOnly? _window;
+    private ScheduleResponse? _data;
+    private bool _onlyMe;
+    private IReadOnlyList<ClientResponse> _clients = [];
+
+    // The preset that equals the shown range, or null.
+    private ScheduleRange.Preset? ActivePreset => ScheduleRange.Presets.FirstOrDefault(p => p.Apply(_range.From) == _range);
+
+    private Task PresetPickedAsync(ScheduleRange.Preset? preset) =>
+        preset is null ? Task.CompletedTask : ChangeAsync(preset.Apply(_range.From));
+
+    // A non-Planner can switch to their own group. The server sends everyone.
+    private ScheduleResponse Shown => _onlyMe && !Me.IsPlanner
+        ? _data! with { People = _data.People.Where(p => p.Id == Me.Id).ToList() }
+        : _data!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The page renders while the first load runs, so the range must exist before the first await.
+        _range = ScheduleRange.Default(ScheduleRange.TodayInBrussels(Time));
+        SetPicked(_range);
+        if (Me.IsPlanner) _clients = await ProjectList.ListAsync();
+        await ChangeAsync(_range);
+    }
+
+    private Task SetPercentageAsync((ScheduleAllocation Allocation, int Percentage) change) =>
+        WriteAsync(Api.UpdateAllocationAsync(change.Allocation.Id, change.Allocation.StartDate, change.Allocation.EndDate, change.Percentage));
+
+    // One API call per gesture, then reload the range so the daily load is up to date.
+    private async Task WriteAsync(Task<string?> write)
+    {
+        if (await write is { } error) Snackbar.Add(error, Severity.Error);
+        await ReloadAsync();
+    }
+
+    private Task ReloadAsync() => ChangeAsync(_range);
+
+    // A half-typed range (no start or no end yet) changes nothing. A bad range keeps the old one and says why.
+    private async Task RangePickedAsync(DateRange? picked)
+    {
+        if (picked is not { Start: { } start, End: { } end }) return;
+        var (from, to) = (DateOnly.FromDateTime(start), DateOnly.FromDateTime(end));
+        if (ScheduleRange.Validate(from, to) is { } error)
+        {
+            Snackbar.Add(error, Severity.Warning);
+            _pickerKey++; // rebuild the picker from the old range
+            return;
+        }
+        var range = new ScheduleRange(from, to);
+        // The page renders while the load runs. The picker must get the new range then, not the old one:
+        // it would raise DateRangeChanged for the old range, and that load would replace this one.
+        SetPicked(range);
+        await ChangeAsync(range);
+    }
+
+    // A scroll during a drag only updates the dates above the grid: the dragged bar stays in the loaded days.
+    private async Task ScrolledAsync((DateOnly First, bool Busy) scroll)
+    {
+        _range = _range.StartingAt(scroll.First);
+        SetPicked(_range);
+        if (!scroll.Busy && _range.WindowFrom(_window) != _window) await ReloadAsync();
+    }
+
+    private void SetPicked(ScheduleRange range) =>
+        _picked = new DateRange(range.From.ToDateTime(TimeOnly.MinValue), range.To.ToDateTime(TimeOnly.MinValue));
+
+    private int _loads;
+
+    // The range changes only together with its days. Else the grid draws the new width over the old, shorter window.
+    // The browser then resets the scroll to 0. That reset moves the range to the window start.
+    // Loads can overlap (a scroll stop after a write). Only the last one sets the data.
+    private async Task ChangeAsync(ScheduleRange range)
+    {
+        var load = ++_loads;
+        var window = range.WindowFrom(_window);
+        var data = await Api.GetAsync(window, window.AddDays(range.WindowDays - 1));
+        if (load != _loads) return;
+        (_range, _window, _data) = (range, window, data);
+        SetPicked(range);
+    }
+}
