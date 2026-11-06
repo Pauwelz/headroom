@@ -70,9 +70,11 @@ The `release` workflow starts on the tag. It:
    For a final version, it also checks that `CHANGELOG.md` has a line that starts with `## [X.Y.Z]`;
 2. builds the image and pushes it as `X.Y.Z`, and for a final version also as `latest`;
 3. attests the build provenance of the image. The attestation stays in the attestation store of GitHub, not in the registry;
-4. creates the GitHub Release with the CHANGELOG section as notes. It has no assets.
+4. creates the GitHub Release with the CHANGELOG section as notes.
+   It attaches the attestation as `headroom-X.Y.Z.sigstore.json`. OpenSSF Scorecard reads this file as a signed release.
 
 Anyone can check an image: `gh attestation verify oci://ghcr.io/pauwelz/headroom:X.Y.Z --owner Pauwelz`.
+To check it against the release file, add `--bundle headroom-X.Y.Z.sigstore.json`.
 
 The csproj has no release version. `Directory.Build.props` holds the dev default `0.0.0-dev`.
 A build for a tag sets the real version from the tag.
