@@ -14,7 +14,8 @@ builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 builder.Services.AddDbContext<HeadroomDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Headroom")));
-builder.Services.AddOpenApi();
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks().AddCheck<Headroom.Data.DatabaseHealthCheck>("database");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Headroom.Capacity.IPublicHolidays, Headroom.Capacity.BelgianPublicHolidays>();
