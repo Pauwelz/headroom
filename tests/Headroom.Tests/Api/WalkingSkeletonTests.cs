@@ -11,23 +11,30 @@ public class WalkingSkeletonTests(HeadroomApp app) : IClassFixture<HeadroomApp>
     [Fact]
     public async Task ServesTheOpenApiDocument()
     {
-        var response = await app.Factory.CreateClient().GetAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
+        await using var development = app.Factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
+
+        var response = await development.CreateClient().GetAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
-    public async Task DoesNotServeTheOpenApiDocumentOutsideDevelopment()
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public async Task DoesNotServeTheOpenApiDocumentOutsideDevelopment(string environment)
     {
-        var production = app.Factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
-        var client = production.CreateClient(new WebApplicationFactoryClientOptions
+        await using var factory = app.Factory.WithWebHostBuilder(builder => builder.UseEnvironment(environment));
+        // An https address and no redirect: the HTTPS redirect must not hide the 404.
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost"),
             AllowAutoRedirect = false,
         });
 
+        var health = await client.GetAsync("/health", TestContext.Current.CancellationToken);
         var response = await client.GetAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
 
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
