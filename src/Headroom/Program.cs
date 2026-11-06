@@ -14,7 +14,8 @@ builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 builder.Services.AddDbContext<HeadroomDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Headroom")));
-builder.Services.AddOpenApi();
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks().AddCheck<Headroom.Data.DatabaseHealthCheck>("database");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Headroom.Capacity.IPublicHolidays, Headroom.Capacity.BelgianPublicHolidays>();
@@ -49,6 +50,7 @@ if (!EF.IsDesignTime)
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
+    app.MapOpenApi();
 }
 else
 {
@@ -76,7 +78,6 @@ app.UseApiAntiforgery();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapApi();
 app.MapHeadroomMcp();
