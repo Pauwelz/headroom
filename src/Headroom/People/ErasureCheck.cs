@@ -24,7 +24,7 @@ public sealed class ErasureCheck(IServiceScopeFactory scopes, TimeProvider time,
             using var scope = scopes.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
             await PersonEraser.EraseDueAsync(db, today);
-            await EventSender.DeleteExpiredAsync(db, time.GetUtcNow());
+            await EventRetention.DeleteExpiredAsync(db, time.GetUtcNow());
         }
         catch (Exception e)
         {

@@ -2,6 +2,7 @@ using Headroom.Auth;
 using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Data;
+using Headroom.Events;
 using Headroom.People;
 using Microsoft.EntityFrameworkCore;
 using static Headroom.Endpoints.ApiProblem;
@@ -54,6 +55,8 @@ public static class RehireDeleteEndpoints
         if (await Blocker(db, person, BrusselsTime.Today(time)) is { } reason) return Problem(409, reason);
 
         await Connections.DeleteOfPersonAsync(db, id);
+        // Events of removed Allocations and Time off still hold the details. A deleted Person has no placeholder number, so the name is empty.
+        await EventRecorder.ScrubPersonAsync(db, id, "");
         db.Contracts.RemoveRange(db.Contracts.Where(c => c.PersonId == id));
         db.People.Remove(person);
         await db.SaveChangesAsync();

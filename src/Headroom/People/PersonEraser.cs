@@ -1,6 +1,6 @@
 using Headroom.Auth;
-using System.Text.Json.Nodes;
 using Headroom.Data;
+using Headroom.Events;
 using Microsoft.EntityFrameworkCore;
 
 namespace Headroom.People;
@@ -24,22 +24,8 @@ public static class PersonEraser
         person.LastChangedBy = by;
         await db.AccessTokens.Where(t => t.PersonId == person.Id).ExecuteDeleteAsync();
         await Connections.DeleteOfPersonAsync(db, person.Id);
-        await ScrubEventsAsync(db, person);
+        await EventRecorder.ScrubPersonAsync(db, person.Id, person.DisplayName);
         await db.SaveChangesAsync();
-    }
-
-    // shortcut: a scan of the Event payloads, because erase is rare. Add an index if the Event table grows large.
-    private static async Task ScrubEventsAsync(HeadroomDbContext db, Person person)
-    {
-        var events = await db.Events.Where(e => e.Payload.Contains($"\"personId\":\"{person.Id}\"")).ToListAsync();
-        foreach (var e in events)
-        {
-            var node = JsonNode.Parse(e.Payload);
-            if (node?["data"] is not JsonObject data || data["personId"]?.ToString() != person.Id.ToString()) continue;
-            data["personName"] = person.DisplayName;
-            data["personEmail"] = null;
-            e.Payload = node.ToJsonString();
-        }
     }
 
     public static async Task EraseDueAsync(HeadroomDbContext db, DateOnly today)

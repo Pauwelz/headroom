@@ -68,6 +68,7 @@ The card explains the status in a sentence. It shows the last change and who mad
   A freelancer between engagements has an end date, so they cannot log in. Capacity is 0 in the gap.
 - **Erase personal details.** Removes the name and email. It also deletes the Connections of the Person.
   Contracts, Time off and Allocations stay, under the name "Former Person N".
+  It also blanks the name and email inside stored Webhook Events.
   The result is not anonymous: colleagues can still tell who it was. You cannot undo it.
   The Person loses the Planner flag and cannot be rehired. A return creates a new Person.
   Headroom also does this by itself 12 months after the end date.
