@@ -34,7 +34,7 @@ public static class LoginPages
         <summary>Privacy notice</summary>
         <p>{FirstRunPages.E(company)} is the controller of your data. Headroom stores your name, your email address, your contracts, your allocations and your time off.</p>
         <p>The purpose is correct planning and planning history. The legal basis is legitimate interest (GDPR Art. 6(1)(f)).</p>
-        <p>Headroom erases your personal details 12 months after your end date. SQL backups keep data for up to 7 days.</p>
+        <p>Headroom erases your personal details 12 months after your end date. This includes your name and email in webhook events. Headroom deletes webhook events 30 days after it creates them, once they are delivered or given up. SQL backups keep data for up to 7 days.</p>
         </details>
         """;
 }

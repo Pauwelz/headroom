@@ -22,6 +22,15 @@ public class EventSender(HeadroomDbContext db, IHttpClientFactory clients, TimeP
         return events.Where(e => e.DeliveredAt == null && e.DateCreated > cutoff);
     }
 
+    // Delivered and given-up Events stay this long, so a Webhook owner can debug a delivery.
+    public static readonly TimeSpan Retention = TimeSpan.FromDays(30);
+
+    public static Task DeleteExpiredAsync(HeadroomDbContext db, DateTimeOffset now)
+    {
+        var cutoff = now - Retention;
+        return db.Events.Where(e => e.DateCreated < cutoff && !Pending(db.Events, now).Select(p => p.Id).Contains(e.Id)).ExecuteDeleteAsync();
+    }
+
     // Delay before the next send, after the given number of sends: 30 s, 1 min, 2 min, ... at most 1 hour.
     public static TimeSpan BackOff(int attempts) => TimeSpan.FromSeconds(Math.Min(30 * Math.Pow(2, Math.Min(attempts - 1, 7)), 3600));
 
