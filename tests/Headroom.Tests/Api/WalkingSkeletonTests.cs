@@ -1,5 +1,7 @@
 using System.Net;
 using Headroom.Data;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Headroom.Tests.Api;
@@ -12,6 +14,21 @@ public class WalkingSkeletonTests(HeadroomApp app) : IClassFixture<HeadroomApp>
         var response = await app.Factory.CreateClient().GetAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DoesNotServeTheOpenApiDocumentOutsideDevelopment()
+    {
+        var production = app.Factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+        var client = production.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false,
+        });
+
+        var response = await client.GetAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

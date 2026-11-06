@@ -49,6 +49,7 @@ if (!EF.IsDesignTime)
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
+    app.MapOpenApi();
 }
 else
 {
@@ -76,7 +77,6 @@ app.UseApiAntiforgery();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapApi();
 app.MapHeadroomMcp();
