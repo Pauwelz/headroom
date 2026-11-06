@@ -12,6 +12,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- The OpenAPI document is served in Development only. Other environments return 404.
 - The consent page encodes hidden-field names. It forwards only known OAuth parameters.
 - The login, first-run, consent and help pages send a Content-Security-Policy that blocks script and framing.
 
