@@ -125,7 +125,9 @@ public class FirstRunTests : IClassFixture<HeadroomApp>
     {
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        var formHtml = await (await client.GetAsync("/first-run", TestContext.Current.CancellationToken)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var form = await client.GetAsync("/first-run", TestContext.Current.CancellationToken);
+        await PagePolicy.AssertAsync(form);
+        var formHtml = await form.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var token = Token(formHtml);
         var fields = new Dictionary<string, string>
         {

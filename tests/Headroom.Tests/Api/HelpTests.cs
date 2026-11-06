@@ -49,6 +49,7 @@ public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("<h1", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        await PagePolicy.AssertAsync(response);
     }
 
     [Theory]

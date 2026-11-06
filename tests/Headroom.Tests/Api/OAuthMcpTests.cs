@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Headroom.Data;
 using Headroom.Email;
+using Headroom.Endpoints;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,6 +59,46 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         new HttpClientTransportOptions { Endpoint = new Uri(OAuthFlow.Mcp) }, _flow.BearerClient(token), ownsHttpClient: true), McpTests.ClientOptions(), cancellationToken: Ct);
 
     private async Task<HttpResponseMessage> PostMcpAsync(string token) => await _flow.BearerClient(token).PostAsync("/mcp", Json(), Ct);
+
+    [Fact]
+    public async Task ConsentPageEncodesAndFiltersHostileQueryKeys()
+    {
+        var app = await _flow.AddAppAsync();
+        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+
+        var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()) + "&%22%3E%3Cscript%3E=x", Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await PagePolicy.AssertAsync(response);
+        var html = await response.Content.ReadAsStringAsync(Ct);
+        Assert.Contains("action=\"/connect/authorize\"", html);
+        Assert.DoesNotContain("<script", html);
+        Assert.DoesNotContain("&lt;script", html); // the key is dropped, not only encoded
+    }
+
+    [Fact]
+    public async Task ConsentPageForwardsEveryAllowedParameter()
+    {
+        var app = await _flow.AddAppAsync();
+        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+
+        var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()) + "&nonce=n1&response_mode=query", Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var forwarded = OAuthFlow.Hidden(await response.Content.ReadAsStringAsync(Ct)).Select(h => h.Key).Order();
+        Assert.Equal(
+            ["__RequestVerificationToken", "client_id", "code_challenge", "code_challenge_method", "nonce", "redirect_uri",
+             "resource", "response_mode", "response_type", "scope", "state"],
+            forwarded, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void ConsentPageEncodesHiddenFieldNames()
+    {
+        var html = ConsentPages.Consent("t", "Acme", "App", "Ann", false, [new("\"><script>", "x")]);
+
+        Assert.DoesNotContain("<script", html);
+    }
 
     [Fact]
     public async Task McpPublishesProtectedResourceMetadata()

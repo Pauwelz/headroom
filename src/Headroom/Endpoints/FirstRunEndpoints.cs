@@ -20,7 +20,7 @@ public static class FirstRunEndpoints
     }
 
     private static async Task<IResult> ShowForm(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery) =>
-        await IsClosed(db) ? Results.NotFound() : Page(FirstRunPages.Form(Token(http, antiforgery), null, "", "", ""));
+        await IsClosed(db) ? Results.NotFound() : FirstRunPages.Page(FirstRunPages.Form(Token(http, antiforgery), null, "", "", ""));
 
     private static async Task<IResult> SendCode(
         HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, LoginCodeService codes,
@@ -31,20 +31,20 @@ public static class FirstRunEndpoints
         var token = Token(http, antiforgery);
 
         if (company.Length is 0 or > 200 || name.Length is 0 or > 200 || !IsEmail(email))
-            return Page(FirstRunPages.Form(token, "Fill in all fields with a valid email address.", company, name, email), 400);
+            return FirstRunPages.Page(FirstRunPages.Form(token, "Fill in all fields with a valid email address.", company, name, email), 400);
 
         try
         {
             if (!await codes.IssueAsync(email, company, ct))
-                return Page(FirstRunPages.Form(token, "Too many codes for this email. Wait 15 minutes.", company, name, email), 429);
+                return FirstRunPages.Page(FirstRunPages.Form(token, "Too many codes for this email. Wait 15 minutes.", company, name, email), 429);
         }
         catch (Exception ex)
         {
             // Log the exception only. The message of a mail error can hold the email address.
             log.LogError("Could not send the first-run code: {ExceptionType}", ex.GetType().Name);
-            return Page(FirstRunPages.Form(token, "The email could not be sent. Check the SMTP settings.", company, name, email), 503);
+            return FirstRunPages.Page(FirstRunPages.Form(token, "The email could not be sent. Check the SMTP settings.", company, name, email), 503);
         }
-        return Page(FirstRunPages.Code(token, null, company, name, email));
+        return FirstRunPages.Page(FirstRunPages.Code(token, null, company, name, email));
     }
 
     private static async Task<IResult> VerifyCode(
@@ -57,7 +57,7 @@ public static class FirstRunEndpoints
 
         if (company.Length is 0 or > 200 || name.Length is 0 or > 200 || !IsEmail(email)
             || !await codes.VerifyAsync(email, form["code"].ToString().Trim(), ct))
-            return Page(FirstRunPages.Code(token, "The code is wrong or has expired.", company, name, email), 400);
+            return FirstRunPages.Page(FirstRunPages.Code(token, "The code is wrong or has expired.", company, name, email), 400);
 
         var today = BrusselsTime.Today(time);
         var person = new Person { Name = name, Email = email, IsPlanner = true };
@@ -87,7 +87,4 @@ public static class FirstRunEndpoints
 
     internal static string Token(HttpContext http, IAntiforgery antiforgery) =>
         antiforgery.GetAndStoreTokens(http).RequestToken!;
-
-    internal static IResult Page(string html, int status = 200) =>
-        Results.Content(html, "text/html; charset=utf-8", statusCode: status);
 }
