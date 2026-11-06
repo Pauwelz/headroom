@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Headroom.Auth;
 using Headroom.Client.Shell;
 using MudBlazor;
@@ -78,7 +80,12 @@ public static class FirstRunPages
         return $":root{{{Vars(theme.PaletteLight)}}}@media (prefers-color-scheme: dark){{:root{{{Vars(theme.PaletteDark)}}}}}";
     }
 
-    internal static string Hidden(string name, string value) => $"""<input type="hidden" name="{name}" value="{E(value)}">""";
+    // Only the colour tokens are inline, so one style hash covers every page. No form-action: the consent POST redirects to the app.
+    internal static readonly string ContentSecurityPolicy =
+        $"default-src 'none'; style-src 'self' 'sha256-{Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(ColorTokens)))}'; "
+        + "font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+    internal static string Hidden(string name, string value) => $"""<input type="hidden" name="{E(name)}" value="{E(value)}">""";
 
     internal static string E(string value) => WebUtility.HtmlEncode(value);
 }

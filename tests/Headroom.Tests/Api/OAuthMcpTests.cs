@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Headroom.Data;
 using Headroom.Email;
+using Headroom.Endpoints;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,6 +59,30 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         new HttpClientTransportOptions { Endpoint = new Uri(OAuthFlow.Mcp) }, _flow.BearerClient(token), ownsHttpClient: true), McpTests.ClientOptions(), cancellationToken: Ct);
 
     private async Task<HttpResponseMessage> PostMcpAsync(string token) => await _flow.BearerClient(token).PostAsync("/mcp", Json(), Ct);
+
+    [Fact]
+    public async Task ConsentPageEncodesAndFiltersHostileQueryKeys()
+    {
+        var app = await _flow.AddAppAsync();
+        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+
+        var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()) + "&%22%3E%3Cscript%3E=x", Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("frame-ancestors 'none'", response.Headers.GetValues("Content-Security-Policy").Single());
+        var html = await response.Content.ReadAsStringAsync(Ct);
+        Assert.Contains("action=\"/connect/authorize\"", html);
+        Assert.DoesNotContain("<script", html);
+        Assert.DoesNotContain("&lt;script", html); // the key is dropped, not only encoded
+    }
+
+    [Fact]
+    public void HiddenFieldEncodesTheName()
+    {
+        var html = ConsentPages.Consent("t", "Acme", "App", "Ann", false, [new("\"><script>", "x")]);
+
+        Assert.DoesNotContain("<script", html);
+    }
 
     [Fact]
     public async Task McpPublishesProtectedResourceMetadata()

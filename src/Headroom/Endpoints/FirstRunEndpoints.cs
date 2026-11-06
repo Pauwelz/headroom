@@ -88,6 +88,15 @@ public static class FirstRunEndpoints
     internal static string Token(HttpContext http, IAntiforgery antiforgery) =>
         antiforgery.GetAndStoreTokens(http).RequestToken!;
 
-    internal static IResult Page(string html, int status = 200) =>
-        Results.Content(html, "text/html; charset=utf-8", statusCode: status);
+    internal static IResult Page(string html, int status = 200) => new HtmlPage(html, status);
+
+    // The policy stops framing (clickjacking) and any script or foreign resource on these pages.
+    private sealed record HtmlPage(string Html, int Status) : IResult
+    {
+        public Task ExecuteAsync(HttpContext http)
+        {
+            http.Response.Headers.ContentSecurityPolicy = FirstRunPages.ContentSecurityPolicy;
+            return Results.Content(Html, "text/html; charset=utf-8", statusCode: Status).ExecuteAsync(http);
+        }
+    }
 }

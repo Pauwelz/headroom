@@ -10,6 +10,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Each GitHub Release carries the build provenance of its image as `headroom-X.Y.Z.sigstore.json`.
 
+### Security
+
+- The consent page encodes hidden-field names, forwards only known OAuth parameters, and the login, first-run and consent pages send a Content-Security-Policy that blocks framing.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added

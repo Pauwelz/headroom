@@ -45,7 +45,9 @@ public class LoginTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task GoodLoginSignsInAndApiMeReturnsThePerson()
     {
         var client = NewClient();
-        var page = await (await client.GetAsync("/login", TestContext.Current.CancellationToken)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var response = await client.GetAsync("/login", TestContext.Current.CancellationToken);
+        Assert.Contains("frame-ancestors 'none'", response.Headers.GetValues("Content-Security-Policy").Single());
+        var page = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Privacy notice", page);
         Assert.Contains("Acme &lt;Co&gt; is the controller", page);
 
