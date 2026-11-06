@@ -56,7 +56,7 @@ Start `deploy-test` with `dev` as `image` to deploy the newest `dev` again.
 
 1. Open a PR that changes `CHANGELOG.md` only.
    Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`. Add a new empty `## [Unreleased]` above it.
-   The workflow `test` does not run for this PR. The workflow `ci` does.
+   The workflow `test` skips its build and tests for this PR, so it passes in seconds.
 2. Merge the PR (squash).
 3. Tag the merge commit on `main` and push the tag:
    `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
