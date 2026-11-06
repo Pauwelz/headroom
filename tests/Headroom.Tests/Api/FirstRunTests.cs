@@ -126,7 +126,7 @@ public class FirstRunTests : IClassFixture<HeadroomApp>
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
         var form = await client.GetAsync("/first-run", TestContext.Current.CancellationToken);
-        Assert.Contains("frame-ancestors 'none'", form.Headers.GetValues("Content-Security-Policy").Single());
+        await PagePolicy.AssertAsync(form);
         var formHtml = await form.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var token = Token(formHtml);
         var fields = new Dictionary<string, string>

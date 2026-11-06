@@ -69,7 +69,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()) + "&%22%3E%3Cscript%3E=x", Ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("frame-ancestors 'none'", response.Headers.GetValues("Content-Security-Policy").Single());
+        await PagePolicy.AssertAsync(response);
         var html = await response.Content.ReadAsStringAsync(Ct);
         Assert.Contains("action=\"/connect/authorize\"", html);
         Assert.DoesNotContain("<script", html);
@@ -77,7 +77,23 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public void HiddenFieldEncodesTheName()
+    public async Task ConsentPageForwardsEveryAllowedParameter()
+    {
+        var app = await _flow.AddAppAsync();
+        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+
+        var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()) + "&nonce=n1&response_mode=query", Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var forwarded = OAuthFlow.Hidden(await response.Content.ReadAsStringAsync(Ct)).Select(h => h.Key).Order();
+        Assert.Equal(
+            ["__RequestVerificationToken", "client_id", "code_challenge", "code_challenge_method", "nonce", "redirect_uri",
+             "resource", "response_mode", "response_type", "scope", "state"],
+            forwarded, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void ConsentPageEncodesHiddenFieldNames()
     {
         var html = ConsentPages.Consent("t", "Acme", "App", "Ann", false, [new("\"><script>", "x")]);
 

@@ -23,7 +23,7 @@ public static class OAuthEndpoints
     private static readonly string[] ForwardedParameters =
     [
         Parameters.ClientId, Parameters.RedirectUri, Parameters.ResponseType, Parameters.Scope, Parameters.State,
-        Parameters.CodeChallenge, Parameters.CodeChallengeMethod, Parameters.Resource, Parameters.Nonce,
+        Parameters.CodeChallenge, Parameters.CodeChallengeMethod, Parameters.Resource, Parameters.Nonce, Parameters.ResponseMode,
     ];
 
     public static void MapOAuthEndpoints(this IEndpointRouteBuilder app)
@@ -56,8 +56,10 @@ public static class OAuthEndpoints
         {
             var token = FirstRunEndpoints.Token(http, antiforgery);
             var company = (await db.InstanceSettings.Select(s => s.CompanyName).FirstAsync())!;
-            var parameters = http.Request.Query.Where(q => ForwardedParameters.Contains(q.Key)).Select(q => KeyValuePair.Create(q.Key, (string?)q.Value.ToString()));
-            return FirstRunEndpoints.Page(ConsentPages.Consent(token, company, (await apps.GetDisplayNameAsync(app))!, person.DisplayName, person.IsPlanner, parameters));
+            var parameters = http.Request.Query
+                .Where(q => ForwardedParameters.Contains(q.Key))
+                .Select(q => KeyValuePair.Create(q.Key, (string?)q.Value.ToString()));
+            return FirstRunPages.Page(ConsentPages.Consent(token, company, (await apps.GetDisplayNameAsync(app))!, person.DisplayName, person.IsPlanner, parameters));
         }
 
         try { await antiforgery.ValidateRequestAsync(http); }

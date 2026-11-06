@@ -80,10 +80,23 @@ public static class FirstRunPages
         return $":root{{{Vars(theme.PaletteLight)}}}@media (prefers-color-scheme: dark){{:root{{{Vars(theme.PaletteDark)}}}}}";
     }
 
-    // Only the colour tokens are inline, so one style hash covers every page. No form-action: the consent POST redirects to the app.
-    internal static readonly string ContentSecurityPolicy =
+    // The colour tokens are the only inline style, so one hash covers every page.
+    // Omit form-action, because the consent POST redirects to the app and the browser checks that redirect too.
+    private static readonly string ContentSecurityPolicy =
         $"default-src 'none'; style-src 'self' 'sha256-{Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(ColorTokens)))}'; "
         + "font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+    internal static IResult Page(string html, int status = 200) => new HtmlPage(html, status);
+
+    // The policy stops framing (clickjacking) and any script or foreign resource on these pages.
+    private sealed record HtmlPage(string Html, int Status) : IResult
+    {
+        public Task ExecuteAsync(HttpContext http)
+        {
+            http.Response.Headers.ContentSecurityPolicy = ContentSecurityPolicy;
+            return Results.Content(Html, "text/html; charset=utf-8", statusCode: Status).ExecuteAsync(http);
+        }
+    }
 
     internal static string Hidden(string name, string value) => $"""<input type="hidden" name="{E(name)}" value="{E(value)}">""";
 

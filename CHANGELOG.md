@@ -12,7 +12,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
-- The consent page encodes hidden-field names, forwards only known OAuth parameters, and the login, first-run and consent pages send a Content-Security-Policy that blocks framing.
+- The consent page encodes hidden-field names. It forwards only known OAuth parameters.
+- The login, first-run, consent and help pages send a Content-Security-Policy that blocks script and framing.
 
 ## [0.1.0] - 2026-11-06
 

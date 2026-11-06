@@ -24,7 +24,7 @@ public static class LoginEndpoints
         var returnUrl = SafeReturnUrl(http.Request.Query["ReturnUrl"]);
         if (http.User.Identity?.IsAuthenticated == true) return Results.Redirect(returnUrl);
         return await Company(db) is { } company
-            ? FirstRunEndpoints.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, null, "", returnUrl))
+            ? FirstRunPages.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, null, "", returnUrl))
             : Results.Redirect("/first-run");
     }
 
@@ -37,7 +37,7 @@ public static class LoginEndpoints
         var returnUrl = SafeReturnUrl(form["ReturnUrl"]);
         var token = FirstRunEndpoints.Token(http, antiforgery);
         if (!FirstRunEndpoints.IsEmail(email))
-            return FirstRunEndpoints.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl), 400);
+            return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl), 400);
 
         var person = await FindPerson(db, email, ct);
         if (person is not null && person.CanLogIn(BrusselsTime.Today(time)))
@@ -53,7 +53,7 @@ public static class LoginEndpoints
             }
         }
         // Unknown email, ended Person, rate limit and mail error all give this same page.
-        return FirstRunEndpoints.Page(LoginPages.Code(token, company, null, email, returnUrl));
+        return FirstRunPages.Page(LoginPages.Code(token, company, null, email, returnUrl));
     }
 
     private static async Task<IResult> VerifyCode(
@@ -69,7 +69,7 @@ public static class LoginEndpoints
             || !await codes.VerifyAsync(person.Email!, form["code"].ToString().Trim(), ct))
         {
             HeadroomMetrics.Login(success: false);
-            return FirstRunEndpoints.Page(LoginPages.Code(
+            return FirstRunPages.Page(LoginPages.Code(
                 FirstRunEndpoints.Token(http, antiforgery), company, "The code is wrong or has expired.", email, returnUrl), 400);
         }
 

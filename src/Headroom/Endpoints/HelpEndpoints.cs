@@ -46,11 +46,13 @@ public static class HelpEndpoints
             IsFileName(name) && Source.GetManifestResourceStream($"{Prefix}images/{name}") is { } stream
                 ? Results.File(stream, ContentType(name))
                 : Results.NotFound());
-        help.MapGet("/{topic}", (string topic) =>
+        help.MapGet("/{topic}", (string topic, HttpResponse response) =>
         {
             if (!IsFileName(topic) || Source.GetManifestResourceStream($"{Prefix}{topic}.md") is not { } stream)
                 return Results.NotFound();
             using var reader = new StreamReader(stream);
+            // The client fetches this fragment. The policy blocks script and framing if a browser opens the URL directly.
+            response.Headers.ContentSecurityPolicy = "default-src 'none'; img-src 'self'; frame-ancestors 'none'";
             return Results.Content(Render(reader.ReadToEnd()), "text/html");
         });
     }

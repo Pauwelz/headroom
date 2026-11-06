@@ -46,7 +46,7 @@ public class LoginTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     {
         var client = NewClient();
         var response = await client.GetAsync("/login", TestContext.Current.CancellationToken);
-        Assert.Contains("frame-ancestors 'none'", response.Headers.GetValues("Content-Security-Policy").Single());
+        await PagePolicy.AssertAsync(response);
         var page = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Privacy notice", page);
         Assert.Contains("Acme &lt;Co&gt; is the controller", page);
