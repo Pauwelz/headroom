@@ -945,6 +945,11 @@
         "resolved": "2.12.2",
         "contentHash": "ZkT7qiJe0Kj0+DTZOZo+xrDy1kNmdsWFQVPIQLNx9ZJ0T9cB2LG7r+Bi60so8/+yg1nkS7QCPadrzsTG4VPKrA=="
       },
+      "Microsoft.Security.AntiSSRF": {
+        "type": "Transitive",
+        "resolved": "1.0.1",
+        "contentHash": "wred/odKPndZhHLWvoYGJMK82rzZ/fHF91CBil1reRyojXXDViXFhofIDoP8YukN1/UbICPs92wC9DCCLhI6LA=="
+      },
       "Microsoft.SqlServer.Server": {
         "type": "Transitive",
         "resolved": "1.0.0",
@@ -1487,6 +1492,7 @@
           "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": "[10.0.14, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.14, )",
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.14, )",
+          "Microsoft.Security.AntiSSRF": "[1.0.1, )",
           "ModelContextProtocol.AspNetCore": "[2.3.1, )",
           "OpenIddict.AspNetCore": "[7.8.0, )",
           "OpenIddict.EntityFrameworkCore": "[7.8.0, )",
