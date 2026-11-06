@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using Headroom.Client.Api;
@@ -23,9 +24,9 @@ public class TelemetryTests : IAsyncLifetime
 
     private readonly HeadroomApp _app = new();
     private readonly FakeEmailSender _mail = new();
-    private readonly List<Activity> _spans = [];
-    private readonly List<LogRecord> _logs = [];
-    private readonly List<Metric> _metrics = [];
+    private readonly LockedList<Activity> _spans = new();
+    private readonly LockedList<LogRecord> _logs = new();
+    private readonly LockedList<Metric> _metrics = new();
 
     public ValueTask InitializeAsync() => _app.InitializeAsync();
 
@@ -127,11 +128,12 @@ public class TelemetryTests : IAsyncLifetime
 
     private void AssertNothingLeaks(bool expectSqlSpans, params string[] secrets)
     {
-        Assert.Contains(_spans, s => s.GetTagItem("http.route") is not null);
+        var (spans, logs, metrics) = (_spans.Snapshot(), _logs.Snapshot(), _metrics.Snapshot());
+        Assert.Contains(spans, s => s.GetTagItem("http.route") is not null);
         if (expectSqlSpans)
-            Assert.Contains(_spans, s => s.GetTagItem("db.system.name") is not null || s.GetTagItem("db.system") is not null);
+            Assert.Contains(spans, s => s.GetTagItem("db.system.name") is not null || s.GetTagItem("db.system") is not null);
         var texts = new List<string>();
-        foreach (var span in _spans)
+        foreach (var span in spans)
         {
             texts.Add(span.DisplayName);
             texts.AddRange(span.TagObjects.SelectMany(t => new[] { t.Key, t.Value?.ToString() ?? "" }));
@@ -141,14 +143,14 @@ public class TelemetryTests : IAsyncLifetime
             Assert.Null(span.GetTagItem("db.statement"));
             Assert.Null(span.GetTagItem("db.query.text"));
         }
-        foreach (var log in _logs)
+        foreach (var log in logs)
         {
             texts.Add(log.FormattedMessage ?? "");
             texts.Add(log.Body ?? "");
             texts.AddRange(log.Attributes?.Select(a => $"{a.Key}={a.Value}") ?? []);
             log.ForEachScope((scope, list) => { foreach (var a in scope) list.Add($"{a.Key}={a.Value}"); }, texts);
         }
-        foreach (var metric in _metrics)
+        foreach (var metric in metrics)
         {
             texts.Add(metric.Name);
             foreach (var point in metric.GetMetricPoints())
@@ -156,8 +158,29 @@ public class TelemetryTests : IAsyncLifetime
         }
 
         var everything = string.Join('\n', texts);
-        Assert.NotEmpty(_logs);
+        Assert.NotEmpty(logs);
         foreach (var secret in secrets.Concat(["SELECT ", "INSERT ", "UPDATE ", "FROM ["]))
             Assert.DoesNotContain(secret, everything, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // The exporters add from background threads, also while the test reads. A lock on add and read keeps the read safe.
+    private sealed class LockedList<T> : Collection<T>
+    {
+        private readonly Lock _gate = new();
+
+        protected override void InsertItem(int index, T item)
+        {
+            lock (_gate) base.InsertItem(index, item);
+        }
+
+        protected override void ClearItems()
+        {
+            lock (_gate) base.ClearItems();
+        }
+
+        public T[] Snapshot()
+        {
+            lock (_gate) return [.. Items];
+        }
     }
 }
