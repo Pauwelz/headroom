@@ -10,12 +10,15 @@ on:
 
 permissions:
   contents: read
-  packages: write
   pull-requests: read
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
