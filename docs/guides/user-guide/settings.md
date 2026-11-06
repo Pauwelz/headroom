@@ -253,7 +253,7 @@ For example, a Power Automate flow can post to Teams.
 
 - The row at the bottom adds a Webhook with a name and a URL.
   Headroom shows the secret (`whsec_...`) once. Copy it then.
-  Use the secret to check the signature, if the receiver can.
+- The URL must use https and must point to a public address.
 - The URL must use https and must not point to an internal address.
   A development instance also accepts http.
   **Add** stays disabled until the name is filled in and the URL is valid.

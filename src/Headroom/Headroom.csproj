@@ -27,6 +27,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Security.AntiSSRF" Version="1.0.1" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.3.1" />
     <PackageReference Include="OpenIddict.AspNetCore" Version="7.8.0" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.8.0" />

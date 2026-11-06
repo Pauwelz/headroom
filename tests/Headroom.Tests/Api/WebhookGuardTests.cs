@@ -1,5 +1,6 @@
 using System.Net;
 using Headroom.Events;
+using Microsoft.Security.AntiSSRF;
 
 namespace Headroom.Tests.Api;
 
@@ -7,26 +8,21 @@ public class WebhookGuardTests
 {
     [Theory]
     [InlineData("127.0.0.1")]
-    [InlineData("::1")]
-    [InlineData("0.0.0.0")]
-    [InlineData("::")]
-    [InlineData("10.1.2.3")]
-    [InlineData("172.16.0.1")]
-    [InlineData("172.31.255.255")]
-    [InlineData("192.168.1.1")]
+    [InlineData("[::1]")]
+    [InlineData("10.0.0.1")]
     [InlineData("169.254.169.254")]
-    [InlineData("fe80::1")]
-    [InlineData("fc00::1")]
-    [InlineData("fd12:3456::1")]
-    [InlineData("::ffff:10.0.0.1")]
-    public void InternalAddressesAreBlocked(string ip) => Assert.True(WebhookGuard.IsBlocked(IPAddress.Parse(ip)));
+    [InlineData("100.64.0.1")]
+    [InlineData("168.63.129.16")]
+    [InlineData("[::ffff:10.0.0.1]")]
+    [InlineData("[fd12:3456::1]")]
+    public async Task AConnectionToANonPublicAddressIsRefused(string host)
+    {
+        using var client = new HttpClient(WebhookGuard.CreateHandler(allowInternal: false));
 
-    [Theory]
-    [InlineData("8.8.8.8")]
-    [InlineData("172.15.0.1")]
-    [InlineData("172.32.0.1")]
-    [InlineData("2606:4700::1111")]
-    public void PublicAddressesAreAllowed(string ip) => Assert.False(WebhookGuard.IsBlocked(IPAddress.Parse(ip)));
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync($"https://{host}:1/", TestContext.Current.CancellationToken));
+
+        Assert.Contains("not allowed", error.Message);
+    }
 
     [Theory]
     [InlineData("https://hooks.example.com/x", false, true)]
@@ -38,20 +34,36 @@ public class WebhookGuardTests
         Assert.Equal(valid, WebhookGuard.UrlProblem(url, development, out _) is null);
 
     [Fact]
-    public async Task TheConnectionToALoopbackAddressIsRefusedAtConnectTime()
+    public void RedirectsAreNotFollowed()
     {
-        using var client = new HttpClient(WebhookGuard.CreateHandler(allowInternal: false));
+        using var handler = (DelegatingHandler)WebhookGuard.CreateHandler(allowInternal: false);
 
-        var error = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("https://127.0.0.1:1/", cancellationToken: TestContext.Current.CancellationToken));
+        Assert.False(((AntiSSRFHandler)handler.InnerHandler!).AllowAutoRedirect);
+    }
 
-        Assert.Contains("not allowed", error.Message);
+    // A proxy would make AntiSSRF check the proxy address instead of the Webhook address.
+    [Fact]
+    public async Task ASystemProxyDoesNotBypassTheGuard()
+    {
+        var saved = HttpClient.DefaultProxy;
+        HttpClient.DefaultProxy = new WebProxy("http://1.1.1.1:1");
+        try
+        {
+            using var client = new HttpClient(WebhookGuard.CreateHandler(allowInternal: false)) { Timeout = TimeSpan.FromSeconds(5) };
+
+            var error = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("https://10.0.0.1:1/", TestContext.Current.CancellationToken));
+
+            Assert.Contains("not allowed", error.Message);
+        }
+        finally { HttpClient.DefaultProxy = saved; }
     }
 
     [Fact]
-    public void RedirectsAreNotFollowed()
+    public void TheDevelopmentHandlerUsesNoProxy()
     {
-        using var handler = WebhookGuard.CreateHandler(allowInternal: false);
+        using var handler = (SocketsHttpHandler)WebhookGuard.CreateHandler(allowInternal: true);
 
+        Assert.False(handler.UseProxy);
         Assert.False(handler.AllowAutoRedirect);
     }
 }
