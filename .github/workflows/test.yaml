@@ -1,15 +1,8 @@
 name: test
+# Runs on every PR, because the ruleset requires build-and-test. The first step skips the work
+# when no file changed that can break the build or the tests, so a CHANGELOG-only PR passes in seconds.
 on:
   pull_request:
-    # Only changes that can break the build or the tests. The tests read the user guide.
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'docs/guides/user-guide/**'
-      - 'Headroom.slnx'
-      - 'Directory.Build.props'
-      - 'dotnet-tools.json'
-      - '.github/workflows/test.yaml'
 
 permissions:
   contents: read
@@ -19,20 +12,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Find relevant changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # The tests read the user guide, so it counts too.
+          pattern='^(src/|tests/|docs/guides/user-guide/|Headroom\.slnx$|Directory\.Build\.props$|dotnet-tools\.json$|\.github/workflows/test\.yaml$)'
+          if git diff --name-only "$BASE_SHA" HEAD | grep -qE "$pattern"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No change that can break the build or the tests. Skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.changes.outputs.run == 'true'
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: '**/packages.lock.json'
       - name: Build
+        if: steps.changes.outputs.run == 'true'
         run: dotnet build Headroom.slnx
       # shortcut: one test host still opens about 100 inotify instances without watches (cause unknown).
       # The runner allows 128, so raise the limit. Remove this step when the cause is found.
       - name: Raise the inotify limit
+        if: steps.changes.outputs.run == 'true'
         run: sudo sysctl -w fs.inotify.max_user_instances=1024
       - name: Test
+        if: steps.changes.outputs.run == 'true'
         run: dotnet test Headroom.slnx --no-build
       - name: Check for pending model changes
+        if: steps.changes.outputs.run == 'true'
         run: |
           dotnet tool restore
           dotnet ef migrations has-pending-model-changes --project src/Headroom --no-build
