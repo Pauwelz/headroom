@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Data;
@@ -98,6 +99,23 @@ public static class EventRecorder
             }
         }
         return events;
+    }
+
+    // Replaces the name and email of a Person in their stored Events. Allocation and TimeOff data share these three fields.
+    // shortcut: a scan of the Event payloads, because erase and Delete are rare. Add an index if the Event table grows large.
+    public static async Task ScrubPersonAsync(HeadroomDbContext db, Guid personId, string name)
+    {
+        string Key(string property) => Json.PropertyNamingPolicy!.ConvertName(property);
+        var (idKey, nameKey, emailKey) = (Key(nameof(AllocationData.PersonId)), Key(nameof(AllocationData.PersonName)), Key(nameof(AllocationData.PersonEmail)));
+        var events = await db.Events.Where(e => e.Payload.Contains($"\"{idKey}\":\"{personId}\"")).ToListAsync();
+        foreach (var e in events)
+        {
+            var node = JsonNode.Parse(e.Payload);
+            if (node?[Key(nameof(CloudEvent.Data))] is not JsonObject data || data[idKey]?.ToString() != personId.ToString()) continue;
+            data[nameKey] = name;
+            data[emailKey] = null;
+            e.Payload = node.ToJsonString();
+        }
     }
 
     private record CloudEvent(string Specversion, string Id, string Source, string Type, DateTimeOffset Time, string Datacontenttype, object Data);

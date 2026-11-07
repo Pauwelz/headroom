@@ -49,6 +49,7 @@ public class LoginTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await PagePolicy.AssertAsync(response);
         var page = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Privacy notice", page);
+        Assert.Contains("stored Webhook Events", page);
         Assert.Contains("Acme &lt;Co&gt; is the controller", page);
 
         var code = await RequestCode(client, "FLO@example.com", "flo@example.com");

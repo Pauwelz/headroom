@@ -1,10 +1,11 @@
 using Headroom.Auth;
 using Headroom.Data;
+using Headroom.Events;
 using Microsoft.EntityFrameworkCore;
 
 namespace Headroom.People;
 
-// Erase personal details. Records of the Person stay under "Former Person N".
+// Erase personal details. Records of the Person stay under "Former Person N". Stored Events keep the placeholder name and lose the email.
 public static class PersonEraser
 {
     // The automatic erase runs 12 months after the end date. The period is fixed.
@@ -23,6 +24,7 @@ public static class PersonEraser
         person.LastChangedBy = by;
         await db.AccessTokens.Where(t => t.PersonId == person.Id).ExecuteDeleteAsync();
         await Connections.DeleteOfPersonAsync(db, person.Id);
+        await EventRecorder.ScrubPersonAsync(db, person.Id, person.DisplayName);
         await db.SaveChangesAsync();
     }
 

@@ -1,9 +1,10 @@
 using Headroom.Auth;
 using Headroom.Data;
+using Headroom.Events;
 
 namespace Headroom.People;
 
-// Runs the automatic erase at startup and on the first request of each day.
+// Runs the automatic erase and the Event sweep at startup and on the first request of each day.
 // The app scales to zero, so there is no timer.
 public sealed class ErasureCheck(IServiceScopeFactory scopes, TimeProvider time, ILogger<ErasureCheck> log)
 {
@@ -21,7 +22,9 @@ public sealed class ErasureCheck(IServiceScopeFactory scopes, TimeProvider time,
         try
         {
             using var scope = scopes.CreateScope();
-            await PersonEraser.EraseDueAsync(scope.ServiceProvider.GetRequiredService<HeadroomDbContext>(), today);
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            await PersonEraser.EraseDueAsync(db, today);
+            await EventRetention.DeleteExpiredAsync(db, time.GetUtcNow());
         }
         catch (Exception e)
         {
