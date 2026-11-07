@@ -11,12 +11,25 @@ public sealed class MigrationUpgradeTests
     // The last migration of the oldest supported release.
     // Only InitialCreate exists, so this test upgrades InitialCreate to itself. It gains meaning with the second migration.
     // Update it when a release drops support.
-    private const string OldestSupportedMigration = "20261106172820_InitialCreate";
+    private const string OldestSupportedMigration = "20261107005240_InitialCreate";
 
     [Fact]
     public async Task OldestSupportedVersionUpgradesToTheNewest()
     {
-        var options = new DbContextOptionsBuilder<HeadroomDbContext>().UseSqlServer(await TestSql.NewDatabaseAsync()).Options;
+        var connectionString = await TestSql.NewDatabaseAsync();
+        var options = new DbContextOptionsBuilder<HeadroomDbContext>().UseNpgsql(connectionString).Options;
+        try
+        {
+            await Upgrade(options);
+        }
+        finally
+        {
+            await TestSql.DropDatabaseAsync(connectionString);
+        }
+    }
+
+    private static async Task Upgrade(DbContextOptions<HeadroomDbContext> options)
+    {
         await using var db = new HeadroomDbContext(options, TimeProvider.System);
         // Fails if the constant names no migration.
         Assert.Contains(OldestSupportedMigration, db.Database.GetMigrations());

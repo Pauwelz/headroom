@@ -12,7 +12,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The privacy notice no longer promises a backup period. It says that the SQL host of the company sets it.
+- **Breaking:** Headroom now uses PostgreSQL instead of SQL Server. Databases of release 0.1.0 do not upgrade. Copy them once with the script in [Move from SQL Server](docs/guides/operator-guide.md#move-from-sql-server).
+- The privacy notice no longer promises a backup period. It says that the database host of the company sets it.
 
 ### Security
 

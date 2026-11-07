@@ -58,6 +58,18 @@ public class FirstRunTests : IClassFixture<HeadroomApp>, IAsyncDisposable
     }
 
     [Fact]
+    public async Task CodeVerifiesWhenTheEmailCaseDiffers()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var codes = scope.ServiceProvider.GetRequiredService<LoginCodeService>();
+
+        Assert.True(await codes.IssueAsync("Mixed.Case@example.com", "Acme", TestContext.Current.CancellationToken));
+        var code = _mail.Sent.Last(m => m.To == "Mixed.Case@example.com").Code;
+
+        Assert.True(await codes.VerifyAsync("mixed.case@EXAMPLE.com", code, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task CodeExpiresAfterTenMinutesAndIsLimitedToThreePerFifteenMinutes()
     {
         using var scope = _factory.Services.CreateScope();

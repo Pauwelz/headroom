@@ -4,7 +4,7 @@ Each company runs its Instance in its own Azure tenant and subscription, and pay
 
 ## Consequences
 
-- A company pays about EUR 9 per month: SQL Database Basic plus its own ACR Basic.
+- A company pays about EUR 16–19 per month: Azure Database for PostgreSQL Flexible Server (Burstable B1ms) plus its own ACR Basic. Before [ADR 0014](0014-instances-use-postgresql.md) it was about EUR 9 with SQL Database Basic.
 - Restore, data export and deletion are the company's responsibility. The Operator guide explains them.
 - Companies upgrade when they choose and can skip versions. Every older version must migrate directly to the newest, and every migration must be backward compatible with the previous release.
 - Nothing provider-specific may be hard-wired where a company could choose otherwise. Login email goes through plain SMTP, not a provider API.

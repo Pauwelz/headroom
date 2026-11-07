@@ -5,12 +5,11 @@ They use the demo data of `--seed`, a fixed 1280×800 viewport and the light the
 
 ## Take the screenshots again
 
-1. Start an empty SQL Server on port 1433 with the password from `src/Headroom/appsettings.Development.json`:
+1. Start an empty PostgreSQL on port 5432 with the password from `src/Headroom/appsettings.Development.json`:
 
    ```sh
    DOCKER_HOST=unix:///var/run/docker.sock docker run -d --name headroom-shots-sql \
-     -e ACCEPT_EULA=Y -e 'MSSQL_SA_PASSWORD=Dev_Passw0rd!' -p 1433:1433 \
-     mcr.microsoft.com/mssql/server:2022-latest
+     -e 'POSTGRES_PASSWORD=Dev_Passw0rd!' -p 5432:5432 postgres:17
    ```
 
 2. From the repo root, run the app with demo data and keep its log:

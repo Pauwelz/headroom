@@ -16,7 +16,7 @@ Headroom is one container image. It does not depend on a cloud. You choose how t
 
 - A container host that runs one Linux container. The app listens on port 8080.
   Put HTTPS termination in front of it, for example a reverse proxy or the ingress of your platform.
-- SQL Server 2019 or later, or Azure SQL Database. The app creates and migrates its schema at start.
+- PostgreSQL 17 or later, or Azure Database for PostgreSQL Flexible Server. The app creates and migrates its schema at start.
 - An SMTP server. Headroom sends the login codes through it (see [Email](#email)).
 - Optional telemetry: any OTLP backend or collector, or Azure Monitor through Application Insights, or both (see [Telemetry](#telemetry)).
 
@@ -41,7 +41,7 @@ The erase counter has no concurrency check (`PersonEraser.cs`).
 Two replicas that erase at the same time can give two Persons the same "Former Person N".
 The app may scale to zero when idle: the first request after that is slow (see ADR 0004).
 Sending Webhook Events is safe with more replicas, because a replica claims an Event before it sends.
-OAuth tokens and login cookies use the Data Protection key ring in SQL, so they work on every replica.
+OAuth tokens and login cookies use the Data Protection key ring in the database, so they work on every replica.
 
 ### Configuration
 
@@ -49,7 +49,7 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 
 | Setting | Value |
 | --- | --- |
-| `ConnectionStrings__Headroom` | The SQL connection string, with `Encrypt=True`. Use letters and digits only in the password: a `;` breaks the string |
+| `ConnectionStrings__Headroom` | The Npgsql connection string, for example `Host=<server>.postgres.database.azure.com;Database=<database>;Username=<user>;Password=<password>;SSL Mode=Require`. Use letters and digits only in the password: a `;` breaks the string |
 | `Smtp__Host` | Host name of your SMTP server |
 | `Smtp__Port` | Port, for example `587` |
 | `Smtp__Username` | SMTP user name |
@@ -66,17 +66,17 @@ The Instance uses one URL. A custom domain is your choice, as long as `BaseUri` 
 ### Health probe
 
 Configure a startup, a liveness and a readiness probe on `/health`.
-Give the startup probe up to 5 minutes: the .NET start can wait for a cold SQL database.
+Give the startup probe up to 5 minutes: the .NET start can wait for a cold database.
 The endpoint needs no login. It returns `200 Healthy` when the database answers, and `503 Unhealthy` when it does not.
 
 A failed probe means that the app cannot reach the database.
 The readiness probe takes the replica out of traffic. The liveness probe restarts it.
-Check that the SQL server is up and that the app may connect to it. Then read the logs of your host.
+Check that the PostgreSQL server is up and that the app may connect to it. Then read the logs of your host.
 
 
 ### Backups
 
-Back up the SQL database. Backups, point-in-time restore and retention are the job of your SQL host.
+Back up the database. Backups, point-in-time restore and retention are the job of your database host.
 Test a restore before you need one. Changes made after the restore time are lost.
 After a restore, the app connects again by itself.
 
@@ -129,69 +129,88 @@ Then deploy again with the version that you run now.
 
 ## Export
 
-Headroom has no export feature. The Operator makes a BACPAC file.
+Headroom has no export feature. The Operator makes a dump with `pg_dump`.
 
-1. Allow your IP address to connect to the SQL server.
+1. Allow your IP address to connect to the PostgreSQL server (on Azure: a firewall rule of the server).
 
-2. Export with `sqlpackage`:
+2. Export with `pg_dump`:
 
    ```sh
-   sqlpackage /Action:Export \
-     /SourceConnectionString:"Server=tcp:<SQL server>,1433;Initial Catalog=<database>;User ID=<user>;Password=<password>;Encrypt=True" \
-     /TargetFile:headroom.bacpac
+   PGSSLMODE=require PGPASSWORD='<password>' pg_dump --host <server>.postgres.database.azure.com \
+     --username <user> --format custom --file headroom.dump <database>
    ```
 
-3. Remove your IP address from the SQL server again.
+3. Remove your IP address from the PostgreSQL server again.
 
 The file holds personal data. Store it with care.
 
 A Planner answers an access request for one Person by hand.
 A request for full erasure, including Time off, is also handled by hand.
 Headroom erases personal details automatically 12 months after the end date.
-Your SQL host sets how long backups keep data.
+Your database host sets how long backups keep data.
 
 ## Delete the Instance
 
 Remove the container and the database. [Export](#export) first if you need the data.
-Backups of your SQL host keep the data until their retention ends. Delete them too.
+Backups of your database host keep the data until their retention ends. Delete them too.
 
 ## Recover a Planner
 
 The app keeps at least one Planner who can log in.
 But two Planners can both have a future end date.
 After those dates, nobody can log in and nobody can change the Instance.
-Then the Operator sets the Planner flag and clears the end date in SQL.
+Then the Operator sets the Planner flag and clears the end date in the database.
 
 The columns `IsPlanner` and `EndDate` are in the table `People`.
 An erased Person has no email and cannot log in. Choose a Person who is not erased.
 
-1. Allow your IP address to connect to the SQL server.
+1. Allow your IP address to connect to the PostgreSQL server.
 2. Connect to the database `<database>` with an account that can write to it.
-   Use `sqlcmd` or any other SQL client.
+   Use `psql` or any other client.
 
    ```sh
-   sqlcmd -S <SQL server> -d <database> -U <user> -P '<password>' -N
+   PGSSLMODE=require PGPASSWORD='<password>' psql --host <server>.postgres.database.azure.com --username <user> --dbname <database>
    ```
 
 3. Find the Person:
 
    ```sql
-   SELECT Id, Name, Email, IsPlanner, EndDate FROM People WHERE Email = N'person@example.com';
+   SELECT "Id", "Name", "Email", "IsPlanner", "EndDate" FROM "People" WHERE "Email" = 'person@example.com';
    ```
 
 4. Set the flag and clear the end date:
 
    ```sql
-   UPDATE People
-   SET IsPlanner = 1, EndDate = NULL, DateModified = SYSDATETIMEOFFSET(), LastChangedBy = NULL
-   WHERE Email = N'person@example.com';
+   UPDATE "People"
+   SET "IsPlanner" = true, "EndDate" = NULL, "DateModified" = now(), "LastChangedBy" = NULL
+   WHERE "Email" = 'person@example.com';
    ```
 
-   `LastChangedBy = NULL` marks the change as a system change.
+   `"LastChangedBy" = NULL` marks the change as a system change.
 5. Check that one row changed. Remove your IP address again.
 6. Ask the Person to log in. The Person can now give the Planner flag to others.
 
 The Person keeps their Contracts. A Person with no Contract from today still logs in, but has no Capacity.
+
+## Move from SQL Server
+
+Release 0.1.0 used SQL Server. Databases of that release cannot upgrade to PostgreSQL.
+A one-time script copies the data. It needs the .NET 10 SDK.
+The script empties the target tables, except `__EFMigrationsHistory`.
+It copies every table in foreign-key order in one transaction, and converts times to UTC.
+
+1. Stop the old app. Scale it to zero.
+2. Create the PostgreSQL database.
+3. Deploy the new version against the PostgreSQL database. Let it start once, so it creates the schema.
+4. Stop the app again.
+5. Run the script from the repo root:
+
+   ```sh
+   dotnet run scripts/migrate-sqlserver-to-postgres.cs -- "<SQL Server connection string>" "<PostgreSQL connection string>"
+   ```
+
+6. Start the app.
+7. Log in and check the data. Delete the old SQL database when you are sure.
 
 ## Telemetry
 
@@ -203,11 +222,11 @@ Headroom can send traces, metrics and logs with OpenTelemetry. You choose the ta
 
 Without either setting, Headroom sends nothing. The data goes only to the targets that you set. Headroom sends it nowhere else.
 The filter for personal data (below) runs before every exporter.
-SQL spans exist with Azure Monitor only.
+Database spans exist with Azure Monitor only.
 
 The telemetry holds no personal data:
 - Requests show the route template, such as `/api/people/{id}`. They show no path with ids and no query string.
-- SQL calls show no statement text.
+- Database calls show no statement text.
 - Headroom adds no Person id, name or email to spans, logs or log scopes.
 - Headroom does not log Login codes or email addresses.
 

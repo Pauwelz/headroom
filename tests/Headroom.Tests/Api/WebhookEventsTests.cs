@@ -256,6 +256,7 @@ public class WebhookEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var busy = await AddWebhook("Busy");
         var quiet = await AddWebhook("Quiet");
         var start = DateTimeOffset.UtcNow.AddHours(-3);
+        start = start.AddTicks(-start.Ticks % 10); // PostgreSQL stores microseconds
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();

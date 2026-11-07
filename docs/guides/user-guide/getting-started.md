@@ -50,7 +50,7 @@ Your login stops the day after your end date.
 The login screen has a "Privacy notice" link. Click it to open the notice. It names the company that controls your data.
 It says what Headroom stores: your name, email, Contracts, Allocations and Time off.
 Headroom erases your personal details 12 months after your end date.
-The SQL host of your company sets how long backups keep data.
+The database host of your company sets how long backups keep data.
 
 To log out, select **Sign out** in the header.
 

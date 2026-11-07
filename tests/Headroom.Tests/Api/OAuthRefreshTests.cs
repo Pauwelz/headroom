@@ -143,7 +143,7 @@ public class OAuthRefreshTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var app = await _flow.AddAppAsync();
         var tokens = await _flow.TokensAsync(app, Ann);
 
-        // A new host on the same database is a restart: only SQL carries over.
+        // A new host on the same database is a restart: only the database carries over.
         await using var restarted = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
             b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Headroom"] = _app.ConnectionString }));
