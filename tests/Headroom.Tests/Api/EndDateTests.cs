@@ -53,7 +53,7 @@ public class EndDateTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _ann = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     [Fact]
     public async Task TheCutDeletesOrShortensRecordsAfterTheEndDateAlsoOnArchivedProjects()
