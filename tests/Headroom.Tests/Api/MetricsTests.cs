@@ -55,6 +55,28 @@ public class MetricsTests(MetricsApp app) : IClassFixture<MetricsApp>, IAsyncLif
     }
 
     [Fact]
+    public async Task PasskeyLoginsAreCounted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = await TestLogin.SignInAsync(_factory, _mail, Email);
+        var xsrf = await TestLogin.ApiTokenAsync(client);
+        using var authenticator = new TestAuthenticator();
+        async Task<HttpResponseMessage> Post(HttpClient c, string url, string? json) =>
+            await c.SendAsync(new HttpRequestMessage(HttpMethod.Post, url) { Content = json is null ? null : new StringContent(json, System.Text.Encoding.UTF8, "application/json"), Headers = { { AntiforgeryToken.HeaderName, xsrf } } }, ct);
+        var options = await (await Post(client, "/api/me/passkeys/options", null)).Content.ReadAsStringAsync(ct);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post(client, "/api/me/passkeys", authenticator.CreateAttestation(options))).StatusCode);
+        var (success, failed) = (app.Total("headroom.logins", "result", "success"), app.Total("headroom.logins", "result", "failed"));
+
+        var anonymous = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+        var login = await (await Post(anonymous, "/login/passkey/options", null)).Content.ReadAsStringAsync(ct);
+        Assert.Equal(HttpStatusCode.OK, (await Post(anonymous, "/login/passkey", authenticator.CreateAssertion(login))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post(anonymous, "/login/passkey", "{}")).StatusCode);
+
+        Assert.True(app.Total("headroom.logins", "result", "success") > success);
+        Assert.True(app.Total("headroom.logins", "result", "failed") > failed);
+    }
+
+    [Fact]
     public async Task AFailedLoginCodeEmailIsCounted()
     {
         var failed = app.Total("headroom.login_code_emails", "result", "failed");

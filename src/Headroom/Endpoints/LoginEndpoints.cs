@@ -17,14 +17,19 @@ public static class LoginEndpoints
         group.MapGet("/", ShowForm);
         group.MapPost("/", SendCode);
         group.MapPost("/verify", VerifyCode);
+        group.MapPost("/passkey/options", (HttpContext http, PasskeyCeremony ceremony) =>
+            Results.Content(ceremony.BeginLogin(http, PasskeyPath), "application/json"));
+        group.MapPost("/passkey", PasskeyLogin);
     }
+
+    private const string PasskeyPath = "/login/passkey";
 
     private static async Task<IResult> ShowForm(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery)
     {
         var returnUrl = SafeReturnUrl(http.Request.Query["ReturnUrl"]);
         if (http.User.Identity?.IsAuthenticated == true) return Results.Redirect(returnUrl);
         return await Company(db) is { } company
-            ? FirstRunPages.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, null, "", returnUrl))
+            ? FirstRunPages.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, null, "", returnUrl), allowLoginScript: true)
             : Results.Redirect("/first-run");
     }
 
@@ -37,7 +42,7 @@ public static class LoginEndpoints
         var returnUrl = SafeReturnUrl(form["ReturnUrl"]);
         var token = FirstRunEndpoints.Token(http, antiforgery);
         if (!FirstRunEndpoints.IsEmail(email))
-            return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl), 400);
+            return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl), 400, allowLoginScript: true);
 
         var person = await FindPerson(db, email, ct);
         if (person is not null && person.CanLogIn(BrusselsTime.Today(time)))
@@ -76,6 +81,26 @@ public static class LoginEndpoints
         HeadroomMetrics.Login(success: true);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
         return Results.Redirect(returnUrl);
+    }
+
+    // The body is the credential.toJSON() of the browser. The answer is JSON, because the login script follows the redirect itself.
+    private static async Task<IResult> PasskeyLogin(
+        HttpContext http, HeadroomDbContext db, PasskeyCeremony ceremony, TimeProvider time, string? returnUrl, CancellationToken ct)
+    {
+        using var reader = new StreamReader(http.Request.Body);
+        var passkey = await ceremony.CompleteLoginAsync(http, await reader.ReadToEndAsync(ct), PasskeyPath, db);
+        var person = passkey is null ? null : await db.People.FirstOrDefaultAsync(p => p.Id == passkey.PersonId, ct);
+        if (passkey is null || person is null || !person.CanLogIn(BrusselsTime.Today(time)))
+        {
+            HeadroomMetrics.Login(success: false);
+            return Results.BadRequest(new { error = "Headroom could not log you in with this passkey. Use a login code instead." });
+        }
+
+        passkey.LastUsedAt = time.GetUtcNow();
+        await db.SaveChangesAsync(ct);
+        HeadroomMetrics.Login(success: true);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        return Results.Ok(new { redirect = SafeReturnUrl(returnUrl) });
     }
 
     // After login the Person returns to an authorize request of a Connected app. Nowhere else: no open redirect.

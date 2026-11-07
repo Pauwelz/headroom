@@ -101,3 +101,4 @@ main > form { margin-bottom: 4rem; }
     h1 { font-size: 1.875rem; }
     button { justify-self: stretch; }
 }
+#passkey-login { margin-top: 1rem; }
