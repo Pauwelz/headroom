@@ -18,10 +18,10 @@ public static class ApiCall
     /// <summary>The text to show for a refused request. An empty or non-JSON body gives a generic text.</summary>
     public static async Task<string> ErrorTextAsync(HttpResponseMessage response)
     {
-        if (response.StatusCode == HttpStatusCode.Forbidden) return "Only a Planner can do this.";
         string? detail = null;
         try { detail = (await response.Content.ReadFromJsonAsync<Problem>())?.Detail; }
         catch (Exception e) when (e is JsonException or NotSupportedException) { }
-        return string.IsNullOrWhiteSpace(detail) ? $"The server refused the request ({(int)response.StatusCode})." : detail;
+        if (!string.IsNullOrWhiteSpace(detail)) return detail;
+        return response.StatusCode == HttpStatusCode.Forbidden ? "Only a Planner can do this." : $"The server refused the request ({(int)response.StatusCode}).";
     }
 }
