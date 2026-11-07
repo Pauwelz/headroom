@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Headroom.Allocations;
 
 /// <summary>The values that always travel together when an Allocation is placed.</summary>
-public sealed record AllocationPlacement(Guid PersonId, Guid ProjectId, DateOnly Start, DateOnly End, int Percentage);
+internal sealed record AllocationPlacement(Guid PersonId, Guid ProjectId, DateOnly Start, DateOnly End, int Percentage);
 
 /// <summary>Allocation writes with their rules. REST and MCP both call this. A null result means the change is done.</summary>
 public static class AllocationWrites
