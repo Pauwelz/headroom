@@ -84,6 +84,10 @@ _Avoid_: Occupancy, load
 The 6-digit code that Headroom sends by email to a Person so they can log in. It works for a short time and only once. The first Planner gets one during setup.
 _Avoid_: OTP, password, magic link
 
+**Passkey**:
+A key on a device or in a password manager that lets a Person log in without a Login code. A Person can have several. Each one works only for the Instance where they saved it.
+_Avoid_: WebAuthn credential, security key, FIDO key, password
+
 **Event**:
 A message that Headroom sends when an Allocation, Time off or Project status changes. It carries the full record. Headroom sends it to every Webhook, and the receiver decides what to do with it.
 _Avoid_: Notification, hook

@@ -8,6 +8,6 @@ Headroom shows who works on which Project, who is over-allocated, and who has he
 - [Projects page](projects.md)
 - [Utilisation report](utilisation.md)
 - [People page](people.md) (Planners only)
-- [Access tokens page](access-tokens.md)
+- [Account page](account.md)
 - [Settings page](settings.md) (Planners only), with Webhooks
 - [Privacy requests](privacy.md)

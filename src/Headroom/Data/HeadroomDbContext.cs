@@ -15,6 +15,7 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
     public DbSet<TimeOff> TimeOff => Set<TimeOff>();
     public DbSet<CompanyDayOff> CompanyDaysOff => Set<CompanyDayOff>();
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
+    public DbSet<Passkey> Passkeys => Set<Passkey>();
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Allocation> Allocations => Set<Allocation>();
@@ -74,6 +75,14 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
             token.Property(t => t.TokenHash).HasMaxLength(32).IsFixedLength();
             token.HasIndex(t => t.TokenHash).IsUnique();
             token.HasOne<Person>().WithMany().HasForeignKey(t => t.PersonId);
+        });
+        modelBuilder.Entity<Passkey>(passkey =>
+        {
+            passkey.Property(p => p.Id).ValueGeneratedNever();
+            passkey.Property(p => p.Name).HasMaxLength(200);
+            passkey.Property(p => p.CredentialId).HasMaxLength(1024);
+            passkey.HasIndex(p => p.CredentialId).IsUnique();
+            passkey.HasOne<Person>().WithMany().HasForeignKey(p => p.PersonId);
         });
         modelBuilder.Entity<Client>(client =>
         {

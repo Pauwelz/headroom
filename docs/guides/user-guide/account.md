@@ -1,4 +1,26 @@
-# Access tokens page
+# Account page
+
+The Account page holds your own login settings: your Passkeys, your Access tokens and your Connections.
+
+## Passkeys
+
+A Passkey lets you log in without waiting for a Login code. Your device or password manager keeps the Passkey.
+The Login code always keeps working. Use it to log in the first time, on a new device, or after you lose a Passkey.
+
+- To save a Passkey, select **Save a Passkey** and follow the prompt of your browser or password manager.
+  The button shows only when your browser supports Passkeys.
+- Headroom names the Passkey from your browser and system, for example "Firefox on Linux". You cannot rename it.
+  The list shows the name, the creation date and the date you last used the Passkey.
+- You can save several Passkeys, for example one for your laptop and one for your phone.
+- To log in with a Passkey, open the login screen. Select **Log in with a Passkey**.
+  Your browser can also offer the Passkey when you select the **Email** field. Choose it there.
+  You do not enter an email address first.
+- **Remove** deletes one Passkey at once. The device of that Passkey can no longer log in. Your other Passkeys keep working.
+- You see only your own Passkeys on this page.
+- A Person who has left cannot log in with a Passkey. When a Planner erases your personal details, Headroom deletes your Passkeys.
+- A Passkey belongs to the domain of your Instance. If your Operator changes the domain, all Passkeys stop working. Log in with a Login code and save a new Passkey.
+
+## Access tokens
 
 An Access token lets a script or an AI assistant call Headroom for you.
 The token belongs to you and has your rights, and no more.
@@ -30,7 +52,7 @@ A Connection lets a Connected app, such as Claude, act as you.
 You make a Connection when you allow the app on its consent screen. The Connection has your rights, and no more.
 It is not an Access token. Use an Access token only for a client that cannot use a Connected app.
 
-![The Connections list on the Access tokens page with one Connection to Claude](images/access-tokens-connections.png)
+![The Connections list on the Account page with one Connection to Claude](images/account-connections.png)
 
 - The list shows each Connection with the Connected app, **Can change**, the date it was created and **Last used**.
   **Last used** is the date of the newest token of the Connection. A Connection that no one used yet shows "Never".

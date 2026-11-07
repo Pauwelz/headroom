@@ -9,7 +9,7 @@ public record NavItem(string Label, string Href, string Icon, bool PlannerOnly =
         new("Projects", "/projects", MudBlazor.Icons.Material.Filled.Folder),
         new("People", "/people", MudBlazor.Icons.Material.Filled.People, PlannerOnly: true),
         new("Utilisation", "/utilisation", MudBlazor.Icons.Material.Filled.BarChart),
-        new("Access tokens", "/access-tokens", MudBlazor.Icons.Material.Filled.VpnKey),
+        new("Account", "/account", MudBlazor.Icons.Material.Filled.VpnKey),
         new("Settings", "/settings", MudBlazor.Icons.Material.Filled.Settings, PlannerOnly: true),
     ];
 
