@@ -25,4 +25,14 @@ public class ApiNamesTests
     [InlineData("0")]
     [InlineData(null)]
     public void AnUnknownDayPartNameIsRefused(string? name) => Assert.False(DayPartNames.TryParse(name, out _));
+
+    [Fact]
+    public void TheClientAndTheServerAgreeOnTheDayOffTypeNames()
+    {
+        Assert.Equal(nameof(CompanyDayOff), DayOffTypeName.CompanyDayOff);
+    }
+
+    [Fact]
+    public void AProjectLabelIsClientSlashProject() =>
+        Assert.Equal("Acme / Website", ProjectLabel.Format("Acme", "Website"));
 }

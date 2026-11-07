@@ -60,7 +60,7 @@
                     <tbody>
                         @foreach (var day in _days)
                         {
-                            @if (day.Type == "PublicHoliday")
+                            @if (day.Type == DayOffTypeName.PublicHoliday)
                             {
                                 <tr style="color: var(--mud-palette-text-disabled)">
                                     <td>@DisplayDate.Format(day.Date)</td>

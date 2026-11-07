@@ -286,7 +286,7 @@
     private readonly Dictionary<Guid, int> _addCounts = [];
     private int AddCount(Guid personId) => _addCounts.GetValueOrDefault(personId);
 
-    private static string ChoiceLabel(ScheduleProject project) => $"{project.ClientName} / {project.ProjectName}";
+    private static string ChoiceLabel(ScheduleProject project) => ProjectLabel.Format(project.ClientName, project.ProjectName);
 
     private void AddChoice(Guid personId, ScheduleProject? project)
     {
@@ -334,7 +334,7 @@
     // Shading behind the rows: weekends, public holidays and Company days off.
     private string CellClass(DateOnly day, string kind)
     {
-        var shade = _daysOff.TryGetValue(day, out var off) ? (off.Type == "PublicHoliday" ? "ph" : "co")
+        var shade = _daysOff.TryGetValue(day, out var off) ? (off.Type == DayOffTypeName.PublicHoliday ? "ph" : "co")
             : IsWorkingDay(day) ? "" : "weekend";
         return $"{kind} {shade}";
     }
@@ -470,7 +470,7 @@
     private async Task ShowAllocationDialogAsync(string title, Guid personId, Guid projectId, ScheduleAllocation bar)
     {
         var projects = Clients.Where(c => c.InPickers).SelectMany(c => c.Projects
-            .Where(p => p.Status != ProjectStatusName.Archived).Select(p => new AllocationDialog.ProjectChoice(p.Id, $"{c.Name} / {p.Name}"))).ToList();
+            .Where(p => p.Status != ProjectStatusName.Archived).Select(p => new AllocationDialog.ProjectChoice(p.Id, ProjectLabel.Format(c.Name, p.Name)))).ToList();
         var parameters = new DialogParameters<AllocationDialog>
         {
             { x => x.Bar, bar }, { x => x.PersonId, personId }, { x => x.ProjectId, projectId },

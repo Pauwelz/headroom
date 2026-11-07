@@ -80,8 +80,8 @@ public class ScheduleBuilderTests
         var company = new Dictionary<DateOnly, string> { [Mon.AddDays(2)] = "Closure" };
         var response = Build(Mon, Fri, new Holidays(Mon), company, Person("Ann"));
 
-        Assert.Contains(response.DaysOff, d => d.Date == Mon && d.Type == "PublicHoliday");
-        Assert.Contains(response.DaysOff, d => d.Date == Mon.AddDays(2) && d is { Type: "CompanyDayOff", Name: "Closure" });
+        Assert.Contains(response.DaysOff, d => d.Date == Mon && d.Type == DayOffTypeName.PublicHoliday);
+        Assert.Contains(response.DaysOff, d => d.Date == Mon.AddDays(2) && d is { Type: DayOffTypeName.CompanyDayOff, Name: "Closure" });
         Assert.Equal(0, One(response).Days[2].Capacity);
     }
 

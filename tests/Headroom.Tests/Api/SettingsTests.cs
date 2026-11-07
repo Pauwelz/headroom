@@ -63,12 +63,12 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var edited = await Send(client, token, HttpMethod.Put, $"{Url}/{day.Id}", new DayOffRequest(new(2031, 5, 3), "Closure"));
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
         var list = await client.GetFromJsonAsync<List<DayOffResponse>>($"{Url}?year=2031", cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Contains(list!, d => d.Type == "CompanyDayOff" && d.Date == new DateOnly(2031, 5, 3) && d.Name == "Closure");
-        Assert.DoesNotContain(list!, d => d.Date == new DateOnly(2031, 5, 2) && d.Type == "CompanyDayOff");
+        Assert.Contains(list!, d => d.Type == DayOffTypeName.CompanyDayOff && d.Date == new DateOnly(2031, 5, 3) && d.Name == "Closure");
+        Assert.DoesNotContain(list!, d => d.Date == new DateOnly(2031, 5, 2) && d.Type == DayOffTypeName.CompanyDayOff);
 
         Assert.Equal(HttpStatusCode.NoContent, (await Send(client, token, HttpMethod.Delete, $"{Url}/{day.Id}", null)).StatusCode);
         list = await client.GetFromJsonAsync<List<DayOffResponse>>($"{Url}?year=2031", cancellationToken: TestContext.Current.CancellationToken);
-        Assert.DoesNotContain(list!, d => d.Type == "CompanyDayOff");
+        Assert.DoesNotContain(list!, d => d.Type == DayOffTypeName.CompanyDayOff);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var list = await client.GetFromJsonAsync<List<DayOffResponse>>($"{Url}?year=2026", cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Contains(list!, d => d.Type == "PublicHoliday" && d.Id is null && d.Date == new DateOnly(2026, 7, 21));
+        Assert.Contains(list!, d => d.Type == DayOffTypeName.PublicHoliday && d.Id is null && d.Date == new DateOnly(2026, 7, 21));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
 public class DayOffNotesTests
 {
-    private static readonly DayOffResponse Holiday = new("PublicHoliday", null, new(2026, 7, 21), "Nationale feestdag");
+    private static readonly DayOffResponse Holiday = new(DayOffTypeName.PublicHoliday, null, new(2026, 7, 21), "Nationale feestdag");
 
     [Fact]
     public void WarnsWhenTheDateIsAPublicHoliday() =>

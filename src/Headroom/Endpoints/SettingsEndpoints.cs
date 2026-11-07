@@ -24,9 +24,9 @@ public static class SettingsEndpoints
         if (year is < 1900 or > 2200) return Results.BadRequest("Year out of range.");
         var own = await db.CompanyDaysOff.AsNoTracking()
             .Where(d => d.Date.Year == year)
-            .Select(d => new DayOffResponse("CompanyDayOff", d.Id, d.Date, d.Name))
+            .Select(d => new DayOffResponse(DayOffTypeName.CompanyDayOff, d.Id, d.Date, d.Name))
             .ToListAsync();
-        var all = own.Concat(holidays.InYear(year).Select(h => new DayOffResponse("PublicHoliday", null, h.Key, h.Value)));
+        var all = own.Concat(holidays.InYear(year).Select(h => new DayOffResponse(DayOffTypeName.PublicHoliday, null, h.Key, h.Value)));
         return Results.Ok(all.OrderBy(d => d.Date).ThenBy(d => d.Type));
     }
 
@@ -62,7 +62,7 @@ public static class SettingsEndpoints
         return Results.NoContent();
     }
 
-    private static DayOffResponse ToResponse(CompanyDayOff d) => new("CompanyDayOff", d.Id, d.Date, d.Name);
+    private static DayOffResponse ToResponse(CompanyDayOff d) => new(DayOffTypeName.CompanyDayOff, d.Id, d.Date, d.Name);
 
     private static IResult? Validate(DayOffRequest request) =>
         string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200

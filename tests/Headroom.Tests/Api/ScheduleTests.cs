@@ -89,7 +89,7 @@ public class ScheduleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var days = schedule.People[0].Days;
         Assert.Equal([8m, 8m, 0m, 8m, 8m, 0m, 0m], days.Select(d => d.Capacity));
-        Assert.Contains(schedule.DaysOff, d => d is { Type: "CompanyDayOff", Name: "Closure" } && d.Date == new DateOnly(2026, 3, 4));
+        Assert.Contains(schedule.DaysOff, d => d is { Type: DayOffTypeName.CompanyDayOff, Name: "Closure" } && d.Date == new DateOnly(2026, 3, 4));
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class ScheduleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var root = schedule.RootElement;
         Assert.Equal(("Schedule", "2026-03-02", "2026-03-08"),
             (root.GetProperty("type").GetString(), root.GetProperty("startDate").GetString(), root.GetProperty("endDate").GetString()));
-        Assert.Equal("CompanyDayOff", root.GetProperty("daysOff")[0].GetProperty("type").GetString());
+        Assert.Equal(DayOffTypeName.CompanyDayOff, root.GetProperty("daysOff")[0].GetProperty("type").GetString());
         var day = root.GetProperty("people")[0].GetProperty("days")[0];
         Assert.Equal("ScheduleDay", day.GetProperty("type").GetString());
         Assert.True(day.TryGetProperty("utilisation", out _));

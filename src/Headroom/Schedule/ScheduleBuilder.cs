@@ -58,8 +58,8 @@ public static class ScheduleBuilder
         DateOnly day, IPublicHolidays holidays, IReadOnlyDictionary<DateOnly, string> companyDays)
     {
         if (holidays.IsPublicHoliday(day))
-            yield return new ScheduleDayOff("PublicHoliday", day, holidays.InYear(day.Year).GetValueOrDefault(day, "Public holiday"));
-        if (companyDays.TryGetValue(day, out var name)) yield return new ScheduleDayOff("CompanyDayOff", day, name);
+            yield return new ScheduleDayOff(DayOffTypeName.PublicHoliday, day, holidays.InYear(day.Year).GetValueOrDefault(day, "Public holiday"));
+        if (companyDays.TryGetValue(day, out var name)) yield return new ScheduleDayOff(DayOffTypeName.CompanyDayOff, day, name);
     }
 
     private static SchedulePerson ToPerson(
