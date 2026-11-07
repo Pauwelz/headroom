@@ -11,6 +11,7 @@ Issues and specs for this repo live as GitHub issues in `Pauwelz/headroom`. Use 
 - **Edit labels**: `gh issue edit <number> --add-label "<label>" --remove-label "<label>"`.
 - **Edit the milestone**: `gh issue edit <number> --milestone "<title>"`.
 - **Close**: `gh issue close <number>`.
+- **Merge a PR**: `gh pr merge <number> --squash`. The repo does not allow merge commits.
 - **Dependencies**: `gh api` with the REST endpoints below.
 
 Run `gh issue <command> --help` for exact flags. `gh` infers the repo from the git remote `origin`. Use `-R Pauwelz/headroom` to be explicit.

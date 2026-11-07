@@ -8,6 +8,14 @@ dotnet test
 
 Database tests need a local Docker daemon (ADR 0005).
 
+To list only the failing tests, run `dotnet test --no-ansi 2>&1 | grep '^failed '`.
+
+## The shared app host
+
+The tests of one class share one app host and one database. The order of the tests in a class is not fixed.
+A test that changes seed data, for example the end date or the Passkeys of a Person, uses a Person that no other test in the class uses.
+Add a new Person to the seed data of the class for it.
+
 ## The shared PostgreSQL container
 
 All test runs on one machine share one PostgreSQL 17 container (`postgres:17`), also across worktrees and agents (ADR 0009).

@@ -2,15 +2,17 @@ name: pr-image
 # Builds an image of each PR for the Test Instance. It runs next to the tests.
 # Deploy it with the workflow deploy-test (image pr) only after the checks of the PR are green.
 # Forks get a read-only token and cannot push.
+# A draft PR gets no image. Marking it ready for review starts the build.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
 jobs:
   image:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       contents: read

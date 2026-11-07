@@ -40,5 +40,6 @@ echo "Mailpit: http://localhost:8025"
 echo "Log in as planner@example.test or person@example.test. The codes arrive in Mailpit."
 
 cd "$(dirname "$0")/.."
-ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5002 Smtp__Host=localhost \
+# BaseUri must match the address, or the Passkey origin check fails.
+ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5002 BaseUri=http://localhost:5002 Smtp__Host=localhost \
   dotnet run --project src/Headroom --no-launch-profile -- --seed
