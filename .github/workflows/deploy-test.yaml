@@ -119,7 +119,7 @@ jobs:
             exit 1
           fi
           [[ "$PG_DATABASE" == *-test-* ]] || { echo "Refused: database '$PG_DATABASE' is not a Test Instance database." >&2; exit 1; }
-          pg=(--resource-group "$RESOURCE_GROUP" --server-name "$PG_SERVER" --database-name "$PG_DATABASE")
+          pg=(--resource-group "$RESOURCE_GROUP" --server-name "$PG_SERVER" --name "$PG_DATABASE")
           # shortcut: Flexible Server has no rename, so delete first, then create. A failed create leaves no database: rerun the workflow.
           if az postgres flexible-server db show "${pg[@]}" --output none 2>/dev/null; then
             az postgres flexible-server db delete "${pg[@]}" --yes
