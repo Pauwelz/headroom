@@ -21,6 +21,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string Ann = "oauth-ann@example.com";
     private const string Demoted = "oauth-demoted@example.com";
     private const string Old = "oauth-old@example.com";
+    private const string Fallen = "oauth-fallen@example.com";
     private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly OAuthFlow _flow;
@@ -42,6 +43,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         db.People.Add(ann);
         db.People.Add(new Person { Name = "Zed", Email = "oauth-zed@example.com" });
         db.People.Add(new Person { Name = "Old", Email = Old });
+        db.People.Add(new Person { Name = "Fallen", Email = Fallen, IsPlanner = true });
         db.People.Add(new Person { Name = "Demoted", Email = Demoted, IsPlanner = true });
         var client = new Headroom.Data.Client { Name = "Client" };
         db.Clients.Add(client);
@@ -378,6 +380,31 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
                 .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, false), Ct);
 
         Assert.True((await mcp.CallToolAsync("create_allocation", args, cancellationToken: Ct)).IsError);
+    }
+
+    [Fact]
+    public async Task AConnectionWithCanChangeKeepsWorkingOnlyForItsOwnTimeOffAfterItsPersonLosesThePlannerRole()
+    {
+        var token = await _flow.TokenAsync(await _flow.AddAppAsync(), Fallen, canChange: true);
+        using (var scope = _factory.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People.Where(p => p.Email == Fallen)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, false), Ct);
+        Guid fallen, zed;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            fallen = (await db.People.SingleAsync(p => p.Email == Fallen, Ct)).Id;
+            zed = (await db.People.SingleAsync(p => p.Email == "oauth-zed@example.com", Ct)).Id;
+        }
+        Dictionary<string, object?> Args(Guid personId) => new() { ["personId"] = personId, ["startDate"] = "2026-12-01", ["startPart"] = "morning", ["endDate"] = "2026-12-01", ["endPart"] = "afternoon" };
+
+        await using var mcp = await McpAsync(token);
+        var own = await mcp.CallToolAsync("add_time_off", Args(fallen), cancellationToken: Ct);
+        var other = await mcp.CallToolAsync("add_time_off", Args(zed), cancellationToken: Ct);
+
+        Assert.NotEqual(true, own.IsError);
+        Assert.True(other.IsError);
+        Assert.Contains("You can only change your own Time off.", string.Join(" ", other.Content.OfType<TextContentBlock>().Select(c => c.Text)));
     }
 
     [Fact]

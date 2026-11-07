@@ -8,9 +8,9 @@ namespace Headroom.Mcp;
 public static class McpWriteGuard
 {
     // Can change: needed by every write tool. What the Person may write is up to the tool.
-    public static ClaimsPrincipal CanChange(IHttpContextAccessor http) => CanChange(http.HttpContext!.User);
+    public static ClaimsPrincipal RequireCanChange(IHttpContextAccessor http) => RequireCanChange(http.HttpContext!.User);
 
-    public static ClaimsPrincipal CanChange(ClaimsPrincipal user) => user.CanChange()
+    public static ClaimsPrincipal RequireCanChange(ClaimsPrincipal user) => user.CanChange()
         ? user
         : throw new McpException("This token is read only. Use a token or Connection with \"Can change\" to change data.");
 
@@ -21,6 +21,6 @@ public static class McpWriteGuard
     {
         if (!user.IsInRole(PersonPrincipal.PlannerRole))
             throw new McpException("Only a Planner can change data. The Person of this token is not a Planner.");
-        return CanChange(user).PersonId()!.Value; // authentication fails without a Person
+        return RequireCanChange(user).PersonId()!.Value; // authentication fails without a Person
     }
 }

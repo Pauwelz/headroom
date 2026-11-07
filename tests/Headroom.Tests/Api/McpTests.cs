@@ -310,6 +310,18 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task AReadOnlyTokenCannotChangeOrDeleteTimeOff()
+    {
+        await using var mcp = await ConnectAsync();
+
+        var changed = await ErrorAsync(mcp, "change_time_off", new() { ["id"] = Guid.NewGuid(), ["startDate"] = "2026-04-07", ["startPart"] = "morning", ["endDate"] = "2026-04-08", ["endPart"] = "afternoon" });
+        var deleted = await ErrorAsync(mcp, "delete_time_off", new() { ["id"] = Guid.NewGuid() });
+
+        Assert.Contains("read only", changed);
+        Assert.Contains("read only", deleted);
+    }
+
+    [Fact]
     public async Task ATokenOfAPersonWhoIsNoPlannerCannotDeleteTimeOffOfAnotherPerson()
     {
         await using var planner = await ConnectAsync(secret: WriterSecret);

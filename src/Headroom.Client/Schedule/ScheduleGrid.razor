@@ -95,7 +95,7 @@
                         var (first, last) = Preview(a);
                         <AllocationBar @key="a.Id" Bar="a" Status="@project.Status" RowName="@($"{person.Name}, {project.ProjectName}")" Editable="editable" First="first" Last="last"
                                        Style="@Span(first, last)" Days="@VisibleDays(first, last)"
-                                       OnPress="@(p => StartDrag(person.Id, project.ProjectId, a, p.Mode, p.Day, p.Args))"
+                                       OnPress="@(p => StartDrag(person.Id, edit.Allocations, project.ProjectId, a, p.Mode, p.Day, p.Args))"
                                        OnRelease="@(day => DropAsync(person.Id, project.ProjectId, day))"
                                        OnPercentage="OnPercentage" OnEdit="() => EditAsync(person, project, a)"
                                        OnSplit="at => RunAsync(Api.SplitAllocationAsync(a.Id, at))"
@@ -385,9 +385,9 @@
         if (canEdit) _timeOffDrag = new(personId, null, bar, bar.StartDate, bar.EndDate, mode, day);
     }
 
-    private void StartDrag(Guid personId, Guid projectId, ScheduleAllocation bar, DragMode mode, DateOnly day, PointerEventArgs e)
+    private void StartDrag(Guid personId, bool canEdit, Guid projectId, ScheduleAllocation bar, DragMode mode, DateOnly day, PointerEventArgs e)
     {
-        if (IsPlanner && e.Button == 0) _allocationDrag = new(personId, projectId, bar, bar.StartDate, bar.EndDate, mode, day);
+        if (canEdit && e.Button == 0) _allocationDrag = new(personId, projectId, bar, bar.StartDate, bar.EndDate, mode, day);
     }
 
     private void CancelDrag() => (_timeOffDrag, _allocationDrag) = (null, null);
