@@ -6,6 +6,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### Added
 
 - Each GitHub Release carries the build provenance of its image as `headroom-X.Y.Z.sigstore.json`.
