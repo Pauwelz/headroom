@@ -13,16 +13,16 @@ else
         @foreach (var day in Days)
         {
             <span class="seg"
-                  @onpointerdown='e => PressAsync("move", day, e)'
+                  @onpointerdown='e => PressAsync(DragMode.Move, day, e)'
                   @onpointerup="() => OnRelease.InvokeAsync(day)" @onpointerup:stopPropagation="true"
                   @oncontextmenu="e => OpenMenuAsync(day, e)" @oncontextmenu:preventDefault="true">
                 @if (day == First)
                 {
-                    <i class="edge l" @onpointerdown='e => PressAsync("start", day, e)' @onpointerdown:stopPropagation="true"></i>
+                    <i class="edge l" @onpointerdown='e => PressAsync(DragMode.Start, day, e)' @onpointerdown:stopPropagation="true"></i>
                 }
                 @if (day == Last)
                 {
-                    <i class="edge r" @onpointerdown='e => PressAsync("end", day, e)' @onpointerdown:stopPropagation="true"></i>
+                    <i class="edge r" @onpointerdown='e => PressAsync(DragMode.End, day, e)' @onpointerdown:stopPropagation="true"></i>
                 }
             </span>
         }
@@ -69,7 +69,7 @@ else
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
 
-    [Parameter] public EventCallback<(string Mode, DateOnly Day, PointerEventArgs Args)> OnPress { get; set; }
+    [Parameter] public EventCallback<(DragMode Mode, DateOnly Day, PointerEventArgs Args)> OnPress { get; set; }
     [Parameter] public EventCallback<DateOnly> OnRelease { get; set; }
     [Parameter] public EventCallback<(ScheduleAllocation Allocation, int Percentage)> OnPercentage { get; set; }
     [Parameter] public EventCallback OnEdit { get; set; }
@@ -86,7 +86,7 @@ else
 
     private string Description => $"Allocation, {RowName}, {Tip}";
 
-    private Task PressAsync(string mode, DateOnly day, PointerEventArgs e)
+    private Task PressAsync(DragMode mode, DateOnly day, PointerEventArgs e)
     {
         _lastDay = day;
         return OnPress.InvokeAsync((mode, day, e));

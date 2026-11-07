@@ -247,6 +247,38 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task SplitRefusesAnArchivedProject()
+    {
+        var project = await NewProject();
+        await Create(_floId, project.Id, March(2), March(13));
+        var bar = (await Bars(_floId, project.Id)).Single();
+        await _planner.PutAsJsonAsync($"/api/projects/{project.Id}", new UpdateProjectRequest(project.Name, project.ClientId, "archived"), cancellationToken: TestContext.Current.CancellationToken);
+
+        var response = await _planner.PostAsJsonAsync($"/api/allocations/{bar.Id}/split", new SplitAllocationRequest(March(9)), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SplitRefusesAnAllocationThatCoversADayAfterTheEndDateOfThePerson()
+    {
+        var project = await NewProject();
+        Guid id;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            var allocation = new Allocation { PersonId = _leaverId, ProjectId = project.Id, StartDate = March(16), EndDate = March(25), Percentage = 50 };
+            db.Allocations.Add(allocation);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            id = allocation.Id;
+        }
+
+        var response = await _planner.PostAsJsonAsync($"/api/allocations/{id}/split", new SplitAllocationRequest(March(18)), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task SplitMakesTwoAllocationsAndTheSecondStartsOnTheSplitDate()
     {
         var project = await NewProject();

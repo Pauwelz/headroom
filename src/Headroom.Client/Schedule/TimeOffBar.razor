@@ -4,15 +4,15 @@
 <div class="bar timeoff" style="@Style" title="@Tip">
     @foreach (var day in Days)
     {
-        <span class="seg @(CanEdit ? "editable" : null)" @onpointerdown='e => PressAsync("move", day, e)'
+        <span class="seg @(CanEdit ? "editable" : null)" @onpointerdown='e => PressAsync(DragMode.Move, day, e)'
               @oncontextmenu="OpenMenuAsync" @oncontextmenu:preventDefault="@CanEdit">
             @if (CanEdit && day == Bar.StartDate)
             {
-                <i class="edge l" @onpointerdown='e => PressAsync("start", day, e)' @onpointerdown:stopPropagation="true"></i>
+                <i class="edge l" @onpointerdown='e => PressAsync(DragMode.Start, day, e)' @onpointerdown:stopPropagation="true"></i>
             }
             @if (CanEdit && day == Bar.EndDate)
             {
-                <i class="edge r" @onpointerdown='e => PressAsync("end", day, e)' @onpointerdown:stopPropagation="true"></i>
+                <i class="edge r" @onpointerdown='e => PressAsync(DragMode.End, day, e)' @onpointerdown:stopPropagation="true"></i>
             }
         </span>
     }
@@ -62,7 +62,7 @@
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
 
-    [Parameter] public EventCallback<(string Mode, DateOnly Day)> OnPress { get; set; }
+    [Parameter] public EventCallback<(DragMode Mode, DateOnly Day)> OnPress { get; set; }
     [Parameter] public EventCallback<TimeOffRequest> OnChange { get; set; }
     [Parameter] public EventCallback OnEdit { get; set; }
     [Parameter] public EventCallback OnDelete { get; set; }
@@ -74,7 +74,7 @@
     private string Description => $"Time off, {PersonName}, {Tip}";
 
     // Only the left button drags. A right-click opens the bar menu, as on an Allocation bar.
-    private Task PressAsync(string mode, DateOnly day, PointerEventArgs e) =>
+    private Task PressAsync(DragMode mode, DateOnly day, PointerEventArgs e) =>
         e.Button == 0 ? OnPress.InvokeAsync((mode, day)) : Task.CompletedTask;
 
     private Task OpenMenuAsync(MouseEventArgs e) =>

@@ -9,7 +9,7 @@ public static class DayOffNotes
     /// shortcut: the public holidays come from the year on screen, so a date in another year gets no holiday note.</summary>
     public static string? ForCompanyDay(DateOnly date, IEnumerable<DayOffResponse> shownDays)
     {
-        if (shownDays.Any(d => d.Type == "PublicHoliday" && d.Date == date)) return "Already a public holiday: no effect.";
+        if (shownDays.Any(d => d.Type == DayOffTypeName.PublicHoliday && d.Date == date)) return "Already a public holiday: no effect.";
         return IsWeekend(date) ? "Weekend: affects only weekend Contract hours." : null;
     }
 

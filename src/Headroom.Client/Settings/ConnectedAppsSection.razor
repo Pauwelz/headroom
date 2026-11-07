@@ -1,0 +1,128 @@
+@inject SettingsApi Api
+@inject IDialogService Dialogs
+
+<SettingsSection Id="apps" Title="Connected apps" Summary="@SettingsSummary.Names(_apps.Select(a => a.Name))"
+                 Expanded="@(AppsMustShow ? null : _appsOpen)" ExpandedChanged="open => _appsOpen = open">
+    <MudText Typo="Typo.body2" Class="mb-2">
+        A Connected app, such as Claude or Copilot Studio, lets each Person connect with their own login.
+        Enter one redirect URL per line. Each URL must be an absolute https URL.
+    </MudText>
+
+    @if (_error is not null)
+    {
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
+    }
+    @if (_newApp is not null)
+    {
+        <SettingsAlert Severity="Severity.Success" OnClose="() => _newApp = null">
+            Client ID and client secret of "@_newApp.Name". Copy the secret now. Headroom does not show it again.<br />
+            Client ID: <code>@_newApp.ClientId</code><br />
+            Client secret: <code>@_newApp.ClientSecret</code>
+        </SettingsAlert>
+    }
+
+    <ValidatedForm @ref="_form" @bind-IsValid="_valid">
+    <MudSimpleTable Dense="true">
+        <thead>
+            <tr><th>Name</th><th>Client ID</th><th>Redirect URLs</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var connected in _apps)
+            {
+                @if (connected.Id == _editId)
+                {
+                    <tr>
+                        <td><MudTextField @bind-Value="_editName" Label="Name" MaxLength="200" Immediate="true" /></td>
+                        <td><code>@connected.ClientId</code></td>
+                        <td><MudTextField @bind-Value="_editUrls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true" /></td>
+                        <td>
+                            <MudButton Color="Color.Primary" OnClick="() => ChangeAppAsync(connected)">Save</MudButton>
+                            <MudButton OnClick="() => (_editId, _error) = (null, null)">Cancel</MudButton>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    <tr>
+                        <td><b>@connected.Name</b></td>
+                        <td><code>@connected.ClientId</code></td>
+                        <td>@foreach (var url in connected.RedirectUrls) { <div>@url</div> }</td>
+                        <td>
+                            <MudButton OnClick="() => StartEditApp(connected)">Edit</MudButton>
+                            <MudButton OnClick="() => NewAppSecretAsync(connected)">New secret</MudButton>
+                            <MudButton Color="Color.Error" OnClick="() => DeleteAppAsync(connected)">Delete</MudButton>
+                        </td>
+                    </tr>
+                }
+            }
+            <tr>
+                <td><MudTextField @bind-Value="_name" Label="Name, for example Claude" MaxLength="200" Immediate="true"
+                                  Required="true" RequiredError="Enter a name." /></td>
+                <td></td>
+                <td><MudTextField @bind-Value="_urls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true"
+                                  Required="true" RequiredError="@UrlRules.NoRedirectUrl" Validation="@(new Func<string?, string?>(UrlRules.RedirectUrls))" /></td>
+                <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAppAsync" Disabled="@(!_valid)">Add</MudButton></td>
+            </tr>
+        </tbody>
+    </MudSimpleTable>
+    </ValidatedForm>
+</SettingsSection>
+
+@code {
+    /// <summary>Raised after a delete, because the delete also removes the app's Connections.</summary>
+    [Parameter] public EventCallback OnDeleted { get; set; }
+
+    private bool _appsOpen;
+    private bool AppsMustShow => _newApp is not null || _error is not null || _editId is not null;
+
+    private ValidatedForm? _form;
+    private bool _valid;
+    private List<ConnectedAppResponse> _apps = [];
+    private CreatedConnectedAppResponse? _newApp;
+    private string? _error;
+    private string _name = "";
+    private string _urls = "";
+
+    private string? _editId;
+    private string _editName = "";
+    private string _editUrls = "";
+
+    protected override async Task OnInitializedAsync() => _apps = await Api.GetConnectedAppsAsync();
+
+    private static List<string> Lines(string text) => text.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    private void StartEditApp(ConnectedAppResponse connected) =>
+        (_editId, _editName, _editUrls, _error) = (connected.Id, connected.Name, string.Join('\n', connected.RedirectUrls), null);
+
+    private async Task ChangeAppAsync(ConnectedAppResponse connected)
+    {
+        _error = await Api.ChangeConnectedAppAsync(connected.Id, _editName, Lines(_editUrls));
+        if (_error is not null) return;
+        _editId = null;
+        _apps = await Api.GetConnectedAppsAsync();
+    }
+
+    private async Task AddAppAsync()
+    {
+        var (created, error) = await Api.AddConnectedAppAsync(_name, Lines(_urls));
+        _error = error;
+        if (created is null) return;
+        (_newApp, _name, _urls) = (created, "", "");
+        _form?.ResetValidation();
+        _apps = await Api.GetConnectedAppsAsync();
+    }
+
+    private async Task NewAppSecretAsync(ConnectedAppResponse connected)
+    {
+        var (renewed, error) = await Api.NewConnectedAppSecretAsync(connected.Id);
+        (_error, _newApp) = (error, renewed);
+    }
+
+    private async Task DeleteAppAsync(ConnectedAppResponse connected)
+    {
+        if (await Dialogs.ShowMessageBoxAsync("Delete Connected app", $"Delete the Connected app \"{connected.Name}\"? Its client secret stops working.", yesText: "Delete", cancelText: "Cancel") != true) return;
+        _error = await Api.DeleteConnectedAppAsync(connected.Id);
+        _apps = await Api.GetConnectedAppsAsync();
+        await OnDeleted.InvokeAsync();
+    }
+}

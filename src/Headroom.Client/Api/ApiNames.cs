@@ -12,6 +12,13 @@ public static class ProjectStatusName
     public static readonly IReadOnlyList<string> All = [Tentative, Confirmed, Archived];
 }
 
+/// <summary>Day off types. A public holiday has no Id and cannot change.</summary>
+public static class DayOffTypeName
+{
+    public const string PublicHoliday = "PublicHoliday";
+    public const string CompanyDayOff = "CompanyDayOff";
+}
+
 /// <summary>The half of a day that starts or ends Time off.</summary>
 public static class DayPartName
 {

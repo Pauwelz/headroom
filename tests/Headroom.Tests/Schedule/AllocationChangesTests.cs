@@ -8,16 +8,6 @@ public class AllocationChangesTests
     private static readonly DateOnly Mon = new(2026, 3, 2);
     private static ScheduleAllocation Bar(int start, int end) => new(Guid.NewGuid(), Mon.AddDays(start), Mon.AddDays(end), 50);
 
-    [Fact]
-    public void MovingAndResizingChangeTheDates()
-    {
-        var bar = Bar(1, 3);
-
-        Assert.Equal((Mon.AddDays(3), Mon.AddDays(5)), AllocationChanges.Move(bar, 2));
-        Assert.Equal((Mon, Mon.AddDays(3)), AllocationChanges.ResizeStart(bar, Mon));
-        Assert.Equal((Mon.AddDays(1), Mon.AddDays(6)), AllocationChanges.ResizeEnd(bar, Mon.AddDays(6)));
-    }
-
     [Theory]
     [InlineData(2, 2)] // inside: use the wanted day
     [InlineData(1, 2)] // the first day cannot start the second part: use the next day

@@ -89,7 +89,7 @@ public class ScheduleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var days = schedule.People[0].Days;
         Assert.Equal([8m, 8m, 0m, 8m, 8m, 0m, 0m], days.Select(d => d.Capacity));
-        Assert.Contains(schedule.DaysOff, d => d is { Type: "CompanyDayOff", Name: "Closure" } && d.Date == new DateOnly(2026, 3, 4));
+        Assert.Contains(schedule.DaysOff, d => d is { Type: DayOffTypeName.CompanyDayOff, Name: "Closure" } && d.Date == new DateOnly(2026, 3, 4));
     }
 
     [Fact]

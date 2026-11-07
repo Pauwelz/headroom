@@ -8,8 +8,8 @@ public class SettingsSummaryTests
     private static readonly DateTimeOffset Now = new(2026, 11, 5, 9, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly Today = new(2026, 11, 5);
 
-    private static DayOffResponse Company(int month, int day, string name) => new("CompanyDayOff", Guid.NewGuid(), new(2026, month, day), name);
-    private static DayOffResponse Holiday(int month, int day) => new("PublicHoliday", null, new(2026, month, day), "Holiday");
+    private static DayOffResponse Company(int month, int day, string name) => new(DayOffTypeName.CompanyDayOff, Guid.NewGuid(), new(2026, month, day), name);
+    private static DayOffResponse Holiday(int month, int day) => new(DayOffTypeName.PublicHoliday, null, new(2026, month, day), "Holiday");
 
     private static AccessTokenResponse Token(string owner, DateTimeOffset? expiresAt = null) =>
         new("AccessToken", Guid.NewGuid(), "Token", owner, Now.AddDays(-30), expiresAt, false);

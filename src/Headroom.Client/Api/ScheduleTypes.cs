@@ -3,7 +3,7 @@ namespace Headroom.Client.Api;
 // Shared API types of GET /api/schedule. Field names are a contract.
 // The server computes Capacity and Utilisation. The client only renders them.
 
-/// <summary>Type is "PublicHoliday" or "CompanyDayOff".</summary>
+/// <summary>Type is a DayOffTypeName.</summary>
 public record ScheduleDayOff(string Type, DateOnly Date, string Name);
 
 /// <summary>Utilisation is Hours ÷ Capacity. It is null when Capacity is 0 (the grid shows a gap).</summary>

@@ -7,7 +7,7 @@ public static class SettingsSummary
 {
     public static string DaysOff(IReadOnlyList<DayOffResponse> days, int year, DateOnly today)
     {
-        var company = days.Where(d => d.Type == "CompanyDayOff").OrderBy(d => d.Date).ToList();
+        var company = days.Where(d => d.Type == DayOffTypeName.CompanyDayOff).OrderBy(d => d.Date).ToList();
         if (company.Count == 0) return $"No Company days off in {year}";
         var text = $"{company.Count} {(company.Count == 1 ? "Company day off" : "Company days off")} in {year}";
         var next = company.FirstOrDefault(d => d.Date >= today);
