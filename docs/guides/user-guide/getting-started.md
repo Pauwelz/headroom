@@ -59,7 +59,7 @@ To log out, select **Sign out** in the header.
 - The header shows the app name, the company name, the help button, the theme button, your name and **Sign out**.
 - The help button (**?**) opens the help for the screen you are on. On other screens, it opens the contents.
 - The theme button cycles through Auto, Light and Dark. Auto follows your system.
-- The side drawer has **Schedule**, **Projects**, **Utilisation** and **Access tokens**, and for Planners also **People** and **Settings**.
+- The side drawer has **Schedule**, **Projects**, **Utilisation** and **Account**, and for Planners also **People** and **Settings**.
 
 ## Planners: first steps
 
