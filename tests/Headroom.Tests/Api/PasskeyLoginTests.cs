@@ -16,7 +16,7 @@ namespace Headroom.Tests.Api;
 // Log in with a Passkey (ticket #41). The test authenticator signs as a browser would.
 public class PasskeyLoginTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
-    private const string Refusal = "Headroom could not log you in with this passkey. Use a login code instead.";
+    private const string Refusal = "Headroom could not log you in with this Passkey. Use a Login code instead.";
     private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -111,6 +111,17 @@ public class PasskeyLoginTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         var passkey = await StoredAsync(authenticator);
         Assert.Equal(1, passkey.SignCount);
         Assert.NotNull(passkey.LastUsedAt);
+    }
+
+    [Fact]
+    public async Task APasskeyLoginDeletesAStalePasskeyOfferMarker()
+    {
+        using var authenticator = await SaveAsync("pl-cal@example.com");
+
+        var response = await LoginAsync(Anonymous(), o => authenticator.CreateAssertion(o));
+
+        Assert.Contains(response.Headers.GetValues("Set-Cookie"), c =>
+            c.StartsWith("headroom-passkey-offer=;", StringComparison.Ordinal) && c.Contains("expires=Thu, 01 Jan 1970", StringComparison.Ordinal));
     }
 
     [Fact]

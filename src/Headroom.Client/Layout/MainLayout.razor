@@ -122,12 +122,13 @@
         {
             config.RequireInteraction = true;
             config.ShowCloseIcon = true;
-            config.Action = "Save a passkey";
+            config.Action = "Save a Passkey";
             config.OnClick = async _ =>
             {
+                // MudBlazor awaits this handler before it closes the offer, so the offer stays up during the browser prompt.
                 var (saved, error) = await Passkeys.SaveAsync();
                 if (saved) Snackbar.Add("Passkey saved.", Severity.Success);
-                else if (error is not null) Snackbar.Add(error, Severity.Error);
+                else Snackbar.Add(error ?? "Headroom did not save a Passkey. You can save one on the Account page.", error is null ? Severity.Info : Severity.Error);
             };
         });
     }

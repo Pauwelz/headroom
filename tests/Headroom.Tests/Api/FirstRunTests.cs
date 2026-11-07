@@ -170,6 +170,7 @@ public class FirstRunTests : IClassFixture<ClockedHeadroomApp>
             new Dictionary<string, string>(fields) { ["code"] = code }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Redirect, done.StatusCode);
         Assert.Contains(done.Headers.GetValues("Set-Cookie"), c => c.StartsWith("headroom.auth="));
+        Assert.Contains(done.Headers.GetValues("Set-Cookie"), c => c.StartsWith("headroom-passkey-offer=1", StringComparison.Ordinal));
 
         var person = Assert.Single(Query(db => db.People.ToList()));
         Assert.Equal(("Ann Planner", "ann@example.com", true), (person.Name, person.Email, person.IsPlanner));

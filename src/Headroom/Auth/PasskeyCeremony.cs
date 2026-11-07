@@ -9,13 +9,13 @@ using Microsoft.EntityFrameworkCore;
 namespace Headroom.Auth;
 
 // The WebAuthn ceremonies of ADR 0015. The options of a ceremony travel in a Data Protection cookie, not in a table:
-// it lives 5 minutes and the first verify deletes it. The registration is here. The login ceremony reuses the cookie methods.
+// it lives 5 minutes and the first verify deletes it. The registration and the login ceremony are here.
 public class PasskeyCeremony(IFido2 fido2, IDataProtectionProvider protection)
 {
     private static readonly TimeSpan ChallengeLife = TimeSpan.FromMinutes(5);
 
-    public const string RegisterPurpose = "register";
-    public const string LoginPurpose = "login";
+    private const string RegisterPurpose = "register";
+    private const string LoginPurpose = "login";
 
     // The relying party is the Instance, never the Host header. A changed Instance URL invalidates every Passkey.
     public static void AddPasskeys(IServiceCollection services)
@@ -61,7 +61,7 @@ public class PasskeyCeremony(IFido2 fido2, IDataProtectionProvider protection)
                 IsCredentialIdUniqueToUserCallback = async (p, ct) => !await db.Passkeys.AnyAsync(x => x.CredentialId == p.CredentialId, ct),
             });
         }
-        catch (Exception e) when (e is Fido2VerificationException or JsonException or ArgumentException or NullReferenceException) { return null; }
+        catch (Exception e) when (IsBadResponse(e)) { return null; }
     }
 
     // Login asks for no email first: the allow list is empty and the Passkey says who the Person is.
@@ -95,14 +95,14 @@ public class PasskeyCeremony(IFido2 fido2, IDataProtectionProvider protection)
             passkey.SignCount = result.SignCount;
             return passkey;
         }
-        catch (Exception e) when (e is Fido2VerificationException or JsonException or ArgumentException or NullReferenceException) { return null; }
+        catch (Exception e) when (IsBadResponse(e)) { return null; }
     }
 
-    public void SaveChallenge(HttpContext http, string purpose, string cookiePath, string payload) =>
+    private void SaveChallenge(HttpContext http, string purpose, string cookiePath, string payload) =>
         http.Response.Cookies.Append(CookieName(purpose), Protector(purpose).Protect(payload, ChallengeLife), CookieOptions(cookiePath, ChallengeLife));
 
     // Deletes the cookie, so a challenge works once. A missing, old or changed cookie gives null.
-    public string? TakeChallenge(HttpContext http, string purpose, string cookiePath)
+    private string? TakeChallenge(HttpContext http, string purpose, string cookiePath)
     {
         var value = http.Request.Cookies[CookieName(purpose)];
         http.Response.Cookies.Delete(CookieName(purpose), CookieOptions(cookiePath, null));
@@ -110,6 +110,9 @@ public class PasskeyCeremony(IFido2 fido2, IDataProtectionProvider protection)
         try { return Protector(purpose).Unprotect(value); }
         catch (CryptographicException) { return null; }
     }
+
+    private static bool IsBadResponse(Exception e) =>
+        e is Fido2VerificationException or JsonException or ArgumentException or NullReferenceException;
 
     private ITimeLimitedDataProtector Protector(string purpose) =>
         protection.CreateProtector("Headroom.Passkey." + purpose).ToTimeLimitedDataProtector();

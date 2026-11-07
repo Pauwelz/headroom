@@ -6,7 +6,7 @@ A Login code email can take a while to arrive, so a Person can also log in with 
 
 - **Passkeys replace the Login code:** breaks first-run setup and leaves no recovery after a lost device.
 - **A Person can turn off the Login code:** a lost device then needs a Planner to recover the Person.
-- **ASP.NET Core Identity Passkeys (.NET 10):** no new package, but it works only through `UserManager` and an Identity user store. Headroom has neither, and Microsoft scopes it to Identity, not to general WebAuthn use.
+- **ASP.NET Core Identity Passkeys (.NET 10):** no new package, but it works only through `UserManager` and an Identity user store. Headroom has neither. Microsoft scopes it to Identity, not to general WebAuthn use.
 - **Write the WebAuthn checks ourselves:** too much security code to get right.
 
 ## Consequences

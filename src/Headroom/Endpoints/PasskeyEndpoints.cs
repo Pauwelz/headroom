@@ -37,7 +37,7 @@ public static class PasskeyEndpoints
         var person = await MeEndpoints.OfCallerAsync(http, db);
         using var reader = new StreamReader(http.Request.Body);
         var credential = await ceremony.CompleteRegistrationAsync(http, person, await reader.ReadToEndAsync(), Path, db);
-        if (credential is null) return ApiProblem.Problem(400, "Headroom could not save this passkey. Try again.");
+        if (credential is null) return ApiProblem.Problem(400, "Headroom could not save this Passkey. Try again.");
         db.Passkeys.Add(new Passkey
         {
             PersonId = person.Id,

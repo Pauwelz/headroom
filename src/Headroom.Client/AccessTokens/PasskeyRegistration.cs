@@ -27,7 +27,7 @@ public class PasskeyRegistration(PasskeyApi api, IJSRuntime js) : IAsyncDisposab
         }
         catch (JSException)
         {
-            return (false, "Your browser could not create a passkey.");
+            return (false, "Your browser could not create a Passkey.");
         }
     }
 

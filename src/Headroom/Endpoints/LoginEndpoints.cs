@@ -78,13 +78,23 @@ public static class LoginEndpoints
                 FirstRunEndpoints.Token(http, antiforgery), company, "The code is wrong or has expired.", email, returnUrl), 400);
         }
 
-        HeadroomMetrics.Login(success: true);
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
-        // One-time marker: the app offers a Passkey once, then deletes the cookie. Not for a Connected app consent screen.
-        if (returnUrl == "/")
-            http.Response.Cookies.Append(Headroom.Client.Shell.PasskeyOffer.CookieName, "1", new CookieOptions { Secure = true, SameSite = SameSiteMode.Lax, MaxAge = TimeSpan.FromMinutes(5) });
+        await SignInAsync(http, person);
+        // Not for a Connected app consent screen.
+        if (returnUrl == "/") MarkPasskeyOffer(http);
         return Results.Redirect(returnUrl);
     }
+
+    private static async Task SignInAsync(HttpContext http, Person person)
+    {
+        HeadroomMetrics.Login(success: true);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+    }
+
+    // One-time marker: the app offers a Passkey once, then deletes the cookie.
+    internal static void MarkPasskeyOffer(HttpContext http) =>
+        http.Response.Cookies.Append(Headroom.Client.Shell.PasskeyOffer.CookieName, "1", OfferCookie(TimeSpan.FromMinutes(5)));
+
+    private static CookieOptions OfferCookie(TimeSpan? life) => new() { Secure = true, SameSite = SameSiteMode.Lax, MaxAge = life };
 
     // The body is the credential.toJSON() of the browser. The answer is JSON, because the login script follows the redirect itself.
     private static async Task<IResult> PasskeyLogin(
@@ -96,13 +106,14 @@ public static class LoginEndpoints
         if (passkey is null || person is null || !person.CanLogIn(BrusselsTime.Today(time)))
         {
             HeadroomMetrics.Login(success: false);
-            return Results.BadRequest(new { error = "Headroom could not log you in with this passkey. Use a login code instead." });
+            return Results.BadRequest(new { error = "Headroom could not log you in with this Passkey. Use a Login code instead." });
         }
 
         passkey.LastUsedAt = time.GetUtcNow();
         await db.SaveChangesAsync(ct);
-        HeadroomMetrics.Login(success: true);
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        await SignInAsync(http, person);
+        // A stale marker must not offer a Passkey to a Person who just used one.
+        http.Response.Cookies.Delete(Headroom.Client.Shell.PasskeyOffer.CookieName, OfferCookie(null));
         return Results.Ok(new { redirect = SafeReturnUrl(returnUrl) });
     }
 

@@ -26,7 +26,7 @@
     </MudSimpleTable>
     @if (_supported)
     {
-        <MudButton Class="mt-2" Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Save a passkey</MudButton>
+        <MudButton Class="mt-2" Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Save a Passkey</MudButton>
     }
 </MudPaper>
 
@@ -56,7 +56,7 @@
 
     private async Task RemoveAsync(PasskeyResponse passkey)
     {
-        _error = await Api.RemoveAsync(passkey.Id) ? null : "Headroom could not remove this passkey.";
+        _error = await Api.RemoveAsync(passkey.Id) ? null : "Headroom could not remove this Passkey.";
         _passkeys = await Api.GetAsync();
     }
 }
