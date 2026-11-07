@@ -1,0 +1,32 @@
+@inject SettingsApi Api
+
+<SettingsSection Id="connections" Title="Connections" Summary="@SettingsSummary.Connections(_connections)">
+    <MudText Typo="Typo.body2" Class="mb-2">
+        A Connection lets a Connected app act as one Person, with the rights of that Person. You can revoke any Connection.
+    </MudText>
+    @if (_error is not null)
+    {
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
+    }
+    <ConnectionsTable Connections="_connections" ShowPerson="true" OnRevoke="RevokeConnectionAsync" />
+</SettingsSection>
+
+@code {
+    private List<ConnectionResponse> _connections = [];
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => _connections = await Api.GetConnectionsAsync();
+
+    /// <summary>Reloads the list. The Connected apps section triggers it after it deletes an app.</summary>
+    public async Task ReloadAsync()
+    {
+        _connections = await Api.GetConnectionsAsync();
+        StateHasChanged();
+    }
+
+    private async Task RevokeConnectionAsync(ConnectionResponse connection)
+    {
+        _error = await Api.RevokeConnectionAsync(connection.Id);
+        await ReloadAsync();
+    }
+}
