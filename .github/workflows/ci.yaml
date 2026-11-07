@@ -1,11 +1,21 @@
 name: ci
+# All PR checks in one workflow. The ruleset requires the jobs lint and build-and-test by name.
+# A skipped job counts as passed. So a required job skips only on a draft: a draft cannot merge,
+# and ready_for_review runs the checks again.
 on:
   pull_request:
     # labeled and unlabeled re-run the changelog check when no-changelog changes.
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # ready_for_review starts build-and-test and the image.
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
 
 permissions:
   contents: read
+
+# A new push to a PR cancels its older run. Label events have their own group,
+# so adding a label does not cancel an image build.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}-${{ contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && 'label' || 'code' }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -38,3 +48,81 @@ jobs:
             echo "::error file=CHANGELOG.md::This PR changes src/ but not CHANGELOG.md. Add a line under [Unreleased], or add the label no-changelog when the change is not user-visible."
             exit 1
           fi
+
+  build-and-test:
+    # A draft gets no build: agents build and test locally before they push.
+    # The first step skips the work when no file changed that can break the build or the tests,
+    # so a CHANGELOG-only PR passes in seconds.
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Find relevant changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # The tests read the user guide, so it counts too.
+          pattern='^(src/|tests/|docs/guides/user-guide/|Headroom\.slnx$|global\.json$|Directory\.Build\.props$|dotnet-tools\.json$|\.github/workflows/ci\.yaml$)'
+          if git diff --name-only "$BASE_SHA" HEAD | grep -qE "$pattern"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No change that can break the build or the tests. Skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.changes.outputs.run == 'true'
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - name: Build
+        if: steps.changes.outputs.run == 'true'
+        run: dotnet build Headroom.slnx
+      # shortcut: one test host still opens about 100 inotify instances without watches (cause unknown).
+      # The runner allows 128, so raise the limit. Remove this step when the cause is found.
+      - name: Raise the inotify limit
+        if: steps.changes.outputs.run == 'true'
+        run: sudo sysctl -w fs.inotify.max_user_instances=1024
+      - name: Test
+        if: steps.changes.outputs.run == 'true'
+        run: dotnet test --solution Headroom.slnx --no-build
+      - name: Check for pending model changes
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          dotnet tool restore
+          dotnet ef migrations has-pending-model-changes --project src/Headroom --no-build
+
+  image:
+    # Builds an image of each PR for the Test Instance. Deploy it with the workflow deploy-test (image pr)
+    # only after the checks of the PR are green. Forks get a read-only token and cannot push.
+    # A draft PR gets no image, and a label change does not rebuild it.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && !github.event.pull_request.draft
+      && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # The checkout is the merge of the PR and its base. The full history lets git find the latest tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Build and push the image
+        env:
+          SDK_CONTAINER_REGISTRY_UNAME: ${{ github.actor }}
+          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          base=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+          VERSION="${base#v}-pr.$PR.$GITHUB_RUN_NUMBER"
+          # pr-<number> moves to the newest build. The version tag never moves.
+          digest=$(.github/scripts/publish-image.sh "$VERSION" "pr-$PR" "$VERSION")
+          echo "Image ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/headroom:pr-$PR, version $VERSION, digest $digest" >> "$GITHUB_STEP_SUMMARY"

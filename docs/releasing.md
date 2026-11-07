@@ -23,8 +23,8 @@ All images are in one public package: `ghcr.io/<owner>/headroom`.
 | --- | --- | --- |
 | `X.Y.Z`, `X.Y.Z-rc.N` | the workflow `release`, for each tag | A release. Never moves |
 | `latest` | the workflow `release`, for a final version only | A pointer for people. A deploy never uses it |
-| `dev`, `<version>-dev.<run>` | the workflow `dev`, for each push to `main` | `dev` moves to the newest build. The other tag never moves |
-| `pr-<number>`, `<version>-pr.<number>.<run>` | the workflow `pr-image`, for each PR of this repo | `pr-<number>` moves to the newest build. The other tag never moves |
+| `dev`, `<version>-dev.<run>` | the workflow `deploy-test`, for each push to `main` that changes the app | `dev` moves to the newest build. The other tag never moves |
+| `pr-<number>`, `<version>-pr.<number>.<run>` | the `image` job of the workflow `ci`, for each PR of this repo that is not a draft | `pr-<number>` moves to the newest build. The other tag never moves |
 
 `<version>` is the latest tag on `main`, without `v` (`0.0.0` without a tag).
 Forks get no image: their token is read-only.
@@ -33,7 +33,8 @@ It never deletes a release, `dev`, `latest`, the image of an open PR, or the 10 
 
 ## Check a PR on the Test Instance
 
-The workflow `pr-image` runs next to the tests. A PR that changes only docs also builds an image, but needs no check.
+The `image` job of the workflow `ci` runs next to the tests. A draft gets no image: mark the PR ready for review.
+A PR that changes only docs also builds an image, but needs no check.
 
 1. Open the PR, or push to it. Wait until the checks and the `image` job are green. Deploy a PR only after its checks are green.
    The job summary shows the image and its version, for example `0.1.0-pr.12.3`.
@@ -41,13 +42,14 @@ The workflow `pr-image` runs next to the tests. A PR that changes only docs also
 3. Check the Test Instance by hand. Log in as the Planner in `SEED_PLANNER_EMAIL`. The Help page shows the version of the build.
 4. Merge the PR if it passed.
 
-`deploy-test` builds nothing. It resolves the tag to a digest, recreates the database empty, and starts a new revision with the image. The app migrates and seeds the database at start.
+A manual run of `deploy-test` builds nothing. It resolves the tag to a digest, recreates the database empty, and starts a new revision with the image. The app migrates and seeds the database at start.
 Each deploy deletes all data on the Test Instance. Do not enter data that you want to keep.
 "Check before merge" is a rule for you to follow. GitHub does not enforce it.
 
 ## The dev image
 
-Every push to `main` starts the workflow `dev`. It builds `headroom:dev` and deploys it to the Test Instance.
+Every push to `main` that changes the app starts the workflow `deploy-test`. It builds `headroom:dev` and deploys it to the Test Instance.
+A push that changes only docs builds and deploys nothing.
 The database is reset and seeded.
 The deploy uses the version tag of that build, not the moving tag `dev`, so a later push cannot change what a run deploys.
 Start `deploy-test` with `dev` as `image` to deploy the newest `dev` again.
@@ -56,7 +58,7 @@ Start `deploy-test` with `dev` as `image` to deploy the newest `dev` again.
 
 1. Open a PR that changes `CHANGELOG.md` only.
    Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`. Add a new empty `## [Unreleased]` above it.
-   The workflow `test` skips its build and tests for this PR, so it passes in seconds.
+   The job `build-and-test` skips its build and tests for this PR, so it passes in seconds.
 2. Merge the PR (squash).
 3. Tag the merge commit on `main` and push the tag:
    `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
