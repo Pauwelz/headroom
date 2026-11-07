@@ -59,7 +59,7 @@ public static class EndDateEndpoints
         person.EndDate = end;
         person.LastChangedBy = by;
         await db.SaveChangesAsync();
-        return Results.Ok(await Respond(db, person, today));
+        return Results.Ok(await PeopleEndpoints.ToResponseAsync(db, person, today));
     }
 
     private static async Task<IResult> Remove(Guid id, HttpContext http, HeadroomDbContext db, TimeProvider time)
@@ -72,7 +72,7 @@ public static class EndDateEndpoints
         person.EndDate = null;
         person.LastChangedBy = http.User.PersonId();
         await db.SaveChangesAsync();
-        return Results.Ok(await Respond(db, person, today));
+        return Results.Ok(await PeopleEndpoints.ToResponseAsync(db, person, today));
     }
 
     // Null means the end date is allowed.
@@ -97,7 +97,4 @@ public static class EndDateEndpoints
                           select new { p.Id, ClientName = c.Name, ProjectName = p.Name }).ToListAsync();
         return rows.ToDictionary(r => r.Id, r => ProjectLabel.Format(r.ClientName, r.ProjectName));
     }
-
-    private static Task<PersonResponse> Respond(HeadroomDbContext db, Person person, DateOnly today) =>
-        PeopleEndpoints.ToResponseAsync(db, person, today);
 }
