@@ -1,9 +1,23 @@
 name: deploy-test
-# Rolls an image onto the Test Instance of the maintainer. It never deploys production and builds nothing.
+# Rolls an image onto the Test Instance of the maintainer. It never deploys production.
+# A push to main builds the dev image and deploys it. A manual run deploys an existing image and builds nothing.
 # The Azure resources and the app settings come from the private repo of the maintainer. This workflow only
 # resets the database and starts a new revision with the image. The app migrates and seeds the database at start.
-# Run it by hand from the main branch, or call it from the workflow dev. The release flow is in docs/releasing.md.
+# Run it by hand from the main branch. The release flow is in docs/releasing.md.
 on:
+  push:
+    branches: [main]
+    # Only the inputs of the image (see .github/scripts/publish-image.sh). Add a new root build file here.
+    # The image job in ci.yaml has the same list. Keep both lists equal.
+    # A docs-only merge builds and deploys nothing.
+    paths:
+      - 'src/**'
+      - 'docs/guides/user-guide/**'
+      - 'Headroom.slnx'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - '.github/scripts/**'
+      - '.github/workflows/deploy-test.yaml'
   workflow_dispatch:
     inputs:
       image:
@@ -25,41 +39,64 @@ on:
         required: false
         type: boolean
         default: false
-  workflow_call:
-    inputs:
-      image:
-        required: false
-        type: string
-        default: dev
-      pr:
-        required: false
-        type: string
-      version:
-        required: false
-        type: string
-      keep-data:
-        required: false
-        type: boolean
-        default: false
 
 permissions:
-  id-token: write
   contents: read
 
-# One deploy at a time: a reset must not run while another run deploys.
-concurrency:
-  group: deploy-test
-  cancel-in-progress: false
-
 jobs:
+  image:
+    # Builds every push to main. One build at a time, in push order, so dev always moves forward.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: dev-image
+      cancel-in-progress: false
+    outputs:
+      version: ${{ steps.publish.outputs.version }}
+    steps:
+      # The full history lets git find the latest tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Build and push the image
+        id: publish
+        env:
+          SDK_CONTAINER_REGISTRY_UNAME: ${{ github.actor }}
+          SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          base=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+          # The dev builds moved here from the workflow dev, whose last run was 25. The offset keeps the number unique.
+          VERSION="${base#v}-dev.$((GITHUB_RUN_NUMBER + 25))"
+          # dev moves to the newest build. The version tag never moves.
+          digest=$(.github/scripts/publish-image.sh "$VERSION" dev "$VERSION")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Image ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/headroom:dev, version $VERSION, digest $digest" >> "$GITHUB_STEP_SUMMARY"
+
   deploy:
+    needs: image
+    # A manual run skips image. A push deploys only a successful build.
+    if: ${{ !cancelled() && (needs.image.result == 'success' || (github.event_name == 'workflow_dispatch' && needs.image.result == 'skipped')) }}
     runs-on: ubuntu-latest
     environment: test
+    permissions:
+      id-token: write
+      contents: read
+    # One deploy at a time: a reset must not run while another run deploys.
+    concurrency:
+      group: deploy-test
+      cancel-in-progress: false
     env:
-      IMAGE_KIND: ${{ inputs.image }}
+      # A push deploys the immutable version tag of its own build, not the moving tag dev.
+      IMAGE_KIND: ${{ github.event_name == 'push' && 'version' || inputs.image }}
       PR: ${{ inputs.pr }}
-      RAW_VERSION: ${{ inputs.version }}
-      KEEP_DATA: ${{ inputs.keep-data }}
+      RAW_VERSION: ${{ github.event_name == 'push' && needs.image.outputs.version || inputs.version }}
+      KEEP_DATA: ${{ inputs.keep-data || false }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

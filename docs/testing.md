@@ -6,6 +6,8 @@ Run all tests before you push:
 dotnet test
 ```
 
+CI does not build or test a draft PR. It runs the tests when you mark the PR ready for review.
+
 Database tests need a local Docker daemon (ADR 0005).
 
 To list only the failing tests, run `dotnet test --no-ansi 2>&1 | grep '^failed '`.
