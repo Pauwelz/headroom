@@ -13,7 +13,7 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     private static DateOnly March(int day) => new(2026, 3, day);
 
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
     private HttpClient _viewer = null!;
@@ -23,8 +23,8 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
     public AllocationsApiTests(HeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            services.AddSingleton<IEmailSender>(_mail)));
+        _factory = app.Factory;
+        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -51,7 +51,7 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _viewer.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_viewer));
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
 

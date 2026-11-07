@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Headroom.Tests.Api;
 
 // Logs a seeded Person in through the real email-code flow. Use it in API tests that need a session.
-// The factory must use the FakeEmailSender passed here (swap it in with WithWebHostBuilder).
+// The factory must use the FakeEmailSender passed here (HeadroomApp.Mail).
 public static class TestLogin
 {
     public static async Task<HttpClient> SignInAsync(WebApplicationFactory<Program> factory, FakeEmailSender mail, string email)

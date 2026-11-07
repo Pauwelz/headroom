@@ -13,15 +13,15 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     // Monday 2 March 2026.
     private static readonly DateOnly Mon = new(2026, 3, 2);
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private Guid _zed;
     private Guid _gone;
 
     public TimeOffTests(HeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            services.AddSingleton<IEmailSender>(_mail)));
+        _factory = app.Factory;
+        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -50,7 +50,7 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.LoginCodes.ExecuteDeleteAsync();
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task OverlappingTimeOffMergesAndCapacityFollows()

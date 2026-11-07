@@ -10,15 +10,15 @@ namespace Headroom.Tests.Api;
 
 public class ProjectsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
     private HttpClient _viewer = null!;
 
     public ProjectsApiTests(HeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            services.AddSingleton<IEmailSender>(_mail)));
+        _factory = app.Factory;
+        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -42,7 +42,7 @@ public class ProjectsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _viewer.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_viewer));
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     // Each test uses unique names, so tests can share the database.
     private static string Unique(string prefix) => $"{prefix}-{Guid.NewGuid():N}";

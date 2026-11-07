@@ -12,14 +12,14 @@ namespace Headroom.Tests.Api;
 public class PeopleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
 
     public PeopleTests(HeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            services.AddSingleton<IEmailSender>(_mail)));
+        _factory = app.Factory;
+        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -43,7 +43,7 @@ public class PeopleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _planner = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task ANonPlannerGets403OnEveryEndpoint()

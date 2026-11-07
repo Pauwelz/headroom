@@ -6,7 +6,6 @@ using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Headroom.Tests.Api;
 
@@ -21,22 +20,19 @@ public class FakeEmailSender : IEmailSender
     }
 }
 
-public class FirstRunTests : IClassFixture<HeadroomApp>, IAsyncDisposable
+public class FirstRunTests : IClassFixture<ClockedHeadroomApp>
 {
-    private readonly FakeEmailSender _mail = new();
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero));
+    private readonly FakeEmailSender _mail;
+    private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
 
-    public FirstRunTests(HeadroomApp app)
+    public FirstRunTests(ClockedHeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.AddSingleton<IEmailSender>(_mail);
-            services.AddSingleton<TimeProvider>(_time);
-        }));
+        _factory = app.Factory;
+        _mail = app.Mail;
+        _time = app.Time;
+        _time.Set(ClockedHeadroomApp.Start);
     }
-
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     [Fact]
     public async Task CodeIsSingleUseAndLimitedToFiveAttempts()

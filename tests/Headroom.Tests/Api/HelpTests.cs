@@ -9,13 +9,13 @@ namespace Headroom.Tests.Api;
 
 public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
 
     public HelpTests(HeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            services.AddSingleton<IEmailSender>(_mail)));
+        _factory = app.Factory;
+        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -31,7 +31,7 @@ public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Theory]
     [InlineData("README")]

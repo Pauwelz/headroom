@@ -6,23 +6,21 @@ using Headroom.Data;
 using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Headroom.Tests.Api;
 
-public class LoginTests : IClassFixture<HeadroomApp>, IAsyncLifetime
+public class LoginTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail = new();
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero));
+    private readonly FakeEmailSender _mail;
+    private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
 
-    public LoginTests(HeadroomApp app)
+    public LoginTests(ClockedHeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.AddSingleton<IEmailSender>(_mail);
-            services.AddSingleton<TimeProvider>(_time);
-        }));
+        _factory = app.Factory;
+        _mail = app.Mail;
+        _time = app.Time;
+        _time.Set(ClockedHeadroomApp.Start);
     }
 
     public async ValueTask InitializeAsync()
@@ -39,7 +37,7 @@ public class LoginTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task GoodLoginSignsInAndApiMeReturnsThePerson()

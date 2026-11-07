@@ -21,13 +21,14 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string Ann = "oauth-ann@example.com";
     private const string Demoted = "oauth-demoted@example.com";
     private const string Old = "oauth-old@example.com";
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly OAuthFlow _flow;
 
     public OAuthMcpTests(HeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IEmailSender>(_mail)));
+        _factory = app.Factory;
+        _mail = app.Mail;
         _flow = new OAuthFlow(_factory, _mail);
     }
 
@@ -49,7 +50,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

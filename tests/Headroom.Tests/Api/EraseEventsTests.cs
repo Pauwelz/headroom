@@ -7,26 +7,26 @@ using Headroom.Events;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Headroom.Tests.Api;
 
 // Erase scrubs the Person from stored Events. The sweep deletes old finished Events.
-public class EraseEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
+public class EraseEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail = new();
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero));
+    private readonly FakeEmailSender _mail;
+    private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string _run = Guid.NewGuid().ToString("N")[..8];
     private HttpClient _planner = null!;
     private Guid _projectId;
 
-    public EraseEventsTests(HeadroomApp app) =>
-        _factory = app.Factory.WithWebHostBuilder(b => b.ConfigureServices(s =>
-        {
-            s.AddSingleton<IEmailSender>(_mail);
-            s.AddSingleton<TimeProvider>(_time);
-        }));
+    public EraseEventsTests(ClockedHeadroomApp app)
+    {
+        _factory = app.Factory;
+        _mail = app.Mail;
+        _time = app.Time;
+        _time.Set(ClockedHeadroomApp.Start);
+    }
 
     public async ValueTask InitializeAsync()
     {
@@ -48,7 +48,7 @@ public class EraseEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task EraseBlanksTheNameAndEmailInAllocationAndTimeOffEvents()
@@ -68,12 +68,15 @@ public class EraseEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task TheAutomaticEraseAlsoBlanksTheEvents()
     {
+        // The check runs once per day in each host, so this test starts its own.
+        await using var host = _factory.WithWebHostBuilder(_ => { });
+        var planner = await TestLogin.SignInAsync(host, _mail, $"ee-ann-{_run}@example.com");
         var (zed, name, email) = await PersonWithEvents();
         var count = (await Payloads()).Count;
         await Run(db => db.People.Where(p => p.Id == zed).ExecuteUpdate(s => s.SetProperty(p => p.EndDate, new DateOnly(2025, 11, 1))));
         _time.Advance(TimeSpan.FromDays(1));
 
-        await _planner.GetAsync("/api/me", TestContext.Current.CancellationToken);
+        await planner.GetAsync("/api/me", TestContext.Current.CancellationToken);
 
         Assert.NotNull(await Run(db => db.People.Single(p => p.Id == zed).ErasedNumber));
         AssertScrubbed(count, await Payloads(), zed, name, email);
@@ -121,9 +124,11 @@ public class EraseEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var now = _time.GetUtcNow();
         var hook = (await Run(db => db.Webhooks.Add(new Webhook { Name = "Flow", Url = "https://receiver.example.com/hook", Secret = EventSender.NewSecret() }).Entity.Id));
         await Run(db => db.Events.Add(new Event { WebhookId = hook, Type = "old", Payload = "{}", DateCreated = now.AddDays(-31), DeliveredAt = now.AddDays(-31) }));
+        await using var host = _factory.WithWebHostBuilder(_ => { });
+        var planner = await TestLogin.SignInAsync(host, _mail, $"ee-ann-{_run}@example.com");
         _time.Advance(TimeSpan.FromDays(1));
 
-        await _planner.GetAsync("/api/me", TestContext.Current.CancellationToken);
+        await planner.GetAsync("/api/me", TestContext.Current.CancellationToken);
 
         Assert.Equal(0, await Run(db => db.Events.Count()));
     }
