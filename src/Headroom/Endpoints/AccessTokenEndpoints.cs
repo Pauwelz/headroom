@@ -39,7 +39,6 @@ public static class AccessTokenEndpoints
         if (!AccessTokenExpiry.TryExpiresAt(request.Expiry, time.GetUtcNow(), out var expiresAt))
             return ApiProblem.Problem(400, $"Choose {AccessTokenExpiry.ChoiceText}.");
         var person = await MeEndpoints.OfCallerAsync(http, db);
-        if (request.CanChange && !person.IsPlanner) return ApiProblem.Problem(400, "Only a Planner can allow a token to change things.");
         var secret = AccessTokenAuth.NewSecret();
         var token = new AccessToken { Name = name, PersonId = person.Id, TokenHash = AccessTokenAuth.Hash(secret), ExpiresAt = expiresAt, CanChange = request.CanChange, LastChangedBy = person.Id };
         db.AccessTokens.Add(token);

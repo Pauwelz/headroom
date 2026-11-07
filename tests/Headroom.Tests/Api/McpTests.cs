@@ -51,7 +51,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         db.Allocations.Add(new Allocation { PersonId = bob.Id, ProjectId = project.Id, StartDate = new(2026, 3, 2), EndDate = new(2026, 3, 6), Percentage = 50 });
         db.AccessTokens.Add(new AccessToken { Name = "Claude", PersonId = ann.Id, TokenHash = AccessTokenAuth.Hash(Secret), LastChangedBy = ann.Id });
         db.AccessTokens.Add(new AccessToken { Name = "Writer", PersonId = ann.Id, CanChange = true, TokenHash = AccessTokenAuth.Hash(WriterSecret), LastChangedBy = ann.Id });
-        // Bob is no Planner, so even a token with Can change cannot write.
+        // Bob is no Planner, so his token with Can change writes only his own Time off.
         db.AccessTokens.Add(new AccessToken { Name = "Worker", PersonId = bob.Id, CanChange = true, TokenHash = AccessTokenAuth.Hash(WorkerSecret), LastChangedBy = bob.Id });
         db.Webhooks.Add(new Webhook { Name = "Hook", Url = "https://hooks.example.com/a", Secret = "whsec_x", LastChangedBy = ann.Id });
         db.Webhooks.Add(new Webhook { Name = "Hook 2", Url = "https://hooks.example.com/b", Secret = "whsec_y", LastChangedBy = ann.Id });
@@ -310,13 +310,17 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task AReadOnlyTokenOfAPersonWhoIsNoPlannerCannotDeleteTimeOff()
+    public async Task ATokenOfAPersonWhoIsNoPlannerCannotDeleteTimeOffOfAnotherPerson()
     {
+        await using var planner = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        await WriteAsync(planner, "add_time_off", new() { ["personId"] = ann, ["startDate"] = "2026-05-04", ["startPart"] = "morning", ["endDate"] = "2026-05-04", ["endPart"] = "afternoon" });
+        var id = TimeOffIds(await CallAsync(planner, "get_schedule", new Dictionary<string, object?> { ["from"] = "2026-05-04", ["to"] = "2026-05-08", ["person"] = "ann" })).Single();
         await using var mcp = await ConnectAsync(secret: WorkerSecret);
 
-        var error = await ErrorAsync(mcp, "delete_time_off", new() { ["id"] = Guid.NewGuid() });
+        var error = await ErrorAsync(mcp, "delete_time_off", new() { ["id"] = id });
 
-        Assert.Contains("read only", error);
+        Assert.Contains("You can only change your own Time off.", error);
     }
 
     private static List<Guid> TimeOffIds(JsonElement schedule) => schedule.GetProperty("people").EnumerateArray()

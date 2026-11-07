@@ -173,4 +173,15 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await SendAsync(ann, HttpMethod.Delete, "/api/me/connections/" + id);
         Assert.Equal(HttpStatusCode.Unauthorized, (await _flow.BearerClient(access).GetAsync("/api/me", Ct)).StatusCode);
     }
+
+    [Fact]
+    public async Task TheListShowsCanChangeForAPersonWhoIsNoPlanner()
+    {
+        await _flow.TokenAsync(await _flow.AddAppAsync("Zed writer"), Zed, OAuthFlow.Api, canChange: true);
+        var zed = await TestLogin.SignInAsync(_factory, _mail, Zed);
+
+        var list = await ListAsync(zed, "/api/me/connections");
+
+        Assert.True(list.Single(c => c.GetProperty("connectedApp").GetString() == "Zed writer").GetProperty("canChange").GetBoolean());
+    }
 }

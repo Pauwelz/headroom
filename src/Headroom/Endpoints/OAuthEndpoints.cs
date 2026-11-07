@@ -59,7 +59,7 @@ public static class OAuthEndpoints
             var parameters = http.Request.Query
                 .Where(q => ForwardedParameters.Contains(q.Key))
                 .Select(q => KeyValuePair.Create(q.Key, (string?)q.Value.ToString()));
-            return FirstRunPages.Page(ConsentPages.Consent(token, company, (await apps.GetDisplayNameAsync(app))!, person.DisplayName, person.IsPlanner, parameters));
+            return FirstRunPages.Page(ConsentPages.Consent(token, company, (await apps.GetDisplayNameAsync(app))!, person.DisplayName, parameters));
         }
 
         try { await antiforgery.ValidateRequestAsync(http); }
@@ -71,8 +71,7 @@ public static class OAuthEndpoints
         var appId = (await apps.GetIdAsync(app))!;
         var principal = new ClaimsPrincipal(new ClaimsIdentity(Server));
         principal.SetClaim(Claims.Subject, subject);
-        // Only a Planner can allow "Can change". The form value of anyone else is ignored.
-        var canChange = OAuthAuth.CanChange(person, form.ContainsKey("canChange"));
+        var canChange = form.ContainsKey("canChange");
         ImmutableArray<string> scopes = canChange ? [.. request.GetScopes(), OAuthAuth.ChangeScope] : [.. request.GetScopes()];
         principal.SetScopes(scopes);
         principal.SetResources(resources);

@@ -15,12 +15,8 @@ public static class OAuthAuth
 {
     public const string Scheme = "OAuth";
     public const string BearerScheme = "HeadroomBearer";
-    // The scope of a Connection that a Planner allowed to change things. Authorize stores it on the Connection.
+    // The scope of a Connection that its Person allowed to change things. Authorize stores it on the Connection.
     public const string ChangeScope = "headroom:change";
-
-    // The one "Can change" rule: only a Planner can have it. Authorize (granted = the Person ticked it), each call and the list
-    // of Connections (granted = the Connection has the scope) use it.
-    public static bool CanChange(Person person, bool granted) => person.IsPlanner && granted;
 
     public static string SelectBearerScheme(HttpRequest request) =>
         AccessTokenAuth.HasAccessTokenSecret(request) ? AccessTokenAuth.Scheme : Scheme;
@@ -51,9 +47,9 @@ public static class OAuthAuth
             if (!result.Principal!.GetAudiences().Contains(audience)) return AuthenticateResult.Fail("This token is for another resource.");
             var person = await ActivePersonAsync(db, time, result.Principal.GetClaim(OpenIddictConstants.Claims.Subject));
             if (person is null) return AuthenticateResult.Fail("The Person of this Connection has left.");
-            // "Can change" is read from the Connection on each call, so it ends when the Person is no longer a Planner or the Connection is revoked.
+            // "Can change" is read from the Connection on each call, so it ends when the Connection is revoked. Its reach comes from the Person.
             var connection = result.Principal.GetAuthorizationId() is { } id ? await connections.FindByIdAsync(id) : null;
-            var canChange = CanChange(person, connection is not null && (await connections.GetScopesAsync(connection)).Contains(ChangeScope));
+            var canChange = connection is not null && (await connections.GetScopesAsync(connection)).Contains(ChangeScope);
             var claims = new List<Claim> { new(AccessTokenAuth.TokenClaim, result.Principal.GetTokenId() ?? "oauth") };
             if (canChange) claims.Add(new Claim(AccessTokenAuth.CanChangeClaim, "true"));
             var principal = PersonPrincipal.Create(person, OAuthAuth.Scheme, [.. claims]);

@@ -96,7 +96,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public void ConsentPageEncodesHiddenFieldNames()
     {
-        var html = ConsentPages.Consent("t", "Acme", "App", "Ann", false, [new("\"><script>", "x")]);
+        var html = ConsentPages.Consent("t", "Acme", "App", "Ann", [new("\"><script>", "x")]);
 
         Assert.DoesNotContain("<script", html);
     }
@@ -286,7 +286,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task OnlyAPlannerSeesCanChangeOnTheConsentScreen()
+    public async Task EveryPersonSeesCanChangeOnTheConsentScreen()
     {
         var app = await _flow.AddAppAsync();
         var url = OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New());
@@ -295,7 +295,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var other = await (await TestLogin.SignInAsync(_factory, _mail, "oauth-zed@example.com")).GetStringAsync(url, Ct);
 
         Assert.Contains("Can change", planner);
-        Assert.DoesNotContain("Can change", other);
+        Assert.Contains("Can change", other);
     }
 
     [Fact]

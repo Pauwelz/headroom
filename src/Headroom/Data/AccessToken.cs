@@ -5,7 +5,7 @@ public class AccessToken : Record
 {
     public Guid PersonId { get; set; }
     public string Name { get; set; } = "";
-    // The token may change data (GLOSSARY: Can change). Only a Planner can set it.
+    // The token may change data (GLOSSARY: Can change). Its reach comes from the Person on each request.
     public bool CanChange { get; set; }
     public DateTimeOffset? ExpiresAt { get; set; }
     public byte[] TokenHash { get; set; } = [];
