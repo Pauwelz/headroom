@@ -21,7 +21,7 @@ See [docs/testing.md](docs/testing.md). Run `scripts/preview.sh` to try the app 
 
 ## What each change needs
 
-- A line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for each user-visible change.
+- A line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for each user-visible change. CI checks this. A change that is not user-visible gets the label `no-changelog`.
 - An update of the [user guide](docs/guides/user-guide/README.md) with each UI or behaviour change.
 - A migration that follows [docs/migrations.md](docs/migrations.md), if the database changes.
 

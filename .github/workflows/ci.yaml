@@ -1,6 +1,8 @@
 name: ci
 on:
   pull_request:
+    # labeled and unlabeled re-run the changelog check when no-changelog changes.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -18,3 +20,21 @@ jobs:
         run: |
           docker run --rm -v "$PWD":/repo -w /repo \
             rhysd/actionlint@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 -color # 1.7.7
+
+  changelog:
+    # CONTRIBUTING.md: each user-visible change needs a line under [Unreleased]. The label no-changelog skips the check.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check that a change to the app updates CHANGELOG.md
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA" HEAD)
+          if grep -qE '^src/' <<<"$changed" && ! grep -qx 'CHANGELOG.md' <<<"$changed"; then
+            echo "::error file=CHANGELOG.md::This PR changes src/ but not CHANGELOG.md. Add a line under [Unreleased], or add the label no-changelog when the change is not user-visible."
+            exit 1
+          fi
