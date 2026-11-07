@@ -16,26 +16,55 @@ internal static class TestSql
             .WithReuse(true)
             .Build();
         await sql.StartAsync();
+        await DropStaleDatabasesAsync(sql.GetConnectionString());
         return sql;
     });
 
+    // A test database lives at most this long. Older ones come from a run that was killed before it could drop them.
+    private static readonly TimeSpan StaleAfter = TimeSpan.FromHours(2);
+
     // A connection string to a database that does not exist yet. EF migrations create it.
+    // The name holds its creation time, so a later run can find leftovers without dropping databases that other runs still use.
     public static async Task<string> NewDatabaseAsync()
     {
         var sql = await Container.Value;
-        return new NpgsqlConnectionStringBuilder(sql.GetConnectionString()) { Database = $"t{Guid.NewGuid():N}" }.ConnectionString;
+        var name = $"t{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}_{Guid.NewGuid():N}";
+        return new NpgsqlConnectionStringBuilder(sql.GetConnectionString()) { Database = name }.ConnectionString;
     }
 
     // Closes the pooled connections of the database, then drops it. Does nothing if EF never created it.
     public static async Task DropDatabaseAsync(string connectionString)
     {
-        var target = new NpgsqlConnectionStringBuilder(connectionString);
         NpgsqlConnection.ClearPool(new NpgsqlConnection(connectionString));
-        target.Database = "postgres";
-        await using var connection = new NpgsqlConnection(target.ConnectionString);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"DROP DATABASE IF EXISTS \"{new NpgsqlConnectionStringBuilder(connectionString).Database}\" WITH (FORCE)";
+        await DropAsync(connectionString, new NpgsqlConnectionStringBuilder(connectionString).Database!);
+    }
+
+    internal static async Task DropStaleDatabasesAsync(string connectionString)
+    {
+        var cutoff = DateTimeOffset.UtcNow - StaleAfter;
+        await using var connection = await OpenAdminAsync(connectionString);
+        await using var command = new NpgsqlCommand("SELECT datname FROM pg_database WHERE datname ~ '^t[0-9]+_'", connection);
+        var stale = new List<string>();
+        await using (var reader = await command.ExecuteReaderAsync())
+            while (await reader.ReadAsync())
+            {
+                var name = reader.GetString(0);
+                if (DateTimeOffset.FromUnixTimeSeconds(long.Parse(name[1..name.IndexOf('_')])) < cutoff) stale.Add(name);
+            }
+        foreach (var name in stale) await DropAsync(connectionString, name);
+    }
+
+    private static async Task DropAsync(string connectionString, string database)
+    {
+        await using var connection = await OpenAdminAsync(connectionString);
+        await using var command = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{database}\" WITH (FORCE)", connection);
         await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<NpgsqlConnection> OpenAdminAsync(string connectionString)
+    {
+        var connection = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(connectionString) { Database = "postgres" }.ConnectionString);
+        await connection.OpenAsync();
+        return connection;
     }
 }
