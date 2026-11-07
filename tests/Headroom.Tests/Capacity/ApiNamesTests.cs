@@ -29,7 +29,9 @@ public class ApiNamesTests
     [Fact]
     public void TheClientAndTheServerAgreeOnTheDayOffTypeNames()
     {
-        Assert.Equal(nameof(CompanyDayOff), DayOffTypeName.CompanyDayOff);
+        // Both sides use DayOffTypeName, so pin its values: they are the wire contract.
+        Assert.Equal("PublicHoliday", DayOffTypeName.PublicHoliday);
+        Assert.Equal("CompanyDayOff", DayOffTypeName.CompanyDayOff);
     }
 
     [Fact]

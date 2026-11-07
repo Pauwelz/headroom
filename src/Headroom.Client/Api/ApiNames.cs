@@ -19,12 +19,6 @@ public static class DayOffTypeName
     public const string CompanyDayOff = "CompanyDayOff";
 }
 
-/// <summary>The label of a Project next to its Client.</summary>
-public static class ProjectLabel
-{
-    public static string Format(string clientName, string projectName) => $"{clientName} / {projectName}";
-}
-
 /// <summary>The half of a day that starts or ends Time off.</summary>
 public static class DayPartName
 {
