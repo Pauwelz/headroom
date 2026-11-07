@@ -50,7 +50,7 @@ public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, added.StatusCode);
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     private async Task<List<(string Type, JsonElement Data)>> StoredEvents()
     {

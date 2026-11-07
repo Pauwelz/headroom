@@ -21,7 +21,7 @@ public class FakeEmailSender : IEmailSender
     }
 }
 
-public class FirstRunTests : IClassFixture<HeadroomApp>
+public class FirstRunTests : IClassFixture<HeadroomApp>, IAsyncDisposable
 {
     private readonly FakeEmailSender _mail = new();
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero));
@@ -35,6 +35,8 @@ public class FirstRunTests : IClassFixture<HeadroomApp>
             services.AddSingleton<TimeProvider>(_time);
         }));
     }
+
+    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     [Fact]
     public async Task CodeIsSingleUseAndLimitedToFiveAttempts()
