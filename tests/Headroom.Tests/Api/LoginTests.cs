@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Headroom.Client.Api;
+using Headroom.Client.Shell;
 using Headroom.Data;
 using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Headroom.Tests.Api;
@@ -148,6 +150,36 @@ public class LoginTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
         _time.Advance(TimeSpan.FromMinutes(16));
         await RequestCodePage(client, "cy@example.com");
         Assert.Equal(before + 4, _mail.Sent.Count);
+    }
+
+    [Fact]
+    public async Task LoginCodeLoginMarksThePasskeyOffer()
+    {
+        var client = NewClient();
+        await ClearCodes("gil@example.com");
+        var code = await RequestCode(client, "gil@example.com", "gil@example.com");
+        var done = await Verify(client, "gil@example.com", code);
+        Assert.Equal(HttpStatusCode.Redirect, done.StatusCode);
+        Assert.Contains(done.Headers.GetValues("Set-Cookie"), c => c.StartsWith(PasskeyOffer.CookieName + "=", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task LoginThatReturnsToAConnectedAppDoesNotMarkThePasskeyOffer()
+    {
+        var client = NewClient();
+        await ClearCodes("ann@example.com");
+        var code = await RequestCode(client, "ann@example.com", "ann@example.com");
+        var done = await Post(client, "/login/verify", Token(await client.GetStringAsync("/login", TestContext.Current.CancellationToken)),
+            ("email", "ann@example.com"), ("code", code), ("ReturnUrl", "/connect/authorize?client_id=x"));
+        Assert.Equal(HttpStatusCode.Redirect, done.StatusCode);
+        Assert.DoesNotContain(done.Headers.GetValues("Set-Cookie"), c => c.StartsWith(PasskeyOffer.CookieName, StringComparison.Ordinal));
+    }
+
+    // Used codes keep their row, with the same fake-clock time. Verify could then pick the used one.
+    private async Task ClearCodes(string email)
+    {
+        using var scope = _factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().LoginCodes.Where(c => c.Email == email).ExecuteDeleteAsync();
     }
 
     private HttpClient NewClient() => _factory.CreateClient(new WebApplicationFactoryClientOptions

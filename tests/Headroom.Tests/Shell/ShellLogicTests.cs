@@ -16,6 +16,14 @@ public class ShellLogicTests
         Assert.Equal(["Schedule", "Projects", "Utilisation", "Account"], NavItem.For(isPlanner: false).Select(i => i.Label));
 
     [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)] // the browser lacks Passkey support
+    [InlineData(false, true, false)] // no Login code login, or already shown
+    [InlineData(false, false, false)]
+    public void PasskeyOfferShowsOnlyAfterALoginCodeLoginInABrowserWithPasskeys(bool marked, bool supported, bool shown) =>
+        Assert.Equal(shown, PasskeyOffer.ShouldShow(marked, supported));
+
+    [Theory]
     [InlineData("/projects", "/help/projects")]
     [InlineData("/projects/42", "/help/projects")]
     [InlineData("/schedule?week=3", "/help/schedule")]

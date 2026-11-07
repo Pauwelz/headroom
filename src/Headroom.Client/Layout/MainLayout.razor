@@ -1,8 +1,12 @@
 ﻿@inherits LayoutComponentBase
+@using Headroom.Client.AccessTokens
 @using Headroom.Client.Help
+@using Headroom.Client.Shell
 @inject SessionApi Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject PasskeyRegistration Passkeys
 
 <MudThemeProvider @ref="_themeProvider" Theme="HeadroomTheme.Theme" IsDarkMode="_isDark" />
 <MudPopoverProvider />
@@ -71,6 +75,7 @@
     private bool _drawerOpen = true;
     private bool _isDark;
     private bool _systemIsDark;
+    private bool _offerChecked;
     private ThemeChoice _theme = ThemeChoice.Auto;
 
     private string ThemeTooltip => $"Theme: {_theme}. Click for {_theme.Next()}.";
@@ -95,12 +100,36 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_me is not null && !_offerChecked)
+        {
+            _offerChecked = true;
+            await OfferPasskeyAsync();
+        }
         if (!firstRender || _themeProvider is null) return;
         _systemIsDark = await _themeProvider.GetSystemDarkModeAsync();
         _theme = ThemeChoices.Parse(await JS.InvokeAsync<string?>("localStorage.getItem", ThemeKey));
         _isDark = _theme.IsDark(_systemIsDark);
         await _themeProvider.WatchSystemDarkModeAsync(OnSystemDarkModeChanged);
         StateHasChanged();
+    }
+
+    // The marker is taken even when the browser lacks Passkeys, so it never shows later.
+    private async Task OfferPasskeyAsync()
+    {
+        var marked = await Passkeys.TakeOfferMarkerAsync(PasskeyOffer.CookieName);
+        if (!PasskeyOffer.ShouldShow(marked, await Passkeys.IsSupportedAsync())) return;
+        Snackbar.Add("Log in faster next time.", Severity.Info, config =>
+        {
+            config.RequireInteraction = true;
+            config.ShowCloseIcon = true;
+            config.Action = "Save a passkey";
+            config.OnClick = async _ =>
+            {
+                var (saved, error) = await Passkeys.SaveAsync();
+                if (saved) Snackbar.Add("Passkey saved.", Severity.Success);
+                else if (error is not null) Snackbar.Add(error, Severity.Error);
+            };
+        });
     }
 
     private async Task CycleThemeAsync()
