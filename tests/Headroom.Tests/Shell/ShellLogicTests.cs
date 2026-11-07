@@ -8,12 +8,12 @@ public class ShellLogicTests
 {
     [Fact]
     public void PlannerSeesAllEntriesInOrder() =>
-        Assert.Equal(["Schedule", "Projects", "People", "Utilisation", "Access tokens", "Settings"],
+        Assert.Equal(["Schedule", "Projects", "People", "Utilisation", "Account", "Settings"],
             NavItem.For(isPlanner: true).Select(i => i.Label));
 
     [Fact]
     public void NonPlannerDoesNotSeePeopleOrSettings() =>
-        Assert.Equal(["Schedule", "Projects", "Utilisation", "Access tokens"], NavItem.For(isPlanner: false).Select(i => i.Label));
+        Assert.Equal(["Schedule", "Projects", "Utilisation", "Account"], NavItem.For(isPlanner: false).Select(i => i.Label));
 
     [Theory]
     [InlineData("/projects", "/help/projects")]
@@ -22,6 +22,8 @@ public class ShellLogicTests
     [InlineData("projects", "/help/projects")]
     [InlineData("/", "/help")]
     [InlineData("/help", "/help")]
+    [InlineData("/account", "/help/account")]
+    [InlineData("/access-tokens", "/help")]
     [InlineData("/help/people", "/help")]
     [InlineData("/unknown", "/help")]
     public void HelpButtonOpensTheTopicOfTheScreenOrTheContents(string path, string href) =>

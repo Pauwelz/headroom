@@ -23,7 +23,7 @@ The page has two groups: **Company** and **Access and integrations**.
     A note warns if the date is a public holiday (no effect) or a weekend.
 - **Access tokens.** This list shows the Access tokens of all People, with the owner of each token.
   It shows the expiry date and the **Can change** state of each token. It never shows a secret. **Revoke** stops one token at once. The other tokens keep working.
-  Each Person creates their own tokens on the [Access tokens page](access-tokens.md).
+  Each Person creates their own tokens on the [Account page](account.md).
 
 - **Connected apps.** A Connected app is an app, such as Claude or Copilot Studio, that each Person can connect to with their own login.
   - The row at the bottom adds a Connected app with a name and one or more redirect URLs. Enter one URL per line.
@@ -37,7 +37,7 @@ The page has two groups: **Company** and **Access and integrations**.
 - **Connections.** This list shows the Connections of all People: the Connected app, the Person, the date created, **Last used** and **Can change**.
   **Revoke** stops one Connection at once. The other Connections keep working.
   ![The Connections list in Settings with the Person of each Connection](images/settings-connections.png)
-  Each Person sees and revokes their own Connections on the [Access tokens page](access-tokens.md).
+  Each Person sees and revokes their own Connections on the [Account page](account.md).
 
 ## Connect Claude
 
@@ -85,7 +85,7 @@ To stop one member, revoke their Connection. To stop everyone, delete the Connec
 Use this way for a client without OAuth, for example Claude Code.
 On Claude Team, an Owner adds Headroom as a custom connector:
 
-1. Create an Access token on the Access tokens page. Copy it.
+1. Create an Access token on the Account page. Copy it.
 2. In Claude, open the connector settings and add a custom connector.
 3. Enter the URL `https://<your Headroom address>/mcp`.
 4. Add the fixed header `Authorization` with the value `Bearer <token>`.
@@ -125,7 +125,7 @@ Headroom refuses a token for the wrong address.
 
 ### With an Access token
 
-1. Create an Access token on the Access tokens page, named for example "Copilot Studio". Do not tick **Can change**. Copy the token.
+1. Create an Access token on the Account page, named for example "Copilot Studio". Do not tick **Can change**. Copy the token.
    With **Can change**, every user of the agent could change the planning as the owner of the token.
 2. In Copilot Studio, open the agent and go to **Tools**. Add a tool of the type **Model Context Protocol**.
 3. Enter the URL `https://<your Headroom address>/mcp`.

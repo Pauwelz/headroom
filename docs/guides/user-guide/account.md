@@ -1,4 +1,4 @@
-# Access tokens page
+# Account page
 
 An Access token lets a script or an AI assistant call Headroom for you.
 The token belongs to you and has your rights, and no more.
@@ -30,7 +30,7 @@ A Connection lets a Connected app, such as Claude, act as you.
 You make a Connection when you allow the app on its consent screen. The Connection has your rights, and no more.
 It is not an Access token. Use an Access token only for a client that cannot use a Connected app.
 
-![The Connections list on the Access tokens page with one Connection to Claude](images/access-tokens-connections.png)
+![The Connections list on the Account page with one Connection to Claude](images/account-connections.png)
 
 - The list shows each Connection with the Connected app, **Can change**, the date it was created and **Last used**.
   **Last used** is the date of the newest token of the Connection. A Connection that no one used yet shows "Never".
