@@ -310,13 +310,13 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task ATokenOfAPersonWhoIsNoPlannerCannotDeleteTimeOff()
+    public async Task AReadOnlyTokenOfAPersonWhoIsNoPlannerCannotDeleteTimeOff()
     {
         await using var mcp = await ConnectAsync(secret: WorkerSecret);
 
         var error = await ErrorAsync(mcp, "delete_time_off", new() { ["id"] = Guid.NewGuid() });
 
-        Assert.Contains("Planner", error);
+        Assert.Contains("read only", error);
     }
 
     private static List<Guid> TimeOffIds(JsonElement schedule) => schedule.GetProperty("people").EnumerateArray()
