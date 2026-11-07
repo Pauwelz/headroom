@@ -1,0 +1,152 @@
+@using System.Globalization
+@inject SettingsApi Api
+
+<SettingsSection Id="days-off" Title="Company days off" Summary="@SettingsSummary.DaysOff(_days, _year, Today)">
+    <Actions>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" aria-label="Previous year" OnClick="() => ChangeYearAsync(-1)" />
+        <MudText Typo="Typo.subtitle1">@_year</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" aria-label="Next year" OnClick="() => ChangeYearAsync(1)" />
+    </Actions>
+    <ChildContent>
+        <MudText Typo="Typo.body2" Class="mb-2">
+            A Company day off is a day on which nobody works. It reduces Capacity like a public holiday.
+            Public holidays show in grey for reference. You cannot change them.
+        </MudText>
+
+        @if (_error is not null)
+        {
+            <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
+        }
+
+        <ValidatedForm @ref="_dayOffForm" @bind-IsValid="_dayOffValid">
+        <MudSimpleTable Dense="true">
+            <thead>
+                <tr><th>Date</th><th>Day</th><th>Name</th><th>Note</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var day in _days)
+                {
+                    @if (day.Type == DayOffTypeName.PublicHoliday)
+                    {
+                        <tr style="color: var(--mud-palette-text-disabled)">
+                            <td>@DisplayDate.Format(day.Date)</td>
+                            <td>@Weekday(day.Date)</td>
+                            <td>@day.Name (public holiday)</td>
+                            <td>@DayOffNotes.ForPublicHoliday(day.Date)</td>
+                            <td></td>
+                        </tr>
+                    }
+                    else if (day.Id == _editId)
+                    {
+                        <tr>
+                            <td><DateField @bind-Date="_formDate" Label="Date" Variant="Variant.Text" /></td>
+                            <td>@(_formDate is { } d ? Weekday(DateOnly.FromDateTime(d)) : "")</td>
+                            <td><MudTextField @bind-Value="_formName" Label="Name" MaxLength="200" Immediate="true" /></td>
+                            <td>@FormNote()</td>
+                            <td>
+                                <MudButton Color="Color.Primary" OnClick="() => SaveEditAsync(day)">Save</MudButton>
+                                <MudButton OnClick="CancelEdit">Cancel</MudButton>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td>@DisplayDate.Format(day.Date)</td>
+                            <td>@Weekday(day.Date)</td>
+                            <td><b>@day.Name</b></td>
+                            <td><MudText Typo="Typo.caption" Color="Color.Warning">@DayOffNotes.ForCompanyDay(day.Date, _days)</MudText></td>
+                            <td>
+                                <MudButton OnClick="() => StartEdit(day)">Edit</MudButton>
+                                <MudButton Color="Color.Error" OnClick="() => DeleteAsync(day)">Delete</MudButton>
+                            </td>
+                        </tr>
+                    }
+                }
+                @if (_editId is null)
+                {
+                    <tr>
+                        <td><DateField @bind-Date="_formDate" Label="Date" Variant="Variant.Text" Required="true" /></td>
+                        <td>@(_formDate is { } d ? Weekday(DateOnly.FromDateTime(d)) : "")</td>
+                        <td><MudTextField @bind-Value="_formName" Label="Name, for example Bridge day" MaxLength="200" Immediate="true"
+                                          Required="true" RequiredError="Enter a name." /></td>
+                        <td>@FormNote()</td>
+                        <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAsync" Disabled="@(!_dayOffValid)">Add</MudButton></td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+        </ValidatedForm>
+    </ChildContent>
+</SettingsSection>
+
+@code {
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+
+    private ValidatedForm? _dayOffForm;
+    private bool _dayOffValid;
+    private int _year = DateTime.Today.Year;
+    private List<DayOffResponse> _days = [];
+    private string? _error;
+    private Guid? _editId;
+    private DateTime? _formDate;
+    private string _formName = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _days = await Api.GetDaysOffAsync(_year);
+
+    private async Task ChangeYearAsync(int step)
+    {
+        _year += step;
+        CancelEdit();
+        await LoadAsync();
+    }
+
+    private void StartEdit(DayOffResponse day)
+    {
+        _editId = day.Id;
+        _formDate = day.Date.ToDateTime(TimeOnly.MinValue);
+        _formName = day.Name;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editId = null;
+        _formDate = null;
+        _formName = "";
+        _dayOffForm?.ResetValidation();
+    }
+
+    private Task AddAsync() => WriteAsync(date => Api.AddAsync(date, _formName));
+
+    private Task SaveEditAsync(DayOffResponse day) => WriteAsync(date => Api.EditAsync(day.Id!.Value, date, _formName));
+
+    private async Task DeleteAsync(DayOffResponse day) => await RunAsync(() => Api.DeleteAsync(day.Id!.Value));
+
+    private async Task WriteAsync(Func<DateOnly, Task<string?>> write)
+    {
+        if (_formDate is not { } date)
+        {
+            _error = "Pick a date.";
+            return;
+        }
+        await RunAsync(() => write(DateOnly.FromDateTime(date)), date.Year);
+    }
+
+    // Runs a write, then shows the error or reloads the table.
+    private async Task<bool> RunAsync(Func<Task<string?>> write, int? year = null)
+    {
+        _error = await write();
+        if (_error is not null) return false;
+        _year = year ?? _year;
+        CancelEdit();
+        await LoadAsync();
+        return true;
+    }
+
+    private string? FormNote() => _formDate is { } d ? DayOffNotes.ForCompanyDay(DateOnly.FromDateTime(d), _days) : null;
+
+    private static string Weekday(DateOnly date) => date.ToString("ddd", CultureInfo.InvariantCulture);
+}

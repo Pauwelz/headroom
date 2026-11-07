@@ -1,10 +1,5 @@
 @page "/settings"
-@using System.Globalization
-@using Microsoft.AspNetCore.Components.WebAssembly.Hosting
 @inject SessionApi Session
-@inject SettingsApi Api
-@inject IDialogService Dialogs
-@inject IWebAssemblyHostEnvironment Env
 
 <PageTitle>Settings</PageTitle>
 
@@ -22,10 +17,10 @@
         <a href="settings#company-name">Company name</a>
         <a href="settings#days-off">Company days off</a>
         <MudText Typo="Typo.subtitle2" Class="mt-3">Access and integrations</MudText>
-        <a href="settings#tokens">Access tokens @Badge(ExpiringSoon, SettingsSummary.TokensExpiringSoonLabel(ExpiringSoon))</a>
+        <a href="settings#tokens">Access tokens @Badge(_expiringSoon, SettingsSummary.TokensExpiringSoonLabel(_expiringSoon))</a>
         <a href="settings#apps">Connected apps</a>
         <a href="settings#connections">Connections</a>
-        <a href="settings#webhooks">Webhooks @Badge(_failedEvents.Count, SettingsSummary.FailedEventsLabel(_failedEvents.Count))</a>
+        <a href="settings#webhooks">Webhooks @Badge(_failedEventCount, SettingsSummary.FailedEventsLabel(_failedEventCount))</a>
     </nav>
 
     <div class="settings-body">
@@ -35,494 +30,36 @@
             <MudText Typo="Typo.caption">You set the name on the first-run screen. It cannot change.</MudText>
         </SettingsSection>
 
-        <SettingsSection Id="days-off" Title="Company days off" Summary="@SettingsSummary.DaysOff(_days, _year, Today)">
-            <Actions>
-                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" aria-label="Previous year" OnClick="() => ChangeYearAsync(-1)" />
-                <MudText Typo="Typo.subtitle1">@_year</MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" aria-label="Next year" OnClick="() => ChangeYearAsync(1)" />
-            </Actions>
-            <ChildContent>
-                <MudText Typo="Typo.body2" Class="mb-2">
-                    A Company day off is a day on which nobody works. It reduces Capacity like a public holiday.
-                    Public holidays show in grey for reference. You cannot change them.
-                </MudText>
-
-                @if (_error is not null)
-                {
-                    <MudAlert Severity="Severity.Error" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _error = null">@_error</MudAlert>
-                }
-
-                <ValidatedForm @ref="_dayOffForm" @bind-IsValid="_dayOffValid">
-                <MudSimpleTable Dense="true">
-                    <thead>
-                        <tr><th>Date</th><th>Day</th><th>Name</th><th>Note</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var day in _days)
-                        {
-                            @if (day.Type == DayOffTypeName.PublicHoliday)
-                            {
-                                <tr style="color: var(--mud-palette-text-disabled)">
-                                    <td>@DisplayDate.Format(day.Date)</td>
-                                    <td>@Weekday(day.Date)</td>
-                                    <td>@day.Name (public holiday)</td>
-                                    <td>@DayOffNotes.ForPublicHoliday(day.Date)</td>
-                                    <td></td>
-                                </tr>
-                            }
-                            else if (day.Id == _editId)
-                            {
-                                <tr>
-                                    <td><DateField @bind-Date="_formDate" Label="Date" Variant="Variant.Text" /></td>
-                                    <td>@(_formDate is { } d ? Weekday(DateOnly.FromDateTime(d)) : "")</td>
-                                    <td><MudTextField @bind-Value="_formName" Label="Name" MaxLength="200" Immediate="true" /></td>
-                                    <td>@FormNote()</td>
-                                    <td>
-                                        <MudButton Color="Color.Primary" OnClick="() => SaveEditAsync(day)">Save</MudButton>
-                                        <MudButton OnClick="CancelEdit">Cancel</MudButton>
-                                    </td>
-                                </tr>
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td>@DisplayDate.Format(day.Date)</td>
-                                    <td>@Weekday(day.Date)</td>
-                                    <td><b>@day.Name</b></td>
-                                    <td><MudText Typo="Typo.caption" Color="Color.Warning">@DayOffNotes.ForCompanyDay(day.Date, _days)</MudText></td>
-                                    <td>
-                                        <MudButton OnClick="() => StartEdit(day)">Edit</MudButton>
-                                        <MudButton Color="Color.Error" OnClick="() => DeleteAsync(day)">Delete</MudButton>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        @if (_editId is null)
-                        {
-                            <tr>
-                                <td><DateField @bind-Date="_formDate" Label="Date" Variant="Variant.Text" Required="true" /></td>
-                                <td>@(_formDate is { } d ? Weekday(DateOnly.FromDateTime(d)) : "")</td>
-                                <td><MudTextField @bind-Value="_formName" Label="Name, for example Bridge day" MaxLength="200" Immediate="true"
-                                                  Required="true" RequiredError="Enter a name." /></td>
-                                <td>@FormNote()</td>
-                                <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAsync" Disabled="@(!_dayOffValid)">Add</MudButton></td>
-                            </tr>
-                        }
-                    </tbody>
-                </MudSimpleTable>
-                </ValidatedForm>
-            </ChildContent>
-        </SettingsSection>
+        <CompanyDaysOffSection />
 
         <MudText Typo="Typo.h5" Class="mb-2 mt-6">Access and integrations</MudText>
 
-        <SettingsSection Id="tokens" Title="Access tokens" Summary="@SettingsSummary.Tokens(_tokens)">
-            <MudText Typo="Typo.body2" Class="mb-2">
-                Each Access token belongs to a Person and has the rights of that Person.
-                People create their own tokens on the Access tokens page. You can revoke any token.
-            </MudText>
-            @if (_tokenError is not null)
-            {
-                <MudAlert Severity="Severity.Error" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _tokenError = null">@_tokenError</MudAlert>
-            }
-            <MudSimpleTable Dense="true">
-                <thead><tr><th>Name</th><th>Owner</th><th>Created</th><th>Expires</th><th>Can change</th><th></th></tr></thead>
-                <tbody>
-                    @foreach (var token in _tokens)
-                    {
-                        <tr>
-                            <td><b>@token.Name</b></td>
-                            <td>@token.Owner</td>
-                            <td>@DisplayDate.Format(DateOnly.FromDateTime(token.DateCreated.LocalDateTime))</td>
-                            <td>
-                                @AccessTokenExpiry.Text(token.ExpiresAt, DateTimeOffset.UtcNow)
-                                @if (AccessTokenExpiry.ExpiresSoon(token.ExpiresAt, DateTimeOffset.UtcNow))
-                                {
-                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">Expires soon</MudChip>
-                                }
-                            </td>
-                            <td>@(token.CanChange ? "Yes" : "No")</td>
-                            <td><MudButton Color="Color.Error" OnClick="() => RevokeTokenAsync(token)">Revoke</MudButton></td>
-                        </tr>
-                    }
-                </tbody>
-            </MudSimpleTable>
-        </SettingsSection>
+        <AccessTokensSection ExpiringSoonChanged="count => _expiringSoon = count" />
 
-        @* The panel stays open while it shows a one-time secret, an error or an Edit row. *@
-        <SettingsSection Id="apps" Title="Connected apps" Summary="@SettingsSummary.Names(_apps.Select(a => a.Name))"
-                         Expanded="@(AppsMustShow ? null : _appsOpen)" ExpandedChanged="open => _appsOpen = open">
-            <MudText Typo="Typo.body2" Class="mb-2">
-                A Connected app, such as Claude or Copilot Studio, lets each Person connect with their own login.
-                Enter one redirect URL per line. Each URL must be an absolute https URL.
-            </MudText>
+        <ConnectedAppsSection OnDeleted="() => _connections?.ReloadAsync() ?? Task.CompletedTask" />
 
-            @if (_appError is not null)
-            {
-                <MudAlert Severity="Severity.Error" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _appError = null">@_appError</MudAlert>
-            }
-            @if (_newApp is not null)
-            {
-                <MudAlert Severity="Severity.Success" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _newApp = null">
-                    Client ID and client secret of "@_newApp.Name". Copy the secret now. Headroom does not show it again.<br />
-                    Client ID: <code>@_newApp.ClientId</code><br />
-                    Client secret: <code>@_newApp.ClientSecret</code>
-                </MudAlert>
-            }
+        <ConnectionsSection @ref="_connections" />
 
-            <ValidatedForm @ref="_appForm" @bind-IsValid="_appValid">
-            <MudSimpleTable Dense="true">
-                <thead>
-                    <tr><th>Name</th><th>Client ID</th><th>Redirect URLs</th><th></th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var connected in _apps)
-                    {
-                        @if (connected.Id == _appEditId)
-                        {
-                            <tr>
-                                <td><MudTextField @bind-Value="_appEditName" Label="Name" MaxLength="200" Immediate="true" /></td>
-                                <td><code>@connected.ClientId</code></td>
-                                <td><MudTextField @bind-Value="_appEditUrls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true" /></td>
-                                <td>
-                                    <MudButton Color="Color.Primary" OnClick="() => ChangeAppAsync(connected)">Save</MudButton>
-                                    <MudButton OnClick="() => (_appEditId, _appError) = (null, null)">Cancel</MudButton>
-                                </td>
-                            </tr>
-                        }
-                        else
-                        {
-                            <tr>
-                                <td><b>@connected.Name</b></td>
-                                <td><code>@connected.ClientId</code></td>
-                                <td>@foreach (var url in connected.RedirectUrls) { <div>@url</div> }</td>
-                                <td>
-                                    <MudButton OnClick="() => StartEditApp(connected)">Edit</MudButton>
-                                    <MudButton OnClick="() => NewAppSecretAsync(connected)">New secret</MudButton>
-                                    <MudButton Color="Color.Error" OnClick="() => DeleteAppAsync(connected)">Delete</MudButton>
-                                </td>
-                            </tr>
-                        }
-                    }
-                    <tr>
-                        <td><MudTextField @bind-Value="_appName" Label="Name, for example Claude" MaxLength="200" Immediate="true"
-                                          Required="true" RequiredError="Enter a name." /></td>
-                        <td></td>
-                        <td><MudTextField @bind-Value="_appUrls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true"
-                                          Required="true" RequiredError="@UrlRules.NoRedirectUrl" Validation="@(new Func<string?, string?>(UrlRules.RedirectUrls))" /></td>
-                        <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAppAsync" Disabled="@(!_appValid)">Add</MudButton></td>
-                    </tr>
-                </tbody>
-            </MudSimpleTable>
-            </ValidatedForm>
-        </SettingsSection>
-
-        <SettingsSection Id="connections" Title="Connections" Summary="@SettingsSummary.Connections(_connections)">
-            <MudText Typo="Typo.body2" Class="mb-2">
-                A Connection lets a Connected app act as one Person, with the rights of that Person. You can revoke any Connection.
-            </MudText>
-            @if (_connectionError is not null)
-            {
-                <MudAlert Severity="Severity.Error" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _connectionError = null">@_connectionError</MudAlert>
-            }
-            <ConnectionsTable Connections="_connections" ShowPerson="true" OnRevoke="RevokeConnectionAsync" />
-        </SettingsSection>
-
-        <SettingsSection Id="webhooks" Title="Webhooks" Summary="@SettingsSummary.Names(_hooks.Select(h => h.Name))">
-            <MudText Typo="Typo.body2" Class="mb-2">
-                Headroom sends an Event to every Webhook when an Allocation, Time off or Project status changes. Each Webhook has a secret to check the signature.
-            </MudText>
-
-            @if (_hookError is not null)
-            {
-                <MudAlert Severity="Severity.Error" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _hookError = null">@_hookError</MudAlert>
-            }
-            @if (_newHook is not null)
-            {
-                <MudAlert Severity="Severity.Success" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _newHook = null">
-                    Secret of "@_newHook.Name". Copy it now. Headroom does not show it again.<br />
-                    <code>@_newHook.Secret</code>
-                </MudAlert>
-            }
-
-            <ValidatedForm @ref="_hookForm" @bind-IsValid="_hookValid">
-            <MudSimpleTable Dense="true">
-                <thead>
-                    <tr><th>Name</th><th>URL</th><th></th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var hook in _hooks)
-                    {
-                        @if (hook.Id == _hookEditId)
-                        {
-                            <tr>
-                                <td><MudTextField @bind-Value="_hookName" Label="Name" MaxLength="200" Immediate="true" /></td>
-                                <td>@hook.Url</td>
-                                <td>
-                                    <MudButton Color="Color.Primary" OnClick="() => RenameHookAsync(hook)">Save</MudButton>
-                                    <MudButton OnClick="() => _hookEditId = null">Cancel</MudButton>
-                                </td>
-                            </tr>
-                        }
-                        else
-                        {
-                            <tr>
-                                <td><b>@hook.Name</b></td>
-                                <td>@hook.Url</td>
-                                <td>
-                                    <MudButton OnClick="() => StartRenameHook(hook)">Rename</MudButton>
-                                    <MudButton OnClick="() => RotateHookSecretAsync(hook)">New secret</MudButton>
-                                    <MudButton Color="Color.Error" OnClick="() => DeleteHookAsync(hook)">Delete</MudButton>
-                                </td>
-                            </tr>
-                        }
-                    }
-                    <tr>
-                        <td><MudTextField @bind-Value="_addName" Label="Name, for example Teams flow" MaxLength="200" Immediate="true"
-                                          Required="true" RequiredError="Enter a name." /></td>
-                        <td><MudTextField @bind-Value="_addUrl" Label="URL" MaxLength="2000" Immediate="true"
-                                          Required="true" RequiredError="Enter a URL." Validation="@(new Func<string?, string?>(WebhookUrlError))" /></td>
-                        <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddHookAsync" Disabled="@(!_hookValid)">Add</MudButton></td>
-                    </tr>
-                </tbody>
-            </MudSimpleTable>
-            </ValidatedForm>
-
-            @foreach (var hook in _hooks)
-            {
-                var failed = _failedEvents.Where(f => f.WebhookId == hook.Id).ToList();
-                @if (failed.Count > 0)
-                {
-                    <MudText Typo="Typo.subtitle2" Class="mt-3">Failed Events of "@hook.Name"</MudText>
-                    <MudSimpleTable Dense="true">
-                        <thead>
-                            <tr><th>Event</th><th>Stored</th><th>Tries</th><th>Last error</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var f in failed)
-                            {
-                                <tr>
-                                    <td>@f.EventType</td>
-                                    <td>@DisplayDate.FormatTimestamp(f.DateCreated)</td>
-                                    <td>@f.Attempts</td>
-                                    <td>@f.LastError</td>
-                                    <td>@(f.GaveUp ? "Headroom stopped retrying" : "Headroom retries")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </MudSimpleTable>
-                }
-            }
-        </SettingsSection>
+        <WebhooksSection FailedEventsChanged="count => _failedEventCount = count" />
     </div>
 </div>
 
 @code {
     [CascadingParameter] public MeResponse Me { get; set; } = default!;
 
-    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
-
     private bool _companyOpen;
-    private bool _appsOpen;
-
-    private bool AppsMustShow => _newApp is not null || _appError is not null || _appEditId is not null;
-
-    private int ExpiringSoon => SettingsSummary.TokensExpiringSoon(_tokens, DateTimeOffset.UtcNow);
+    private string? _company;
+    private int _expiringSoon;
+    private int _failedEventCount;
+    private ConnectionsSection? _connections;
 
     // The nav badge shows the number. Screen readers hear the label instead.
     private static RenderFragment Badge(int count, string label) => count == 0 ? _ => { } :
         @<span><span class="badge" aria-hidden="true">@count</span><span class="sr-only">, @label</span></span>;
 
-    private List<WebhookResponse> _hooks = [];
-    private CreatedWebhookResponse? _newHook;
-    private string? _hookError;
-    private Guid? _hookEditId;
-    private string _hookName = "";
-    // Development allows http, as the server does.
-    private string? WebhookUrlError(string? value) => UrlRules.WebhookUrl(value, Env.IsDevelopment());
-
-    private ValidatedForm? _dayOffForm, _appForm, _hookForm;
-    private bool _dayOffValid, _appValid, _hookValid;
-    private string _addName = "";
-    private string _addUrl = "";
-
-    private List<FailedEventResponse> _failedEvents = [];
-
-    private List<ConnectedAppResponse> _apps = [];
-    private List<ConnectionResponse> _connections = [];
-    private string? _connectionError;
-    private CreatedConnectedAppResponse? _newApp;
-    private string? _appError;
-    private string _appName = "";
-    private string _appUrls = "";
-
-    private string? _appEditId;
-    private string _appEditName = "";
-    private string _appEditUrls = "";
-
-    private static List<string> Lines(string text) => text.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-
-    private void StartEditApp(ConnectedAppResponse connected) =>
-        (_appEditId, _appEditName, _appEditUrls, _appError) = (connected.Id, connected.Name, string.Join('\n', connected.RedirectUrls), null);
-
-    private async Task ChangeAppAsync(ConnectedAppResponse connected)
-    {
-        _appError = await Api.ChangeConnectedAppAsync(connected.Id, _appEditName, Lines(_appEditUrls));
-        if (_appError is not null) return;
-        _appEditId = null;
-        _apps = await Api.GetConnectedAppsAsync();
-    }
-
-    private async Task AddAppAsync()
-    {
-        var (created, error) = await Api.AddConnectedAppAsync(_appName, Lines(_appUrls));
-        _appError = error;
-        if (created is null) return;
-        (_newApp, _appName, _appUrls) = (created, "", "");
-        _appForm?.ResetValidation();
-        _apps = await Api.GetConnectedAppsAsync();
-    }
-
-    private async Task NewAppSecretAsync(ConnectedAppResponse connected)
-    {
-        var (renewed, error) = await Api.NewConnectedAppSecretAsync(connected.Id);
-        (_appError, _newApp) = (error, renewed);
-    }
-
-    private async Task DeleteAppAsync(ConnectedAppResponse connected)
-    {
-        if (await Dialogs.ShowMessageBoxAsync("Delete Connected app", $"Delete the Connected app \"{connected.Name}\"? Its client secret stops working.", yesText: "Delete", cancelText: "Cancel") != true) return;
-        _appError = await Api.DeleteConnectedAppAsync(connected.Id);
-        _apps = await Api.GetConnectedAppsAsync();
-        _connections = await Api.GetConnectionsAsync();
-    }
-
-    private async Task LoadHooksAsync()
-    {
-        _hooks = await Api.GetWebhooksAsync();
-        _failedEvents = await Api.GetFailedEventsAsync();
-    }
-
-    private async Task RotateHookSecretAsync(WebhookResponse hook)
-    {
-        var (rotated, error) = await Api.RotateWebhookSecretAsync(hook.Id);
-        (_hookError, _newHook) = (error, rotated);
-    }
-
-    private void StartRenameHook(WebhookResponse hook) => (_hookEditId, _hookName, _hookError) = (hook.Id, hook.Name, null);
-
-    private async Task AddHookAsync()
-    {
-        var (hook, error) = await Api.AddWebhookAsync(_addName, _addUrl);
-        _hookError = error;
-        if (hook is null) return;
-        (_newHook, _addName, _addUrl) = (hook, "", "");
-        _hookForm?.ResetValidation();
-        await LoadHooksAsync();
-    }
-
-    private async Task RenameHookAsync(WebhookResponse hook) => await RunHookAsync(() => Api.RenameWebhookAsync(hook.Id, _hookName));
-
-    private async Task DeleteHookAsync(WebhookResponse hook)
-    {
-        if (await Dialogs.ShowMessageBoxAsync("Delete Webhook", WebhookText.DeleteConfirmation(hook.Name), yesText: "Delete", cancelText: "Cancel") == true)
-            await RunHookAsync(() => Api.DeleteWebhookAsync(hook.Id));
-    }
-
-    private async Task RunHookAsync(Func<Task<string?>> write)
-    {
-        _hookError = await write();
-        if (_hookError is not null) return;
-        _hookEditId = null;
-        await LoadHooksAsync();
-    }
-
-    private string? _company;
-    private int _year = DateTime.Today.Year;
-    private List<DayOffResponse> _days = [];
-    private string? _error;
-    private Guid? _editId;
-    private DateTime? _formDate;
-    private string _formName = "";
-    private List<AccessTokenResponse> _tokens = [];
-    private string? _tokenError;
-
     protected override async Task OnInitializedAsync()
     {
         if (!Me.IsPlanner) return;
         _company = await Session.GetCompanyNameAsync();
-        await LoadAsync();
-        _tokens = await Api.GetTokensAsync();
-        await LoadHooksAsync();
-        _apps = await Api.GetConnectedAppsAsync();
-        _connections = await Api.GetConnectionsAsync();
     }
-
-    private async Task RevokeConnectionAsync(ConnectionResponse connection)
-    {
-        _connectionError = await Api.RevokeConnectionAsync(connection.Id);
-        _connections = await Api.GetConnectionsAsync();
-    }
-
-    private async Task RevokeTokenAsync(AccessTokenResponse token)
-    {
-        _tokenError = await Api.RevokeTokenAsync(token.Id);
-        _tokens = await Api.GetTokensAsync();
-    }
-
-    private async Task LoadAsync() => _days = await Api.GetDaysOffAsync(_year);
-
-    private async Task ChangeYearAsync(int step)
-    {
-        _year += step;
-        CancelEdit();
-        await LoadAsync();
-    }
-
-    private void StartEdit(DayOffResponse day)
-    {
-        _editId = day.Id;
-        _formDate = day.Date.ToDateTime(TimeOnly.MinValue);
-        _formName = day.Name;
-        _error = null;
-    }
-
-    private void CancelEdit()
-    {
-        _editId = null;
-        _formDate = null;
-        _formName = "";
-        _dayOffForm?.ResetValidation();
-    }
-
-    private Task AddAsync() => WriteAsync(date => Api.AddAsync(date, _formName));
-
-    private Task SaveEditAsync(DayOffResponse day) => WriteAsync(date => Api.EditAsync(day.Id!.Value, date, _formName));
-
-    private async Task DeleteAsync(DayOffResponse day) => await RunAsync(() => Api.DeleteAsync(day.Id!.Value));
-
-    private async Task WriteAsync(Func<DateOnly, Task<string?>> write)
-    {
-        if (_formDate is not { } date)
-        {
-            _error = "Pick a date.";
-            return;
-        }
-        await RunAsync(() => write(DateOnly.FromDateTime(date)), date.Year);
-    }
-
-    // Runs a write, then shows the error or reloads the table.
-    private async Task<bool> RunAsync(Func<Task<string?>> write, int? year = null)
-    {
-        _error = await write();
-        if (_error is not null) return false;
-        _year = year ?? _year;
-        CancelEdit();
-        await LoadAsync();
-        return true;
-    }
-
-    private string? FormNote() => _formDate is { } d ? DayOffNotes.ForCompanyDay(DateOnly.FromDateTime(d), _days) : null;
-
-    private static string Weekday(DateOnly date) => date.ToString("ddd", CultureInfo.InvariantCulture);
 }

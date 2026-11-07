@@ -1,0 +1,8 @@
+@* The dismissible alert that every Settings section uses for errors and one-time secrets. *@
+<MudAlert Severity="Severity" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="OnClose">@ChildContent</MudAlert>
+
+@code {
+    [Parameter] public Severity Severity { get; set; } = Severity.Error;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

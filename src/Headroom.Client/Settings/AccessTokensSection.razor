@@ -1,0 +1,56 @@
+@inject SettingsApi Api
+
+<SettingsSection Id="tokens" Title="Access tokens" Summary="@SettingsSummary.Tokens(_tokens)">
+    <MudText Typo="Typo.body2" Class="mb-2">
+        Each Access token belongs to a Person and has the rights of that Person.
+        People create their own tokens on the Access tokens page. You can revoke any token.
+    </MudText>
+    @if (_tokenError is not null)
+    {
+        <SettingsAlert OnClose="() => _tokenError = null">@_tokenError</SettingsAlert>
+    }
+    <MudSimpleTable Dense="true">
+        <thead><tr><th>Name</th><th>Owner</th><th>Created</th><th>Expires</th><th>Can change</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var token in _tokens)
+            {
+                <tr>
+                    <td><b>@token.Name</b></td>
+                    <td>@token.Owner</td>
+                    <td>@DisplayDate.Format(DateOnly.FromDateTime(token.DateCreated.LocalDateTime))</td>
+                    <td>
+                        @AccessTokenExpiry.Text(token.ExpiresAt, DateTimeOffset.UtcNow)
+                        @if (AccessTokenExpiry.ExpiresSoon(token.ExpiresAt, DateTimeOffset.UtcNow))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">Expires soon</MudChip>
+                        }
+                    </td>
+                    <td>@(token.CanChange ? "Yes" : "No")</td>
+                    <td><MudButton Color="Color.Error" OnClick="() => RevokeTokenAsync(token)">Revoke</MudButton></td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+</SettingsSection>
+
+@code {
+    /// <summary>The number of tokens that expire soon. The nav badge shows it.</summary>
+    [Parameter] public EventCallback<int> ExpiringSoonChanged { get; set; }
+
+    private List<AccessTokenResponse> _tokens = [];
+    private string? _tokenError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _tokens = await Api.GetTokensAsync();
+        await ExpiringSoonChanged.InvokeAsync(SettingsSummary.TokensExpiringSoon(_tokens, DateTimeOffset.UtcNow));
+    }
+
+    private async Task RevokeTokenAsync(AccessTokenResponse token)
+    {
+        _tokenError = await Api.RevokeTokenAsync(token.Id);
+        await LoadAsync();
+    }
+}
