@@ -35,7 +35,8 @@ The Schedule view is the main screen.
 
 ## People who are not Planners
 
-You see the same view, but you cannot change it.
+You see the same view. You cannot change Allocations, and you cannot change the Time off of other People.
+You can add, change and delete your own Time off. See "Change Time off".
 Your own group is highlighted.
 Use the toggle group to select **Only me** (only your group) or **Everyone** (all groups).
 
@@ -49,7 +50,7 @@ Use the toggle group to select **Only me** (only your group) or **Everyone** (al
   Change the percentage or other fields, then select **Save**. **Cancel** creates nothing.
   The dialog has one **Period** field. To pick a single day, select the same date twice.
   Type in **Project** or **Person** to search. An empty field shows all choices.
-- **Time off.** Select the first day, then the last day, on the **Time off** row.
+- **Time off.** A Planner does this on every Person. Other People do it on their own row. Select the first day, then the last day, on the **Time off** row.
   The Time off is created at once, without a dialog.
 
 Start on an empty day. A click on a bar does not start a new Allocation.
@@ -76,7 +77,9 @@ This does not work over the names.
 For one Person and Project, only one Allocation covers a day.
 Over-allocation is allowed. Headroom shows it and does not block it.
 
-## Planners: change Time off
+## Change Time off
+
+A Planner changes the Time off of every Person. Other People change only their own.
 
 - Drag and resize a Time off bar like an Allocation.
 - A **½** at the start or end of a Time off bar marks a half day.
