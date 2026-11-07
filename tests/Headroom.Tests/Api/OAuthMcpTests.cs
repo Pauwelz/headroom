@@ -327,6 +327,20 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task ANonPlannersConnectionWithCanChangeAddsTheirOwnTimeOff()
+    {
+        var token = await _flow.TokenAsync(await _flow.AddAppAsync(), "oauth-zed@example.com", canChange: true);
+        Guid zed;
+        using (var scope = _factory.Services.CreateScope())
+            zed = await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People.Where(p => p.Email == "oauth-zed@example.com").Select(p => p.Id).SingleAsync(Ct);
+
+        await using var mcp = await McpAsync(token);
+        var result = await mcp.CallToolAsync("add_time_off", new Dictionary<string, object?> { ["personId"] = zed, ["startDate"] = "2026-12-07", ["startPart"] = "morning", ["endDate"] = "2026-12-07", ["endPart"] = "afternoon" }, cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
+    }
+
+    [Fact]
     public async Task AForgedCanChangeFromANonPlannerIsIgnored()
     {
         var token = await _flow.TokenAsync(await _flow.AddAppAsync(), "oauth-zed@example.com", canChange: true);
