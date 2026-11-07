@@ -34,7 +34,7 @@ It never deletes a release, `dev`, `latest`, the image of an open PR, or the 10 
 ## Check a PR on the Test Instance
 
 The `image` job of the workflow `ci` runs next to the tests. A draft gets no image: mark the PR ready for review.
-A PR that changes only docs also builds an image, but needs no check.
+A PR that does not change the app gets no image and needs no check.
 
 1. Open the PR, or push to it. Wait until the checks and the `image` job are green. Deploy a PR only after its checks are green.
    The job summary shows the image and its version, for example `0.1.0-pr.12.3`.

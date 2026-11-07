@@ -98,7 +98,7 @@ jobs:
   image:
     # Builds an image of each PR for the Test Instance. Deploy it with the workflow deploy-test (image pr)
     # only after the checks of the PR are green. Forks get a read-only token and cannot push.
-    # A draft PR gets no image, and a label change does not rebuild it.
+    # A draft PR gets no image, and a label change does not rebuild it. A PR that does not change the image gets none either.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository
       && !github.event.pull_request.draft
@@ -112,10 +112,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - name: Find changes to the image
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # The same inputs as the push paths in deploy-test.yaml. Keep both lists equal.
+          pattern='^(src/|docs/guides/user-guide/|Headroom\.slnx$|global\.json$|Directory\.Build\.props$|\.github/scripts/|\.github/workflows/ci\.yaml$)'
+          if git diff --name-only "$BASE_SHA" HEAD | grep -qE "$pattern"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No change to the image. No image built." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.changes.outputs.run == 'true'
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: 10.0.x
       - name: Build and push the image
+        if: steps.changes.outputs.run == 'true'
         env:
           SDK_CONTAINER_REGISTRY_UNAME: ${{ github.actor }}
           SDK_CONTAINER_REGISTRY_PWORD: ${{ secrets.GITHUB_TOKEN }}

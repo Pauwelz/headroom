@@ -8,6 +8,7 @@ on:
   push:
     branches: [main]
     # Only the inputs of the image (see .github/scripts/publish-image.sh). Add a new root build file here.
+    # The image job in ci.yaml has the same list. Keep both lists equal.
     # A docs-only merge builds and deploys nothing.
     paths:
       - 'src/**'
