@@ -37,7 +37,7 @@ public class PasskeyLoginTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         ann.LastChangedBy = ann.Id;
         db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = ann.Id });
         db.People.Add(ann);
-        foreach (var name in new[] { "Bea", "Cal", "Dan", "Eve", "Fay", "Gil", "Hal" })
+        foreach (var name in new[] { "Bea", "Cal", "Dan", "Eve", "Fay", "Gil", "Hal", "Ivy" })
             db.People.Add(new Person { Name = name, Email = $"pl-{name.ToLowerInvariant()}@example.com", LastChangedBy = ann.Id });
         await db.SaveChangesAsync();
     }
@@ -116,7 +116,7 @@ public class PasskeyLoginTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     [Fact]
     public async Task APasskeyLoginDeletesAStalePasskeyOfferMarker()
     {
-        using var authenticator = await SaveAsync("pl-cal@example.com");
+        using var authenticator = await SaveAsync("pl-ivy@example.com");
 
         var response = await LoginAsync(Anonymous(), o => authenticator.CreateAssertion(o));
 
