@@ -48,7 +48,7 @@ public class EraseEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     [Fact]
     public async Task EraseBlanksTheNameAndEmailInAllocationAndTimeOffEvents()

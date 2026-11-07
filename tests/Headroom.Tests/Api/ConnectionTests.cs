@@ -40,7 +40,7 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

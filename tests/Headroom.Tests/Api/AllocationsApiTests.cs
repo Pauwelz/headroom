@@ -51,7 +51,7 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _viewer.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_viewer));
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
 

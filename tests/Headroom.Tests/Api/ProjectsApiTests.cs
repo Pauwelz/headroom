@@ -42,7 +42,7 @@ public class ProjectsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _viewer.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_viewer));
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
 
     // Each test uses unique names, so tests can share the database.
     private static string Unique(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
