@@ -14,5 +14,5 @@ Claude Team and Enterprise store one connector key for the whole organisation, s
 - An Owner enters the client ID and secret of a Connected app once in the connector settings. Each member then connects as themselves.
 - Access tokens stay, for scripts and clients without OAuth. A Person can use both.
 - A token for `/mcp` is refused on `/api`, and the reverse.
-- OAuth keys and tokens live in SQL, not in memory, so the Instance can still scale to zero. A token refresh can hit a cold start, and Claude waits only 10 seconds.
-- Authorization codes, access tokens and refresh tokens use the Data Protection key ring in SQL. OpenIddict 7.7.2 also requires a signing key and an encryption key, so Headroom registers ephemeral ones. Nothing uses them: Headroom refuses `openid` and issues no JWT tokens. If Headroom ever issues a JWT token, replace them with persistent keys first.
+- OAuth keys and tokens live in the database, not in memory, so the Instance can still scale to zero. A token refresh can hit a cold start, and Claude waits only 10 seconds.
+- Authorization codes, access tokens and refresh tokens use the Data Protection key ring in the database. OpenIddict 7.7.2 also requires a signing key and an encryption key, so Headroom registers ephemeral ones. Nothing uses them: Headroom refuses `openid` and issues no JWT tokens. If Headroom ever issues a JWT token, replace them with persistent keys first.

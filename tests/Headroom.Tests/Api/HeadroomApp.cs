@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Headroom.Tests.Api;
 
-// Starts the app against its own database in the shared SQL Server container. Share one per test class.
+// Starts the app against its own database in the shared PostgreSQL container. Share one per test class.
 public sealed class HeadroomApp : IAsyncLifetime
 {
     public WebApplicationFactory<Program> Factory { get; private set; } = null!;
@@ -23,5 +23,6 @@ public sealed class HeadroomApp : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         if (Factory is not null) await Factory.DisposeAsync();
+        if (ConnectionString is not null) await TestSql.DropDatabaseAsync(ConnectionString);
     }
 }

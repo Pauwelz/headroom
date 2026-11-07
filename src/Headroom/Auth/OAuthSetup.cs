@@ -5,8 +5,8 @@ using OpenIddict.Abstractions;
 
 namespace Headroom.Auth;
 
-// The OAuth server of ADR 0008. Applications live in SQL (OpenIddict EF Core store). Tokens use the Data Protection key ring
-// that AddHeadroomAuth already keeps in SQL, so no signing key or certificate exists and tokens survive scale to zero.
+// The OAuth server of ADR 0008. Applications live in the database (OpenIddict EF Core store). Tokens use the Data Protection key ring
+// that AddHeadroomAuth already keeps in the database, so no signing key or certificate exists and tokens survive scale to zero.
 public static class OAuthSetup
 {
     // The RFC 8707 resources. A token is valid for one of them only.

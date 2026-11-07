@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 builder.Services.AddDbContext<HeadroomDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Headroom")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Headroom")));
 if (builder.Environment.IsDevelopment())
     builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks().AddCheck<Headroom.Data.DatabaseHealthCheck>("database");

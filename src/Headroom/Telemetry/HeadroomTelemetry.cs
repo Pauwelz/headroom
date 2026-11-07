@@ -32,7 +32,7 @@ public static class HeadroomTelemetry
         if (!azureMonitor && !otlp) return services;
 
         // Registered before the exporters, so the processor runs before they see the span.
-        services.ConfigureOpenTelemetryTracerProvider(tracing => tracing.AddSource(Name).AddProcessor(new StripPersonalData()));
+        services.ConfigureOpenTelemetryTracerProvider(tracing => tracing.AddSource(Name).AddSource("Npgsql").AddProcessor(new StripPersonalData()));
         services.ConfigureOpenTelemetryMeterProvider(metrics => metrics.AddMeter(Name));
         var builder = services.AddOpenTelemetry();
         if (azureMonitor)

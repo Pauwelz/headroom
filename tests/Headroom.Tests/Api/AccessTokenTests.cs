@@ -165,9 +165,12 @@ public class AccessTokenTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var created = (await response.Content.ReadFromJsonAsync<NewAccessTokenResponse>(TestContext.Current.CancellationToken))!;
         var listed = (await flo.GetFromJsonAsync<List<AccessTokenResponse>>(OwnUrl, cancellationToken: TestContext.Current.CancellationToken))!.Single(t => t.Id == created.Id);
-        Assert.Equal(created.ExpiresAt, listed.ExpiresAt);
         if (days == 0) Assert.Null(listed.ExpiresAt);
-        else Assert.InRange(listed.ExpiresAt!.Value, DateTimeOffset.UtcNow.AddDays(days).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(days).AddMinutes(1));
+        else
+        {
+            Assert.Equal(created.ExpiresAt!.Value, listed.ExpiresAt!.Value, TimeSpan.FromMilliseconds(1)); // PostgreSQL stores microseconds
+            Assert.InRange(listed.ExpiresAt!.Value, DateTimeOffset.UtcNow.AddDays(days).AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(days).AddMinutes(1));
+        }
     }
 
     [Fact]

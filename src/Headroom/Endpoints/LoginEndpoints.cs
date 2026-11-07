@@ -83,7 +83,7 @@ public static class LoginEndpoints
         url is not null && url.StartsWith("/connect/authorize?", StringComparison.Ordinal) && !url.Contains('\\') ? url : "/";
 
     private static Task<Person?> FindPerson(HeadroomDbContext db, string email, CancellationToken ct) =>
-        db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Email == email, ct); // column collation ignores case
+        db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Email == email, ct); // the column collation ignores case
 
     private static Task<string?> Company(HeadroomDbContext db) =>
         db.InstanceSettings.Select(s => s.CompanyName).FirstOrDefaultAsync();

@@ -12,7 +12,7 @@ Every migration must work with the previous release. An Operator can then roll b
 
 ## Migration test
 
-CI runs `MigrationUpgradeTests` on every PR. It starts SQL Server with Testcontainers.
+CI runs `MigrationUpgradeTests` on every PR. It starts PostgreSQL with Testcontainers.
 It migrates an empty database to the oldest supported version, then to the newest.
 
 `OldestSupportedMigration` in that test names the last migration of the oldest supported release.

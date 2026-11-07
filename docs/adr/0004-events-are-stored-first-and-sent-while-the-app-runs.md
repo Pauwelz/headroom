@@ -5,7 +5,7 @@ Each Instance runs on Azure Container Apps Express, which scales to zero and sup
 ## Considered Options
 
 - **Send once, right after the save:** the simplest, but a failed send loses the Event without a warning. A calendar sync then drifts.
-- **Keep one replica always on:** retries run on time, but it needs the Consumption plan and costs more than the EUR 9 per month in ADR 0003.
+- **Keep one replica always on:** retries run on time, but it needs the Consumption plan and costs more than the EUR 16–19 per month in ADR 0003.
 
 ## Consequences
 

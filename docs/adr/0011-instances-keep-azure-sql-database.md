@@ -11,3 +11,5 @@ We checked whether PostgreSQL would be lighter on resources than SQL Server, bec
 
 - All test runs on one machine share one reused SQL Server container, capped at 2048 MB. It keeps running between test runs.
 - CI time comes from the tests themselves on a 2 vCPU runner, not from the database engine or the image pull. Faster CI needs faster tests.
+
+Superseded by [ADR 0014](0014-instances-use-postgresql.md).

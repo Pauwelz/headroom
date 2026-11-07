@@ -27,15 +27,18 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.UseOpenIddict();
+        // PostgreSQL compares case-sensitively. Email, Client name and Project name must match without case. ICU level 2 ignores case only.
+        // A nondeterministic collation rejects LIKE, so never run Contains or StartsWith on these columns in the database.
+        modelBuilder.HasCollation("case_insensitive", locale: "und-u-ks-level2", provider: "icu", deterministic: false);
         // The server generates ids, so the database does not.
         modelBuilder.Entity<InstanceSettings>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<Person>(person =>
         {
             person.Property(p => p.Id).ValueGeneratedNever();
             person.Property(p => p.Name).HasMaxLength(200);
-            person.Property(p => p.Email).HasMaxLength(254);
-            // The default SQL Server collation ignores case. A null email (erased) stays out of the index.
-            person.HasIndex(p => p.Email).IsUnique().HasFilter("[Email] IS NOT NULL");
+            person.Property(p => p.Email).HasMaxLength(254).UseCollation("case_insensitive");
+            // A unique index allows many nulls, so erased Persons (null email) do not clash.
+            person.HasIndex(p => p.Email).IsUnique();
         });
         modelBuilder.Entity<Contract>(contract =>
         {
@@ -75,13 +78,13 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
         modelBuilder.Entity<Client>(client =>
         {
             client.Property(c => c.Id).ValueGeneratedNever();
-            client.Property(c => c.Name).HasMaxLength(200);
+            client.Property(c => c.Name).HasMaxLength(200).UseCollation("case_insensitive");
             client.HasIndex(c => c.Name).IsUnique();
         });
         modelBuilder.Entity<Project>(project =>
         {
             project.Property(p => p.Id).ValueGeneratedNever();
-            project.Property(p => p.Name).HasMaxLength(200);
+            project.Property(p => p.Name).HasMaxLength(200).UseCollation("case_insensitive");
             project.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
             project.HasOne<Client>().WithMany().HasForeignKey(p => p.ClientId);
             project.HasIndex(p => new { p.ClientId, p.Name }).IsUnique();
@@ -96,7 +99,7 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
         modelBuilder.Entity<LoginCode>(code =>
         {
             code.Property(c => c.Id).ValueGeneratedNever();
-            code.Property(c => c.Email).HasMaxLength(254);
+            code.Property(c => c.Email).HasMaxLength(254).UseCollation("case_insensitive");
             code.HasIndex(c => c.Email);
         });
         modelBuilder.Entity<Session>().Property(s => s.Id).ValueGeneratedNever();

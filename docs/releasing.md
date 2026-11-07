@@ -115,7 +115,7 @@ Rules for migrations are in `docs/migrations.md`.
 
 ## One-time setup of the Test Instance
 
-The Test Instance is a Container App and a SQL database in an Azure subscription of the maintainer.
+The Test Instance is a Container App and an Azure Database for PostgreSQL Flexible Server in an Azure subscription of the maintainer.
 The private repo creates them and sets the app settings (see the configuration table in the Hosting requirements),
 including `Seed__PlannerEmail`. This repo only rolls images onto them.
 
@@ -124,8 +124,8 @@ including `Seed__PlannerEmail`. This repo only rolls images onto them.
 2. Create a federated credential for the Environment `test` on an identity that may update the Container App and recreate the database.
    The subject ends in `:environment:test`. Read the exact value from the error of the first failed sign-in.
 3. Set these variables in the `test` Environment: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
-   `AZURE_RESOURCE_GROUP`, `CONTAINER_APP`, `SQL_SERVER`, `SQL_DATABASE` and `ENVIRONMENT_NAME` = `test`.
-   The name in `SQL_DATABASE` must contain `-test-`. The reset step refuses other names.
+   `AZURE_RESOURCE_GROUP`, `CONTAINER_APP`, `PG_SERVER`, `PG_DATABASE` and `ENVIRONMENT_NAME` = `test`.
+   The name in `PG_DATABASE` must contain `-test-`. The reset step refuses other names.
 4. After the first image is pushed, set the visibility of the GHCR package `headroom` to public.
    `deploy-test` signs in nowhere, so it needs a public package.
    Give this repo the role Admin on the package (Manage Actions access), so `cleanup-test-images` can delete versions.

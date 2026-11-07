@@ -7,7 +7,7 @@ Terms follow [GLOSSARY.md](GLOSSARY.md).
 
 1. Install the .NET SDK that the project uses.
 2. Run `dotnet build`.
-3. Run `dotnet test`. The SQL tests need Docker, because they start a real SQL Server.
+3. Run `dotnet test`. The database tests need Docker, because they start a real PostgreSQL.
 
 See [docs/testing.md](docs/testing.md). Run `scripts/preview.sh` to try the app with demo data.
 

@@ -109,8 +109,8 @@ jobs:
         if: env.RESET_DATABASE == 'true'
         env:
           RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          SQL_SERVER: ${{ vars.SQL_SERVER }}
-          SQL_DATABASE: ${{ vars.SQL_DATABASE }}
+          PG_SERVER: ${{ vars.PG_SERVER }}
+          PG_DATABASE: ${{ vars.PG_DATABASE }}
           ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
         run: |
           # Never reset another Instance. The Environment rules alone are not enough.
@@ -118,35 +118,13 @@ jobs:
             echo "Refused: reset only the Test Instance (ENVIRONMENT_NAME '$ENVIRONMENT_NAME')." >&2
             exit 1
           fi
-          NEXT="$SQL_DATABASE-next"
-          for name in "$SQL_DATABASE" "$NEXT"; do
-            [[ "$name" == *-test-* ]] || { echo "Refused: database '$name' is not a Test Instance database." >&2; exit 1; }
-          done
-          sql=(--resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER")
-          # The order keeps the old database until its replacement exists: create <db>-next, delete <db>, rename <db>-next.
-          # The replacement gets the same settings as the old database.
-          db=$(az sql db show "${sql[@]}" --name "$SQL_DATABASE" --output json)
-          get() { jq -r --arg k "$1" '.[$k] // empty' <<< "$db"; }
-          args=(--service-objective "$(get currentServiceObjectiveName)")
-          [ -z "$(get maxSizeBytes)" ] || args+=(--max-size "$(get maxSizeBytes)B")
-          [ -z "$(get requestedBackupStorageRedundancy)" ] || args+=(--backup-storage-redundancy "$(get requestedBackupStorageRedundancy)")
-          [ -z "$(get autoPauseDelay)" ] || args+=(--auto-pause-delay "$(get autoPauseDelay)")
-          [ -z "$(get minCapacity)" ] || args+=(--min-capacity "$(get minCapacity)")
-          # shortcut: a free-offer database allows no second database at the same time. Delete first, then create (a failed create loses the old database).
-          if [ "$(jq -r '.useFreeLimit == true' <<< "$db")" = true ]; then
-            echo "The database uses the free offer. Deleting it before the create."
-            args+=(--use-free-limit true)
-            [ -z "$(get freeLimitExhaustionBehavior)" ] || args+=(--free-limit-exhaustion-behavior "$(get freeLimitExhaustionBehavior)")
-            az sql db delete "${sql[@]}" --name "$SQL_DATABASE" --yes
-            az sql db create "${sql[@]}" --name "$SQL_DATABASE" "${args[@]}" --output none
-            exit 0
+          [[ "$PG_DATABASE" == *-test-* ]] || { echo "Refused: database '$PG_DATABASE' is not a Test Instance database." >&2; exit 1; }
+          pg=(--resource-group "$RESOURCE_GROUP" --server-name "$PG_SERVER" --database-name "$PG_DATABASE")
+          # shortcut: Flexible Server has no rename, so delete first, then create. A failed create leaves no database: rerun the workflow.
+          if az postgres flexible-server db show "${pg[@]}" --output none 2>/dev/null; then
+            az postgres flexible-server db delete "${pg[@]}" --yes
           fi
-          # A leftover <db>-next from an earlier failed run would block the create.
-          if az sql db show "${sql[@]}" --name "$NEXT" --output none 2>/dev/null; then az sql db delete "${sql[@]}" --name "$NEXT" --yes; fi
-          echo "Creating $NEXT (${args[*]})"
-          az sql db create "${sql[@]}" --name "$NEXT" "${args[@]}" --output none
-          az sql db delete "${sql[@]}" --name "$SQL_DATABASE" --yes
-          az sql db rename "${sql[@]}" --name "$NEXT" --new-name "$SQL_DATABASE"
+          az postgres flexible-server db create "${pg[@]}" --output none
 
       - name: Roll the image onto the Container App
         env:
