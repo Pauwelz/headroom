@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
@@ -11,31 +12,28 @@ using Headroom.Events;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Headroom.Tests.Api;
 
-public class WebhookEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
+public class WebhookEventsTests : IClassFixture<WebhookApp>, IAsyncLifetime
 {
     private const string Url = "/api/settings/webhooks";
-    private readonly FakeEmailSender _mail = new();
-    private readonly CapturingHandler _receiver = new();
+    private readonly FakeEmailSender _mail;
+    private readonly CapturingHandler _receiver;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
     private Guid _floId;
     private Guid _projectId;
 
-    public WebhookEventsTests(HeadroomApp app)
+    public WebhookEventsTests(WebhookApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.AddSingleton<IEmailSender>(_mail);
-            // Tests drive the sender by hand, so the timer must not send Events in between.
-            services.RemoveAll<IHostedService>();
-            services.AddHttpClient(EventSender.ClientName).ConfigurePrimaryHttpMessageHandler(() => _receiver);
-        }));
+        _factory = app.Factory;
+        _mail = app.Mail;
+        _receiver = app.Receiver;
+        _receiver.Status = HttpStatusCode.OK;
     }
 
     public async ValueTask InitializeAsync()
@@ -61,7 +59,7 @@ public class WebhookEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private async Task<CreatedWebhookResponse> AddWebhook(string name = "Flow")
     {
@@ -297,21 +295,33 @@ public class WebhookEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
+}
 
-    private sealed record Sent(Dictionary<string, string> Headers, string ContentType, string Body);
+// Tests drive the sender by hand, so the host has no timer that sends Events in between.
+public sealed class WebhookApp : HeadroomApp
+{
+    public CapturingHandler Receiver { get; } = new();
 
-    private sealed class CapturingHandler : HttpMessageHandler
+    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureServices(services =>
     {
-        public ConcurrentQueue<Sent> Requests { get; } = new();
-        public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
+        services.RemoveAll<IHostedService>();
+        services.AddHttpClient(EventSender.ClientName).ConfigurePrimaryHttpMessageHandler(() => Receiver);
+    });
+}
 
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            Requests.Enqueue(new Sent(
-                request.Headers.ToDictionary(h => h.Key, h => h.Value.Single()),
-                request.Content!.Headers.ContentType!.MediaType!,
-                await request.Content.ReadAsStringAsync(ct)));
-            return new HttpResponseMessage(Status);
-        }
+public sealed record SentRequest(Dictionary<string, string> Headers, string ContentType, string Body);
+
+public sealed class CapturingHandler : HttpMessageHandler
+{
+    public ConcurrentQueue<SentRequest> Requests { get; } = new();
+    public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        Requests.Enqueue(new SentRequest(
+            request.Headers.ToDictionary(h => h.Key, h => h.Value.Single()),
+            request.Content!.Headers.ContentType!.MediaType!,
+            await request.Content.ReadAsStringAsync(ct)));
+        return new HttpResponseMessage(Status);
     }
 }

@@ -3,7 +3,7 @@
 Run all tests before you push:
 
 ```sh
-dotnet test Headroom.slnx
+dotnet test
 ```
 
 Database tests need a local Docker daemon (ADR 0005).

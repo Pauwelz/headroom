@@ -6,28 +6,25 @@ using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Headroom.Tests.Api;
 
 // Erase personal details by hand and automatically.
-public class ErasePersonTests : IClassFixture<HeadroomApp>, IAsyncLifetime
+public class ErasePersonTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
-    private readonly FakeEmailSender _mail = new();
-    // Monday 2 November 2026 in Brussels.
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero));
+    private readonly FakeEmailSender _mail;
+    private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _ann = null!;
     private Guid _annId;
 
-    public ErasePersonTests(HeadroomApp app)
+    public ErasePersonTests(ClockedHeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.AddSingleton<IEmailSender>(_mail);
-            services.AddSingleton<TimeProvider>(_time);
-        }));
+        _factory = app.Factory;
+        _mail = app.Mail;
+        _time = app.Time;
+        _time.Set(ClockedHeadroomApp.Start);
     }
 
     public async ValueTask InitializeAsync()
@@ -48,7 +45,7 @@ public class ErasePersonTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _ann = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task EraseRemovesTheDetailsAndKeepsTheRecordsUnderFormerPersonN()
@@ -139,13 +136,16 @@ public class ErasePersonTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task TheAutomaticEraseRunsOnTheFirstRequestOfADayForEndDates12MonthsAgoOrMore()
     {
+        // The check runs once per day in each host, so this test starts its own.
+        await using var host = _factory.WithWebHostBuilder(_ => { });
+        var ann = await TestLogin.SignInAsync(host, _mail, "ann@example.com");
         // The next day is 3 November 2026, so the limit is 3 November 2025.
         var due = await Leaver(new(2025, 11, 3), planner: true);
         var older = await Leaver(new(2024, 6, 1));
         var notYet = await Leaver(new(2025, 11, 4));
         _time.Advance(TimeSpan.FromDays(1));
 
-        await _ann.GetAsync("/api/me", TestContext.Current.CancellationToken);
+        await ann.GetAsync("/api/me", TestContext.Current.CancellationToken);
 
         var erased = await Run(db => db.People.Where(p => p.ErasedNumber != null).Select(p => p.Id).ToList());
         Assert.Contains(due, erased);
@@ -161,7 +161,8 @@ public class ErasePersonTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     {
         var due = await Leaver(new(2025, 11, 2));
 
-        _ = _factory.WithWebHostBuilder(_ => { }).Services;
+        await using var host = _factory.WithWebHostBuilder(_ => { });
+        _ = host.Services;
 
         Assert.NotNull(await Run(db => db.People.Single(p => p.Id == due).ErasedNumber));
     }

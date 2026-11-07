@@ -13,7 +13,7 @@ namespace Headroom.Tests.Api;
 // Events for Time off and Project status. The Allocation Events have their tests in WebhookEventsTests.
 public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string _run = Guid.NewGuid().ToString("N")[..8];
     private HttpClient _planner = null!;
@@ -21,8 +21,11 @@ public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private Guid _clientId;
     private Guid _projectId;
 
-    public MoreEventsTests(HeadroomApp app) =>
-        _factory = app.Factory.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IEmailSender>(_mail)));
+    public MoreEventsTests(HeadroomApp app)
+    {
+        _factory = app.Factory;
+        _mail = app.Mail;
+    }
 
     public async ValueTask InitializeAsync()
     {
@@ -50,7 +53,7 @@ public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, added.StatusCode);
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private async Task<List<(string Type, JsonElement Data)>> StoredEvents()
     {

@@ -8,30 +8,27 @@ using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Headroom.Tests.Api;
 
 // Rehire and delete a Person.
-public class RehireDeleteTests : IClassFixture<HeadroomApp>, IAsyncLifetime
+public class RehireDeleteTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
     private static readonly DateOnly End = new(2026, 10, 30);
     private static readonly WeekHours Half = new(4, 4, 4, 4, 4, 0, 0);
-    private readonly FakeEmailSender _mail = new();
-    // Monday 2 November 2026 in Brussels.
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero));
+    private readonly FakeEmailSender _mail;
+    private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _ann = null!;
     private Guid _annId;
 
-    public RehireDeleteTests(HeadroomApp app)
+    public RehireDeleteTests(ClockedHeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.AddSingleton<IEmailSender>(_mail);
-            services.AddSingleton<TimeProvider>(_time);
-        }));
+        _factory = app.Factory;
+        _mail = app.Mail;
+        _time = app.Time;
+        _time.Set(ClockedHeadroomApp.Start);
     }
 
     public async ValueTask InitializeAsync()
@@ -52,7 +49,7 @@ public class RehireDeleteTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _ann = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task RehireWithAGapAddsAZeroHourContractThenTheNewContract()

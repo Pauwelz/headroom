@@ -8,28 +8,26 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Headroom.Tests.Api;
 
 // Token lifetimes, refresh rotation, and the checks on the Person, with a fake clock.
-public class OAuthRefreshTests : IClassFixture<HeadroomApp>, IAsyncLifetime
+public class OAuthRefreshTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private const string Ann = "refresh-ann@example.com";
-    private readonly FakeEmailSender _mail = new();
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero));
+    private readonly FakeEmailSender _mail;
+    private readonly TestClock _time;
     private readonly HeadroomApp _app;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly OAuthFlow _flow;
 
-    public OAuthRefreshTests(HeadroomApp app)
+    public OAuthRefreshTests(ClockedHeadroomApp app)
     {
         _app = app;
-        _factory = app.Factory.WithWebHostBuilder(b => b.ConfigureServices(s =>
-        {
-            s.AddSingleton<IEmailSender>(_mail);
-            s.AddSingleton<TimeProvider>(_time);
-        }));
+        _factory = app.Factory;
+        _mail = app.Mail;
+        _time = app.Time;
+        _time.Set(ClockedHeadroomApp.Start);
         _flow = new OAuthFlow(_factory, _mail);
     }
 
@@ -44,7 +42,7 @@ public class OAuthRefreshTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

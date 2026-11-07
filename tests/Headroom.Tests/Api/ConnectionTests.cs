@@ -17,13 +17,14 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string Ann = "conn-ann@example.com";
     private const string Zed = "conn-zed@example.com";
     private const string Bob = "conn-bob@example.com";
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly OAuthFlow _flow;
 
     public ConnectionTests(HeadroomApp app)
     {
-        _factory = app.Factory.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IEmailSender>(_mail)));
+        _factory = app.Factory;
+        _mail = app.Mail;
         _flow = new OAuthFlow(_factory, _mail);
     }
 
@@ -40,7 +41,7 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

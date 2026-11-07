@@ -11,6 +11,7 @@ internal static class TestSql
     private static readonly Lazy<Task<PostgreSqlContainer>> Container = new(async () =>
     {
         var sql = new PostgreSqlBuilder("postgres:17")
+            .WithDockerEndpoint("unix:///var/run/docker.sock") // the local daemon, even when another Docker context is active
             .WithCommand("-c", "max_connections=500") // Each test database keeps its own idle pool.
             .WithLabel("headroom.test-sql", "true") // The stop command in docs/testing.md filters on this label.
             .WithReuse(true)

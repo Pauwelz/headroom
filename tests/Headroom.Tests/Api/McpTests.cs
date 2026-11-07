@@ -20,10 +20,13 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string WorkerSecret = "hr_mcp-worker-secret";
     private readonly WebApplicationFactory<Program> _factory;
 
-    private readonly FakeEmailSender _mail = new();
+    private readonly FakeEmailSender _mail;
 
-    public McpTests(HeadroomApp app) =>
-        _factory = app.Factory.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IEmailSender>(_mail)));
+    public McpTests(HeadroomApp app)
+    {
+        _factory = app.Factory;
+        _mail = app.Mail;
+    }
 
     public async ValueTask InitializeAsync()
     {
@@ -55,7 +58,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => _factory.DisposeAsync(); // stops this test's host and its background services
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task TheServerSpeaksTheCurrentSpecAndListsTheTools()
