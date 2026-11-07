@@ -1,0 +1,79 @@
+@inject PasskeyApi Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<MudPaper Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6">Passkeys</MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">
+        A Passkey lets you log in without a Login code. Your device or password manager keeps it. Remove a Passkey to stop its device.
+    </MudText>
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-2" ShowCloseIcon="true" CloseIconClicked="() => _error = null">@_error</MudAlert>
+    }
+    <MudSimpleTable Dense="true">
+        <thead><tr><th>Name</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var passkey in _passkeys)
+            {
+                <tr>
+                    <td><b>@passkey.Name</b></td>
+                    <td>@DisplayDate.Format(DateOnly.FromDateTime(passkey.DateCreated.LocalDateTime))</td>
+                    <td>@(passkey.LastUsedAt is { } used ? DisplayDate.Format(DateOnly.FromDateTime(used.LocalDateTime)) : "Never")</td>
+                    <td><MudButton Color="Color.Error" OnClick="() => RemoveAsync(passkey)">Remove</MudButton></td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+    @if (_supported)
+    {
+        <MudButton Class="mt-2" Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Save a passkey</MudButton>
+    }
+</MudPaper>
+
+@code {
+    private IJSObjectReference? _module;
+    private List<PasskeyResponse> _passkeys = [];
+    private bool _supported;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => _passkeys = await Api.GetAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./AccessTokens/PasskeySection.razor.js");
+        _supported = await _module.InvokeAsync<bool>("isSupported");
+        StateHasChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            // The Person can close the browser prompt: then there is nothing to save and nothing to say.
+            var credential = await _module!.InvokeAsync<string?>("create", await Api.OptionsAsync());
+            if (credential is not null) _error = await Api.SaveAsync(credential);
+        }
+        catch (JSException)
+        {
+            _error = "Your browser could not create a passkey.";
+        }
+        _passkeys = await Api.GetAsync();
+        _busy = false;
+    }
+
+    private async Task RemoveAsync(PasskeyResponse passkey)
+    {
+        _error = await Api.RemoveAsync(passkey.Id) ? null : "Headroom could not remove this passkey.";
+        _passkeys = await Api.GetAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null) await _module.DisposeAsync();
+    }
+}
