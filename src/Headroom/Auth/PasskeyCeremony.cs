@@ -15,6 +15,7 @@ public class PasskeyCeremony(IFido2 fido2, IDataProtectionProvider protection)
     private static readonly TimeSpan ChallengeLife = TimeSpan.FromMinutes(5);
 
     public const string RegisterPurpose = "register";
+    public const string LoginPurpose = "login";
 
     // The relying party is the Instance, never the Host header. A changed Instance URL invalidates every Passkey.
     public static void AddPasskeys(IServiceCollection services)
@@ -59,6 +60,40 @@ public class PasskeyCeremony(IFido2 fido2, IDataProtectionProvider protection)
                 OriginalOptions = CredentialCreateOptions.FromJson(optionsJson),
                 IsCredentialIdUniqueToUserCallback = async (p, ct) => !await db.Passkeys.AnyAsync(x => x.CredentialId == p.CredentialId, ct),
             });
+        }
+        catch (Exception e) when (e is Fido2VerificationException or JsonException or ArgumentException or NullReferenceException) { return null; }
+    }
+
+    // Login asks for no email first: the allow list is empty and the Passkey says who the Person is.
+    public string BeginLogin(HttpContext http, string cookiePath)
+    {
+        var json = fido2.GetAssertionOptions(new GetAssertionOptionsParams { UserVerification = UserVerificationRequirement.Preferred }).ToJson();
+        SaveChallenge(http, LoginPurpose, cookiePath, json);
+        return json;
+    }
+
+    // Returns the verified Passkey with its sign counter set (not saved), or null for every kind of failure.
+    public async Task<Passkey?> CompleteLoginAsync(HttpContext http, string responseJson, string cookiePath, HeadroomDbContext db)
+    {
+        var optionsJson = TakeChallenge(http, LoginPurpose, cookiePath);
+        if (optionsJson is null) return null;
+        try
+        {
+            var response = JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(responseJson);
+            // The library skips its owner check without a user handle, so refuse that here.
+            if (response?.Response.UserHandle is not { Length: > 0 } handle) return null;
+            var passkey = await db.Passkeys.FirstOrDefaultAsync(p => p.CredentialId == response.RawId);
+            if (passkey is null) return null;
+            var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
+            {
+                AssertionResponse = response,
+                OriginalOptions = AssertionOptions.FromJson(optionsJson),
+                StoredPublicKey = passkey.PublicKey,
+                StoredSignatureCounter = (uint)passkey.SignCount,
+                IsUserHandleOwnerOfCredentialIdCallback = (_, _) => Task.FromResult(handle.SequenceEqual(passkey.UserHandle)),
+            });
+            passkey.SignCount = result.SignCount;
+            return passkey;
         }
         catch (Exception e) when (e is Fido2VerificationException or JsonException or ArgumentException or NullReferenceException) { return null; }
     }

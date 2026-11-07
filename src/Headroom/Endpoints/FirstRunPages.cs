@@ -86,14 +86,17 @@ public static class FirstRunPages
         $"default-src 'none'; style-src 'self' 'sha256-{Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(ColorTokens)))}'; "
         + "font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'";
 
-    internal static IResult Page(string html, int status = 200) => new HtmlPage(html, status);
+    // Only the login page runs a script: the static /passkey-login.js, same origin, no inline script.
+    private static readonly string LoginContentSecurityPolicy = ContentSecurityPolicy + "; script-src 'self'; connect-src 'self'";
+
+    internal static IResult Page(string html, int status = 200, bool allowLoginScript = false) => new HtmlPage(html, status, allowLoginScript);
 
     // The policy stops framing (clickjacking) and any script or foreign resource on these pages.
-    private sealed record HtmlPage(string Html, int Status) : IResult
+    private sealed record HtmlPage(string Html, int Status, bool AllowLoginScript) : IResult
     {
         public Task ExecuteAsync(HttpContext http)
         {
-            http.Response.Headers.ContentSecurityPolicy = ContentSecurityPolicy;
+            http.Response.Headers.ContentSecurityPolicy = AllowLoginScript ? LoginContentSecurityPolicy : ContentSecurityPolicy;
             return Results.Content(Html, "text/html; charset=utf-8", statusCode: Status).ExecuteAsync(http);
         }
     }

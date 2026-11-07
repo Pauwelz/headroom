@@ -37,6 +37,8 @@ It comes with no warranty. Support is best effort.
 
 You are logged in. The session lasts 30 days from your last visit.
 
+If you saved a Passkey, you can log in with it instead: select **Log in with a passkey**. See the [Account page](account.md).
+
 Rules for the code:
 
 - The code works for 10 minutes and works once.

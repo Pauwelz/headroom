@@ -62,6 +62,8 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | `Seed__PlannerEmail` | Test Instances only. Never set it in production: it seeds demo data into an empty database |
 
 The Instance uses one URL. A custom domain is your choice, as long as `BaseUri` matches it.
+Passkeys are bound to the domain in `BaseUri`. If you change the domain, all Passkeys stop working.
+People then log in with a Login code and save a new Passkey. Warn People before you change the domain.
 
 ### Health probe
 
