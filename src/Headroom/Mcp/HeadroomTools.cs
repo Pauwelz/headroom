@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Headroom.Allocations;
 using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Data;
@@ -69,7 +70,7 @@ public sealed class HeadroomTools
         [Description(PersonIdText)] Guid personId, [Description("Id of the Project")] Guid projectId,
         [Description(FirstDay)] DateOnly startDate, [Description(LastDay)] DateOnly endDate,
         [Description(Percentage)] int percentage, HeadroomDbContext db, IHttpContextAccessor http) =>
-        Done(await AllocationEndpoints.CreateAsync(db, McpWriteGuard.PlannerId(http), new(personId, projectId, startDate, endDate, percentage)), "Allocation created.");
+        Done(await AllocationWrites.CreateAsync(db, McpWriteGuard.PlannerId(http), new(personId, projectId, startDate, endDate, percentage)), "Allocation created.");
 
     [McpServerTool(Name = "change_allocation", Destructive = true), Description("Change the dates and percentage of an Allocation, and optionally its Person or Project. The Allocation id is in get_schedule. Needs an Access token of a Planner with Can change.")]
     public static async Task<string> ChangeAllocation(
@@ -78,13 +79,13 @@ public sealed class HeadroomTools
         [Description(Percentage)] int percentage, HeadroomDbContext db, IHttpContextAccessor http,
         [Description("New Person id. Leave out to keep the Person")] Guid? personId = null,
         [Description("New Project id. Leave out to keep the Project")] Guid? projectId = null) =>
-        Done(await AllocationEndpoints.UpdateAsync(db, McpWriteGuard.PlannerId(http), id, new(startDate, endDate, percentage, personId, projectId)), "Allocation changed.");
+        Done(await AllocationWrites.UpdateAsync(db, McpWriteGuard.PlannerId(http), id, new(startDate, endDate, percentage, personId, projectId)), "Allocation changed.");
 
     [McpServerTool(Name = "delete_allocation", Destructive = true), Description("Delete an Allocation. The Allocation id is in get_schedule. Needs an Access token of a Planner with Can change.")]
     public static async Task<string> DeleteAllocation([Description("Id of the Allocation")] Guid id, HeadroomDbContext db, IHttpContextAccessor http)
     {
         McpWriteGuard.PlannerId(http);
-        return Done(await AllocationEndpoints.DeleteAsync(db, id), "Allocation deleted.");
+        return Done(await AllocationWrites.DeleteAsync(db, id), "Allocation deleted.");
     }
 
     [McpServerTool(Name = "add_time_off", Destructive = false), Description("Add Time off for a Person. Time off of the Person that overlaps or touches it is merged in. Each part is \"morning\" or \"afternoon\". Needs an Access token of a Planner with Can change.")]
@@ -93,7 +94,7 @@ public sealed class HeadroomTools
         [Description(FirstDay)] DateOnly startDate, [Description(DayPart)] string startPart,
         [Description(LastDay)] DateOnly endDate, [Description(DayPart)] string endPart,
         HeadroomDbContext db, IHttpContextAccessor http) =>
-        Done(await TimeOffEndpoints.SaveAsync(db, McpWriteGuard.PlannerId(http), null, personId, new(startDate, startPart, endDate, endPart)), "Time off added.");
+        Done(await TimeOffWrites.SaveAsync(db, McpWriteGuard.PlannerId(http), null, personId, new(startDate, startPart, endDate, endPart)), "Time off added.");
 
     [McpServerTool(Name = "change_time_off", Destructive = true), Description("Change the dates of Time off. The Time off id is in get_schedule. Needs an Access token of a Planner with Can change.")]
     public static async Task<string> ChangeTimeOff(
@@ -101,13 +102,13 @@ public sealed class HeadroomTools
         [Description(FirstDay)] DateOnly startDate, [Description(DayPart)] string startPart,
         [Description(LastDay)] DateOnly endDate, [Description(DayPart)] string endPart,
         HeadroomDbContext db, IHttpContextAccessor http) =>
-        Done(await TimeOffEndpoints.ChangeAsync(db, McpWriteGuard.PlannerId(http), id, new(startDate, startPart, endDate, endPart)), "Time off changed.");
+        Done(await TimeOffWrites.ChangeAsync(db, McpWriteGuard.PlannerId(http), id, new(startDate, startPart, endDate, endPart)), "Time off changed.");
 
     [McpServerTool(Name = "delete_time_off", Destructive = true), Description("Delete Time off. The Time off id is in get_schedule. Needs an Access token of a Planner with Can change.")]
     public static async Task<string> DeleteTimeOff([Description("Id of the Time off")] Guid id, HeadroomDbContext db, IHttpContextAccessor http)
     {
         McpWriteGuard.PlannerId(http);
-        return Done(await TimeOffEndpoints.DeleteAsync(db, id), "Time off deleted.");
+        return Done(await TimeOffWrites.DeleteAsync(db, id), "Time off deleted.");
     }
 
     private static string Done((ScheduleTimeOff? TimeOff, Refusal? Refusal) result, string message) => Done(result.Refusal, message);
