@@ -1,6 +1,5 @@
 @inject PasskeyApi Api
-@inject IJSRuntime JS
-@implements IAsyncDisposable
+@inject PasskeyRegistration Registration
 
 <MudPaper Class="pa-4 mb-4">
     <MudText Typo="Typo.h6">Passkeys</MudText>
@@ -32,7 +31,6 @@
 </MudPaper>
 
 @code {
-    private IJSObjectReference? _module;
     private List<PasskeyResponse> _passkeys = [];
     private bool _supported;
     private bool _busy;
@@ -43,8 +41,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./AccessTokens/PasskeySection.razor.js");
-        _supported = await _module.InvokeAsync<bool>("isSupported");
+        _supported = await Registration.IsSupportedAsync();
         StateHasChanged();
     }
 
@@ -52,16 +49,7 @@
     {
         _busy = true;
         _error = null;
-        try
-        {
-            // The Person can close the browser prompt: then there is nothing to save and nothing to say.
-            var credential = await _module!.InvokeAsync<string?>("create", await Api.OptionsAsync());
-            if (credential is not null) _error = await Api.SaveAsync(credential);
-        }
-        catch (JSException)
-        {
-            _error = "Your browser could not create a passkey.";
-        }
+        _error = (await Registration.SaveAsync()).Error;
         _passkeys = await Api.GetAsync();
         _busy = false;
     }
@@ -70,10 +58,5 @@
     {
         _error = await Api.RemoveAsync(passkey.Id) ? null : "Headroom could not remove this passkey.";
         _passkeys = await Api.GetAsync();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null) await _module.DisposeAsync();
     }
 }

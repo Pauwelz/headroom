@@ -75,6 +75,9 @@ public static class LoginEndpoints
 
         HeadroomMetrics.Login(success: true);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        // One-time marker: the app offers a Passkey once, then deletes the cookie. Not for a Connected app consent screen.
+        if (returnUrl == "/")
+            http.Response.Cookies.Append(Headroom.Client.Shell.PasskeyOffer.CookieName, "1", new CookieOptions { Secure = true, SameSite = SameSiteMode.Lax, MaxAge = TimeSpan.FromMinutes(5) });
         return Results.Redirect(returnUrl);
     }
 

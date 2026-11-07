@@ -11,6 +11,7 @@ builder.Services.AddMudServices();
 builder.Services.AddApiClient<SessionApi>(builder.HostEnvironment.BaseAddress);
 builder.Services.AddApiClient<Headroom.Client.AccessTokens.AccessTokenApi>(builder.HostEnvironment.BaseAddress);
 builder.Services.AddApiClient<Headroom.Client.AccessTokens.PasskeyApi>(builder.HostEnvironment.BaseAddress);
+builder.Services.AddScoped<Headroom.Client.AccessTokens.PasskeyRegistration>();
 builder.Services.AddApiClient<Headroom.Client.People.PeopleApi>(builder.HostEnvironment.BaseAddress);
 builder.Services.AddApiClient<Headroom.Client.Settings.SettingsApi>(builder.HostEnvironment.BaseAddress);
 builder.Services.AddApiClient<ProjectsApi>(builder.HostEnvironment.BaseAddress);

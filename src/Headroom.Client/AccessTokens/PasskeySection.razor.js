@@ -16,3 +16,10 @@ export async function create(optionsJson) {
         throw e;
     }
 }
+
+// Returns true once when the offer cookie is present, and deletes it so a reload does not offer again.
+export function takeOfferMarker(name) {
+    if (!document.cookie.split('; ').some(c => c.startsWith(name + '='))) return false;
+    document.cookie = `${name}=; Max-Age=0; Path=/; Secure; SameSite=Lax`;
+    return true;
+}
