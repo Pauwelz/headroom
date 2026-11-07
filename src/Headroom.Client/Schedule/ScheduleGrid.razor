@@ -68,7 +68,7 @@
             @foreach (var project in Rows(person))
             {
                 var editable = CanEdit && project.Status != ProjectStatusName.Archived;
-                <div class="row sub @(_drag is not null || _adrag is not null || _start is not null ? "dragging" : null)">
+                <div class="row sub @(_timeOffDrag is not null || _allocationDrag is not null || _start is not null ? "dragging" : null)">
                     <div class="label sub-label">
                         <div class="name">
                             <small class="client">@project.ClientName</small>
@@ -81,7 +81,7 @@
                         {
                             <div class="@CellClass(day, "cell") editable" style="@Col(day)" @onclick="@(() => PickAsync(person.Id, project.ProjectId, day))"
                                  @onmouseenter="@(() => { if (Pending(person.Id, project.ProjectId)) _hover = day; })"
-                                 @onpointerenter="() => _adrag?.Enter(person.Id, project.ProjectId, day)"
+                                 @onpointerenter="() => _allocationDrag?.Enter(person.Id, project.ProjectId, day)"
                                  @onpointerup="() => DropAsync(person.Id, project.ProjectId, day)" @onpointerup:stopPropagation="true"></div>
                         }
                         else
@@ -121,7 +121,7 @@
                     </div>
                 </div>
             }
-            <div class="row sub timeoff-row @(_drag is not null ? "dragging" : null)">
+            <div class="row sub timeoff-row @(_timeOffDrag is not null ? "dragging" : null)">
                 <div class="label sub-label"><span class="name">Time off</span></div>
                 @foreach (var day in Dates)
                 {
@@ -129,7 +129,7 @@
                          style="@Col(day)" title="@(CanEdit ? "Click the first day, then the last day, to add Time off" : null)"
                          @onclick="() => ClickAsync(person.Id, day)"
                          @onmouseenter="@(() => { if (_pick?.Person == person.Id) _hover = day; })"
-                         @onpointerenter="() => _drag?.Enter(person.Id, null, day)"
+                         @onpointerenter="() => _timeOffDrag?.Enter(person.Id, null, day)"
                          @onpointerup="() => DropAsync(person.Id, day)" @onpointerup:stopPropagation="true"></div>
                 }
                 @foreach (var t in person.TimeOff)
@@ -214,14 +214,14 @@
         var first = Data.StartDate.AddDays(Math.Clamp(index, 0, _days - 1));
         _scrolledTo = (first, Data.StartDate, ShownDays);
         // Only a drag keeps the loaded days: a dragged bar must stay in the data. A pick may load new days.
-        return OnScrolled.InvokeAsync((first, _drag is not null || _adrag is not null));
+        return OnScrolled.InvokeAsync((first, _timeOffDrag is not null || _allocationDrag is not null));
     }
 
     // A release outside the grid ends the drag too. A release on a day cell has dropped it already.
     [JSInvokable]
     public void Released()
     {
-        if (_drag is null && _adrag is null) return;
+        if (_timeOffDrag is null && _allocationDrag is null) return;
         CancelDrag();
         StateHasChanged();
     }
@@ -369,38 +369,38 @@
     // --- Drag gestures ---
 
     private (Guid Person, DateOnly Day)? _pick;
-    private ScheduleDrag<ScheduleTimeOff>? _drag;
-    private ScheduleDrag<ScheduleAllocation>? _adrag;
+    private ScheduleDrag<ScheduleTimeOff>? _timeOffDrag;
+    private ScheduleDrag<ScheduleAllocation>? _allocationDrag;
 
     // The bar follows the pointer while a drag runs.
     private (DateOnly First, DateOnly Last) Preview(ScheduleTimeOff t) =>
-        _drag?.Bar.Id == t.Id ? _drag.Dates : (t.StartDate, t.EndDate);
+        _timeOffDrag?.Bar.Id == t.Id ? _timeOffDrag.Dates : (t.StartDate, t.EndDate);
 
     private (DateOnly First, DateOnly Last) Preview(ScheduleAllocation a) =>
-        _adrag?.Bar.Id == a.Id ? _adrag.Dates : (a.StartDate, a.EndDate);
+        _allocationDrag?.Bar.Id == a.Id ? _allocationDrag.Dates : (a.StartDate, a.EndDate);
 
     private void StartDrag(Guid personId, ScheduleTimeOff bar, DragMode mode, DateOnly day)
     {
-        if (CanEdit) _drag = new(personId, null, bar, bar.StartDate, bar.EndDate, mode, day);
+        if (CanEdit) _timeOffDrag = new(personId, null, bar, bar.StartDate, bar.EndDate, mode, day);
     }
 
     private void StartDrag(Guid personId, Guid projectId, ScheduleAllocation bar, DragMode mode, DateOnly day, PointerEventArgs e)
     {
-        if (CanEdit && e.Button == 0) _adrag = new(personId, projectId, bar, bar.StartDate, bar.EndDate, mode, day);
+        if (CanEdit && e.Button == 0) _allocationDrag = new(personId, projectId, bar, bar.StartDate, bar.EndDate, mode, day);
     }
 
-    private void CancelDrag() => (_drag, _adrag) = (null, null);
+    private void CancelDrag() => (_timeOffDrag, _allocationDrag) = (null, null);
 
     // Escape cancels a picked start day and a running drag.
     private void CancelOnEscape(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape") (_start, _hover, _pick, _drag, _adrag) = (null, null, null, null, null);
+        if (e.Key == "Escape") (_start, _hover, _pick, _timeOffDrag, _allocationDrag) = (null, null, null, null, null);
     }
 
     private async Task DropAsync(Guid personId, Guid projectId, DateOnly day)
     {
-        var d = _adrag;
-        _adrag = null;
+        var d = _allocationDrag;
+        _allocationDrag = null;
         if (d is null || !d.Enter(personId, projectId, day)) return;
         var (start, end) = d.Dates;
         // A click on a bar only ends a pick that started on an empty day (E5). It never starts one, so a stray click changes nothing.
@@ -433,8 +433,8 @@
 
     private async Task DropAsync(Guid personId, DateOnly day)
     {
-        var d = _drag;
-        _drag = null;
+        var d = _timeOffDrag;
+        _timeOffDrag = null;
         if (d is null || !d.Enter(personId, null, day)) return;
         var (start, end) = d.Dates;
         if (d.Changed) await RunAsync(() => TimeOff.EditAsync(d.Bar.Id, new TimeOffRequest(start, d.Bar.StartPart, end, d.Bar.EndPart)));
@@ -443,7 +443,7 @@
     // First click picks the start day. Second click on the same Person's row creates the Time off.
     private async Task ClickAsync(Guid personId, DateOnly day)
     {
-        if (!CanEdit || _drag is not null) return;
+        if (!CanEdit || _timeOffDrag is not null) return;
         if (_pick is not { } pick || pick.Person != personId) { (_pick, _start, _hover) = ((personId, day), null, day); return; }
         _pick = null;
         await RunAsync(() => TimeOff.AddAsync(personId, TimeOffChanges.Create(pick.Day, day)));
