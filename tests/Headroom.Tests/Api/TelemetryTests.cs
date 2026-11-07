@@ -16,6 +16,7 @@ using OpenTelemetry.Trace;
 namespace Headroom.Tests.Api;
 
 // Runs the real registration (a dummy connection string or OTLP endpoint switches it on) and reads what the exporters get.
+// Each test has its own app: the settings differ per test, and the first run needs a database without People.
 public class TelemetryTests : IAsyncLifetime
 {
     private const string Name = "Zebulon Quillfeather";

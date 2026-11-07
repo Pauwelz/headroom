@@ -24,15 +24,13 @@ public class HeadroomApp : IAsyncLifetime
             builder.ConfigureAppConfiguration((_, config) =>
                 config.AddInMemoryCollection(
                     new Dictionary<string, string?> { ["ConnectionStrings:Headroom"] = connectionString }));
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IEmailSender>(Mail);
-                ConfigureServices(services);
-            });
+            builder.ConfigureServices(services => services.AddSingleton<IEmailSender>(Mail));
+            ConfigureWebHost(builder);
         });
     }
 
-    protected virtual void ConfigureServices(IServiceCollection services) { }
+    // Lets a fixture add settings or services for all tests of its class.
+    protected virtual void ConfigureWebHost(IWebHostBuilder builder) { }
 
     public async ValueTask DisposeAsync()
     {

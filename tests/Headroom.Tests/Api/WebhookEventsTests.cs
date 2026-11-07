@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
@@ -301,11 +302,11 @@ public sealed class WebhookApp : HeadroomApp
 {
     public CapturingHandler Receiver { get; } = new();
 
-    protected override void ConfigureServices(IServiceCollection services)
+    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureServices(services =>
     {
         services.RemoveAll<IHostedService>();
         services.AddHttpClient(EventSender.ClientName).ConfigurePrimaryHttpMessageHandler(() => Receiver);
-    }
+    });
 }
 
 public sealed record SentRequest(Dictionary<string, string> Headers, string ContentType, string Body);

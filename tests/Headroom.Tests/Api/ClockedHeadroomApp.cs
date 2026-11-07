@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Headroom.Tests.Api;
@@ -10,7 +11,8 @@ public sealed class ClockedHeadroomApp : HeadroomApp
 
     public TestClock Time { get; } = new(Start);
 
-    protected override void ConfigureServices(IServiceCollection services) => services.AddSingleton<TimeProvider>(Time);
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        builder.ConfigureServices(services => services.AddSingleton<TimeProvider>(Time));
 }
 
 // Unlike FakeTimeProvider, it can go back, so tests in one class can each start at a known time.
