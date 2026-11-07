@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 namespace Headroom.Events;
 
 // Turns record changes into stored Events. HeadroomDbContext calls it from its save path, so one place covers every endpoint.
-// To add a source: add one entry to Sources. Preload any new lookup it needs in BuildAsync.
+// To add a source: add one entry to Sources. A source that needs a new kind of lookup also adds it to Lookups and BuildAsync.
 public static class EventRecorder
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -21,27 +21,35 @@ public static class EventRecorder
         Dictionary<Guid, Person> People, Dictionary<Guid, Project> Projects, Dictionary<Guid, Data.Client> Clients,
         Dictionary<Guid, ProjectStats> Stats);
 
-    private record ProjectStats(Guid Key, DateOnly Start, DateOnly End, int Count);
+    private record ProjectStats(Guid ProjectId, DateOnly Start, DateOnly End, int Count);
 
-    // The Classify function returns the Change for an entry, or null when the entry is not an Event.
-    private record Source(Func<EntityEntry, Change?> Classify, Func<object, Lookups, object> DataOf);
+    // The ids of the records a source reads from Lookups. BuildAsync preloads them.
+    private record Needs(Guid? PersonId = null, Guid? ProjectId = null, Guid? ClientId = null, Guid? StatsOf = null);
+
+    // Classify returns the Change for an entry, or null when the entry is not an Event.
+    // The map key is the exact entity type. This is safe because the context uses no lazy-loading proxies.
+    private record Source(Func<EntityEntry, Change?> Classify, Func<object, Needs> NeedsOf, Func<object, Lookups, object> DataOf);
 
     // One entry per Event source, keyed by entity type.
     private static readonly Dictionary<Type, Source> Sources = new()
     {
-        [typeof(Allocation)] = new(e => ByState("Allocation", e), (record, l) =>
+        [typeof(Allocation)] = new(e => ByState("Allocation", e),
+            record => new Needs(PersonId: ((Allocation)record).PersonId, ProjectId: ((Allocation)record).ProjectId),
+            (record, lookups) =>
         {
             var a = (Allocation)record;
-            var person = l.People[a.PersonId];
-            var project = l.Projects[a.ProjectId];
+            var person = lookups.People[a.PersonId];
+            var project = lookups.Projects[a.ProjectId];
             return new AllocationData(
                 a.Id, a.PersonId, person.DisplayName, person.Email, a.ProjectId, project.Name, project.ClientId,
-                l.Clients[project.ClientId].Name, a.StartDate, a.EndDate, a.Percentage, a.DateModified, a.LastChangedBy);
+                lookups.Clients[project.ClientId].Name, a.StartDate, a.EndDate, a.Percentage, a.DateModified, a.LastChangedBy);
         }),
-        [typeof(TimeOff)] = new(e => ByState("TimeOff", e), (record, l) =>
+        [typeof(TimeOff)] = new(e => ByState("TimeOff", e),
+            record => new Needs(PersonId: ((TimeOff)record).PersonId),
+            (record, lookups) =>
         {
             var t = (TimeOff)record;
-            var owner = l.People[t.PersonId];
+            var owner = lookups.People[t.PersonId];
             return new TimeOffData(
                 t.Id, t.PersonId, owner.DisplayName, owner.Email, t.StartDate, DayPartNames.ToApi(t.StartPart),
                 t.EndDate, DayPartNames.ToApi(t.EndPart), t.DateModified, t.LastChangedBy);
@@ -51,13 +59,14 @@ public static class EventRecorder
             e => e.State == EntityState.Modified && e.Property(nameof(Project.Status)).IsModified
                 && !Equals(e.Property(nameof(Project.Status)).OriginalValue, e.Property(nameof(Project.Status)).CurrentValue)
                 ? new("headroom.Project.changed", e.Entity) : null,
-            (record, l) =>
+            record => new Needs(ClientId: ((Project)record).ClientId, StatsOf: ((Project)record).Id),
+            (record, lookups) =>
             {
                 // The same shape as ProjectResponse, plus the Client name.
                 var p = (Project)record;
-                l.Stats.TryGetValue(p.Id, out var s);
+                lookups.Stats.TryGetValue(p.Id, out var s);
                 return new ProjectData(new ProjectResponse("Project", p.Id, p.ClientId, p.Name, p.StatusName,
-                    s?.Start, s?.End, s?.Count ?? 0, p.DateModified, p.LastChangedBy), l.Clients[p.ClientId].Name);
+                    s?.Start, s?.End, s?.Count ?? 0, p.DateModified, p.LastChangedBy), lookups.Clients[p.ClientId].Name);
             }),
     };
 
@@ -76,19 +85,18 @@ public static class EventRecorder
     public static async Task<List<Event>> BuildAsync(
         HeadroomDbContext db, IReadOnlyList<Change> changes, IReadOnlyList<Guid> webhookIds, DateTimeOffset now, CancellationToken ct)
     {
-        var allocations = changes.Select(c => c.Record).OfType<Allocation>().ToList();
-        var timeOff = changes.Select(c => c.Record).OfType<TimeOff>().ToList();
-        var changedProjects = changes.Select(c => c.Record).OfType<Project>().ToList();
-        var personIds = allocations.Select(a => a.PersonId).Concat(timeOff.Select(t => t.PersonId)).Distinct().ToList();
-        var projectIds = allocations.Select(a => a.ProjectId).Distinct().ToList();
+        var needs = changes.Select(c => Sources[c.Record.GetType()].NeedsOf(c.Record)).ToList();
+        List<Guid> Ids(Func<Needs, Guid?> id) => needs.Select(id).OfType<Guid>().Distinct().ToList();
+        var personIds = Ids(n => n.PersonId);
+        var projectIds = Ids(n => n.ProjectId);
         var people = await db.People.AsNoTracking().Where(p => personIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var projects = await db.Projects.AsNoTracking().Where(p => projectIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var clientIds = projects.Values.Select(p => p.ClientId).Concat(changedProjects.Select(p => p.ClientId)).Distinct().ToList();
+        var clientIds = projects.Values.Select(p => p.ClientId).Concat(Ids(n => n.ClientId)).Distinct().ToList();
         var clients = await db.Clients.AsNoTracking().Where(c => clientIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
-        var changedIds = changedProjects.Select(p => p.Id).ToList();
+        var changedIds = Ids(n => n.StatsOf);
         var stats = await db.Allocations.Where(a => changedIds.Contains(a.ProjectId)).GroupBy(a => a.ProjectId)
             .Select(g => new ProjectStats(g.Key, g.Min(a => a.StartDate), g.Max(a => a.EndDate), g.Count()))
-            .ToDictionaryAsync(g => g.Key, ct);
+            .ToDictionaryAsync(s => s.ProjectId, ct);
 
         var lookups = new Lookups(people, projects, clients, stats);
 
