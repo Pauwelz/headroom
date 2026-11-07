@@ -5,9 +5,9 @@
         Each Access token belongs to a Person and has the rights of that Person.
         People create their own tokens on the Access tokens page. You can revoke any token.
     </MudText>
-    @if (_tokenError is not null)
+    @if (_error is not null)
     {
-        <SettingsAlert OnClose="() => _tokenError = null">@_tokenError</SettingsAlert>
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
     }
     <MudSimpleTable Dense="true">
         <thead><tr><th>Name</th><th>Owner</th><th>Created</th><th>Expires</th><th>Can change</th><th></th></tr></thead>
@@ -38,7 +38,7 @@
     [Parameter] public EventCallback<int> ExpiringSoonChanged { get; set; }
 
     private List<AccessTokenResponse> _tokens = [];
-    private string? _tokenError;
+    private string? _error;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -50,7 +50,7 @@
 
     private async Task RevokeTokenAsync(AccessTokenResponse token)
     {
-        _tokenError = await Api.RevokeTokenAsync(token.Id);
+        _error = await Api.RevokeTokenAsync(token.Id);
         await LoadAsync();
     }
 }

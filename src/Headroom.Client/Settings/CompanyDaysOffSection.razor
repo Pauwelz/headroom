@@ -136,14 +136,13 @@
     }
 
     // Runs a write, then shows the error or reloads the table.
-    private async Task<bool> RunAsync(Func<Task<string?>> write, int? year = null)
+    private async Task RunAsync(Func<Task<string?>> write, int? year = null)
     {
         _error = await write();
-        if (_error is not null) return false;
+        if (_error is not null) return;
         _year = year ?? _year;
         CancelEdit();
         await LoadAsync();
-        return true;
     }
 
     private string? FormNote() => _formDate is { } d ? DayOffNotes.ForCompanyDay(DateOnly.FromDateTime(d), _days) : null;

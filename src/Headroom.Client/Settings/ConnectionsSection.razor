@@ -4,16 +4,16 @@
     <MudText Typo="Typo.body2" Class="mb-2">
         A Connection lets a Connected app act as one Person, with the rights of that Person. You can revoke any Connection.
     </MudText>
-    @if (_connectionError is not null)
+    @if (_error is not null)
     {
-        <SettingsAlert OnClose="() => _connectionError = null">@_connectionError</SettingsAlert>
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
     }
     <ConnectionsTable Connections="_connections" ShowPerson="true" OnRevoke="RevokeConnectionAsync" />
 </SettingsSection>
 
 @code {
     private List<ConnectionResponse> _connections = [];
-    private string? _connectionError;
+    private string? _error;
 
     protected override async Task OnInitializedAsync() => _connections = await Api.GetConnectionsAsync();
 
@@ -26,7 +26,7 @@
 
     private async Task RevokeConnectionAsync(ConnectionResponse connection)
     {
-        _connectionError = await Api.RevokeConnectionAsync(connection.Id);
-        _connections = await Api.GetConnectionsAsync();
+        _error = await Api.RevokeConnectionAsync(connection.Id);
+        await ReloadAsync();
     }
 }

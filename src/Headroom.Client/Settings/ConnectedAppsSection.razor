@@ -8,9 +8,9 @@
         Enter one redirect URL per line. Each URL must be an absolute https URL.
     </MudText>
 
-    @if (_appError is not null)
+    @if (_error is not null)
     {
-        <SettingsAlert OnClose="() => _appError = null">@_appError</SettingsAlert>
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
     }
     @if (_newApp is not null)
     {
@@ -21,7 +21,7 @@
         </SettingsAlert>
     }
 
-    <ValidatedForm @ref="_appForm" @bind-IsValid="_appValid">
+    <ValidatedForm @ref="_form" @bind-IsValid="_valid">
     <MudSimpleTable Dense="true">
         <thead>
             <tr><th>Name</th><th>Client ID</th><th>Redirect URLs</th><th></th></tr>
@@ -29,15 +29,15 @@
         <tbody>
             @foreach (var connected in _apps)
             {
-                @if (connected.Id == _appEditId)
+                @if (connected.Id == _editId)
                 {
                     <tr>
-                        <td><MudTextField @bind-Value="_appEditName" Label="Name" MaxLength="200" Immediate="true" /></td>
+                        <td><MudTextField @bind-Value="_editName" Label="Name" MaxLength="200" Immediate="true" /></td>
                         <td><code>@connected.ClientId</code></td>
-                        <td><MudTextField @bind-Value="_appEditUrls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true" /></td>
+                        <td><MudTextField @bind-Value="_editUrls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true" /></td>
                         <td>
                             <MudButton Color="Color.Primary" OnClick="() => ChangeAppAsync(connected)">Save</MudButton>
-                            <MudButton OnClick="() => (_appEditId, _appError) = (null, null)">Cancel</MudButton>
+                            <MudButton OnClick="() => (_editId, _error) = (null, null)">Cancel</MudButton>
                         </td>
                     </tr>
                 }
@@ -56,12 +56,12 @@
                 }
             }
             <tr>
-                <td><MudTextField @bind-Value="_appName" Label="Name, for example Claude" MaxLength="200" Immediate="true"
+                <td><MudTextField @bind-Value="_name" Label="Name, for example Claude" MaxLength="200" Immediate="true"
                                   Required="true" RequiredError="Enter a name." /></td>
                 <td></td>
-                <td><MudTextField @bind-Value="_appUrls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true"
+                <td><MudTextField @bind-Value="_urls" Label="Redirect URLs" Lines="2" MaxLength="2000" Immediate="true"
                                   Required="true" RequiredError="@UrlRules.NoRedirectUrl" Validation="@(new Func<string?, string?>(UrlRules.RedirectUrls))" /></td>
-                <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAppAsync" Disabled="@(!_appValid)">Add</MudButton></td>
+                <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAppAsync" Disabled="@(!_valid)">Add</MudButton></td>
             </tr>
         </tbody>
     </MudSimpleTable>
@@ -73,55 +73,55 @@
     [Parameter] public EventCallback OnDeleted { get; set; }
 
     private bool _appsOpen;
-    private bool AppsMustShow => _newApp is not null || _appError is not null || _appEditId is not null;
+    private bool AppsMustShow => _newApp is not null || _error is not null || _editId is not null;
 
-    private ValidatedForm? _appForm;
-    private bool _appValid;
+    private ValidatedForm? _form;
+    private bool _valid;
     private List<ConnectedAppResponse> _apps = [];
     private CreatedConnectedAppResponse? _newApp;
-    private string? _appError;
-    private string _appName = "";
-    private string _appUrls = "";
+    private string? _error;
+    private string _name = "";
+    private string _urls = "";
 
-    private string? _appEditId;
-    private string _appEditName = "";
-    private string _appEditUrls = "";
+    private string? _editId;
+    private string _editName = "";
+    private string _editUrls = "";
 
     protected override async Task OnInitializedAsync() => _apps = await Api.GetConnectedAppsAsync();
 
     private static List<string> Lines(string text) => text.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
     private void StartEditApp(ConnectedAppResponse connected) =>
-        (_appEditId, _appEditName, _appEditUrls, _appError) = (connected.Id, connected.Name, string.Join('\n', connected.RedirectUrls), null);
+        (_editId, _editName, _editUrls, _error) = (connected.Id, connected.Name, string.Join('\n', connected.RedirectUrls), null);
 
     private async Task ChangeAppAsync(ConnectedAppResponse connected)
     {
-        _appError = await Api.ChangeConnectedAppAsync(connected.Id, _appEditName, Lines(_appEditUrls));
-        if (_appError is not null) return;
-        _appEditId = null;
+        _error = await Api.ChangeConnectedAppAsync(connected.Id, _editName, Lines(_editUrls));
+        if (_error is not null) return;
+        _editId = null;
         _apps = await Api.GetConnectedAppsAsync();
     }
 
     private async Task AddAppAsync()
     {
-        var (created, error) = await Api.AddConnectedAppAsync(_appName, Lines(_appUrls));
-        _appError = error;
+        var (created, error) = await Api.AddConnectedAppAsync(_name, Lines(_urls));
+        _error = error;
         if (created is null) return;
-        (_newApp, _appName, _appUrls) = (created, "", "");
-        _appForm?.ResetValidation();
+        (_newApp, _name, _urls) = (created, "", "");
+        _form?.ResetValidation();
         _apps = await Api.GetConnectedAppsAsync();
     }
 
     private async Task NewAppSecretAsync(ConnectedAppResponse connected)
     {
         var (renewed, error) = await Api.NewConnectedAppSecretAsync(connected.Id);
-        (_appError, _newApp) = (error, renewed);
+        (_error, _newApp) = (error, renewed);
     }
 
     private async Task DeleteAppAsync(ConnectedAppResponse connected)
     {
         if (await Dialogs.ShowMessageBoxAsync("Delete Connected app", $"Delete the Connected app \"{connected.Name}\"? Its client secret stops working.", yesText: "Delete", cancelText: "Cancel") != true) return;
-        _appError = await Api.DeleteConnectedAppAsync(connected.Id);
+        _error = await Api.DeleteConnectedAppAsync(connected.Id);
         _apps = await Api.GetConnectedAppsAsync();
         await OnDeleted.InvokeAsync();
     }

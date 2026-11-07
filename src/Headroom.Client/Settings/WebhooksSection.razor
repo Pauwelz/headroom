@@ -8,9 +8,9 @@
         Headroom sends an Event to every Webhook when an Allocation, Time off or Project status changes. Each Webhook has a secret to check the signature.
     </MudText>
 
-    @if (_hookError is not null)
+    @if (_error is not null)
     {
-        <SettingsAlert OnClose="() => _hookError = null">@_hookError</SettingsAlert>
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
     }
     @if (_newHook is not null)
     {
@@ -20,7 +20,7 @@
         </SettingsAlert>
     }
 
-    <ValidatedForm @ref="_hookForm" @bind-IsValid="_hookValid">
+    <ValidatedForm @ref="_form" @bind-IsValid="_valid">
     <MudSimpleTable Dense="true">
         <thead>
             <tr><th>Name</th><th>URL</th><th></th></tr>
@@ -28,14 +28,14 @@
         <tbody>
             @foreach (var hook in _hooks)
             {
-                @if (hook.Id == _hookEditId)
+                @if (hook.Id == _editId)
                 {
                     <tr>
-                        <td><MudTextField @bind-Value="_hookName" Label="Name" MaxLength="200" Immediate="true" /></td>
+                        <td><MudTextField @bind-Value="_name" Label="Name" MaxLength="200" Immediate="true" /></td>
                         <td>@hook.Url</td>
                         <td>
                             <MudButton Color="Color.Primary" OnClick="() => RenameHookAsync(hook)">Save</MudButton>
-                            <MudButton OnClick="() => _hookEditId = null">Cancel</MudButton>
+                            <MudButton OnClick="() => _editId = null">Cancel</MudButton>
                         </td>
                     </tr>
                 }
@@ -57,7 +57,7 @@
                                   Required="true" RequiredError="Enter a name." /></td>
                 <td><MudTextField @bind-Value="_addUrl" Label="URL" MaxLength="2000" Immediate="true"
                                   Required="true" RequiredError="Enter a URL." Validation="@(new Func<string?, string?>(WebhookUrlError))" /></td>
-                <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddHookAsync" Disabled="@(!_hookValid)">Add</MudButton></td>
+                <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddHookAsync" Disabled="@(!_valid)">Add</MudButton></td>
             </tr>
         </tbody>
     </MudSimpleTable>
@@ -97,14 +97,14 @@
     private List<WebhookResponse> _hooks = [];
     private List<FailedEventResponse> _failedEvents = [];
     private CreatedWebhookResponse? _newHook;
-    private string? _hookError;
-    private Guid? _hookEditId;
-    private string _hookName = "";
+    private string? _error;
+    private Guid? _editId;
+    private string _name = "";
     // Development allows http, as the server does.
     private string? WebhookUrlError(string? value) => UrlRules.WebhookUrl(value, Env.IsDevelopment());
 
-    private ValidatedForm? _hookForm;
-    private bool _hookValid;
+    private ValidatedForm? _form;
+    private bool _valid;
     private string _addName = "";
     private string _addUrl = "";
 
@@ -120,22 +120,22 @@
     private async Task RotateHookSecretAsync(WebhookResponse hook)
     {
         var (rotated, error) = await Api.RotateWebhookSecretAsync(hook.Id);
-        (_hookError, _newHook) = (error, rotated);
+        (_error, _newHook) = (error, rotated);
     }
 
-    private void StartRenameHook(WebhookResponse hook) => (_hookEditId, _hookName, _hookError) = (hook.Id, hook.Name, null);
+    private void StartRenameHook(WebhookResponse hook) => (_editId, _name, _error) = (hook.Id, hook.Name, null);
 
     private async Task AddHookAsync()
     {
         var (hook, error) = await Api.AddWebhookAsync(_addName, _addUrl);
-        _hookError = error;
+        _error = error;
         if (hook is null) return;
         (_newHook, _addName, _addUrl) = (hook, "", "");
-        _hookForm?.ResetValidation();
+        _form?.ResetValidation();
         await LoadHooksAsync();
     }
 
-    private async Task RenameHookAsync(WebhookResponse hook) => await RunHookAsync(() => Api.RenameWebhookAsync(hook.Id, _hookName));
+    private async Task RenameHookAsync(WebhookResponse hook) => await RunHookAsync(() => Api.RenameWebhookAsync(hook.Id, _name));
 
     private async Task DeleteHookAsync(WebhookResponse hook)
     {
@@ -145,9 +145,9 @@
 
     private async Task RunHookAsync(Func<Task<string?>> write)
     {
-        _hookError = await write();
-        if (_hookError is not null) return;
-        _hookEditId = null;
+        _error = await write();
+        if (_error is not null) return;
+        _editId = null;
         await LoadHooksAsync();
     }
 }
