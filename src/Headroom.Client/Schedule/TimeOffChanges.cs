@@ -11,16 +11,6 @@ public static class TimeOffChanges
     public static TimeOffRequest Create(DateOnly a, DateOnly b) =>
         a <= b ? new(a, Morning, b, Afternoon) : new(b, Morning, a, Afternoon);
 
-    /// <summary>Drag the bar: both days move, the half days stay.</summary>
-    public static TimeOffRequest Move(ScheduleTimeOff t, int days) =>
-        new(t.StartDate.AddDays(days), t.StartPart, t.EndDate.AddDays(days), t.EndPart);
-
-    /// <summary>Drag the left edge to a day.</summary>
-    public static TimeOffRequest ResizeStart(ScheduleTimeOff t, DateOnly day) => new(day, t.StartPart, t.EndDate, t.EndPart);
-
-    /// <summary>Drag the right edge to a day.</summary>
-    public static TimeOffRequest ResizeEnd(ScheduleTimeOff t, DateOnly day) => new(t.StartDate, t.StartPart, day, t.EndPart);
-
     public static bool IsSingleDay(ScheduleTimeOff t) => t.StartDate == t.EndDate;
 
     public static bool FirstDayIsHalf(ScheduleTimeOff t) => t.StartPart == Afternoon;
