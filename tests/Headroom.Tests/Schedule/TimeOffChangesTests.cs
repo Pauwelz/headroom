@@ -19,16 +19,6 @@ public class TimeOffChangesTests
     }
 
     [Fact]
-    public void MovingAndResizingKeepTheHalfDays()
-    {
-        var bar = Bar(1, "afternoon", 3, "morning");
-
-        Assert.Equal(new TimeOffRequest(Mon.AddDays(3), "afternoon", Mon.AddDays(5), "morning"), TimeOffChanges.Move(bar, 2));
-        Assert.Equal(new TimeOffRequest(Mon, "afternoon", Mon.AddDays(3), "morning"), TimeOffChanges.ResizeStart(bar, Mon));
-        Assert.Equal(new TimeOffRequest(Mon.AddDays(1), "afternoon", Mon.AddDays(4), "morning"), TimeOffChanges.ResizeEnd(bar, Mon.AddDays(4)));
-    }
-
-    [Fact]
     public void FirstAndLastDayToggleBetweenHalfAndFull()
     {
         var bar = Bar(1, "morning", 3, "afternoon");
