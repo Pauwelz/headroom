@@ -298,6 +298,61 @@ namespace Headroom.Migrations
                     b.ToTable("LoginCodes");
                 });
 
+            modelBuilder.Entity("Headroom.Data.Passkey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("CredentialId")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset>("DateModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LastChangedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<long>("SignCount")
+                        .HasColumnType("bigint");
+
+                    b.PrimitiveCollection<string[]>("Transports")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<byte[]>("UserHandle")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CredentialId")
+                        .IsUnique();
+
+                    b.HasIndex("PersonId");
+
+                    b.ToTable("Passkeys");
+                });
+
             modelBuilder.Entity("Headroom.Data.Person", b =>
                 {
                     b.Property<Guid>("Id")
@@ -719,6 +774,15 @@ namespace Headroom.Migrations
                     b.HasOne("Headroom.Data.Webhook", null)
                         .WithMany()
                         .HasForeignKey("WebhookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Headroom.Data.Passkey", b =>
+                {
+                    b.HasOne("Headroom.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

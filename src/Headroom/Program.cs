@@ -22,6 +22,7 @@ builder.Services.AddSingleton<Headroom.Capacity.IPublicHolidays, Headroom.Capaci
 builder.Services.AddHeadroomTelemetry(builder.Configuration);
 builder.Services.AddHeadroomAuth();
 builder.Services.AddHeadroomOAuth(builder.Configuration);
+PasskeyCeremony.AddPasskeys(builder.Services);
 builder.Services.AddApiAntiforgery();
 builder.Services.AddHeadroomMcp();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));

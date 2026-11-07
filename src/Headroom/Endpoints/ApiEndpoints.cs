@@ -11,6 +11,7 @@ public static class ApiEndpoints
         api.MapPeopleEndpoints();
         api.MapSettingsEndpoints();
         api.MapAccessTokenEndpoints();
+        api.MapPasskeyEndpoints();
         api.MapWebhookEndpoints();
         api.MapConnectedAppEndpoints();
         api.MapConnectionEndpoints();

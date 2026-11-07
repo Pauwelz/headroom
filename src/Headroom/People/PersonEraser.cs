@@ -23,6 +23,7 @@ public static class PersonEraser
         person.IsPlanner = false;
         person.LastChangedBy = by;
         await db.AccessTokens.Where(t => t.PersonId == person.Id).ExecuteDeleteAsync();
+        await db.Passkeys.Where(p => p.PersonId == person.Id).ExecuteDeleteAsync();
         await Connections.DeleteOfPersonAsync(db, person.Id);
         await EventRecorder.ScrubPersonAsync(db, person.Id, person.DisplayName);
         await db.SaveChangesAsync();
