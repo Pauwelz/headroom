@@ -9,10 +9,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 namespace Headroom.Events;
 
 // Turns record changes into stored Events. HeadroomDbContext calls it from its save path, so one place covers every endpoint.
-// To add a source (3 steps):
-// 1. Add a case in Classify.
-// 2. Preload what its data record needs in BuildAsync (People, Projects, Clients, stats), one query per kind.
-// 3. Add a case in DataOf and a data record.
+// To add a source: add one entry to Sources. Preload any new lookup it needs in BuildAsync.
 public static class EventRecorder
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -20,19 +17,53 @@ public static class EventRecorder
     /// <summary>A change to record: the CloudEvents type and the record.</summary>
     public record Change(string Type, object Record);
 
-    public static List<Change> Collect(IEnumerable<EntityEntry> entries) =>
-        entries.Select(Classify).OfType<Change>().ToList();
+    private record Lookups(
+        Dictionary<Guid, Person> People, Dictionary<Guid, Project> Projects, Dictionary<Guid, Data.Client> Clients,
+        Dictionary<Guid, ProjectStats> Stats);
 
-    private static Change? Classify(EntityEntry e) => e.Entity switch
+    private record ProjectStats(Guid Key, DateOnly Start, DateOnly End, int Count);
+
+    // The Classify function returns the Change for an entry, or null when the entry is not an Event.
+    private record Source(Func<EntityEntry, Change?> Classify, Func<object, Lookups, object> DataOf);
+
+    // One entry per Event source, keyed by entity type.
+    private static readonly Dictionary<Type, Source> Sources = new()
     {
-        Allocation => ByState("Allocation", e),
-        TimeOff => ByState("TimeOff", e),
-        // Only a status change is an Event. Other Project edits are not.
-        Project when e.State == EntityState.Modified && e.Property(nameof(Project.Status)).IsModified
-            && !Equals(e.Property(nameof(Project.Status)).OriginalValue, e.Property(nameof(Project.Status)).CurrentValue) =>
-            new("headroom.Project.changed", e.Entity),
-        _ => null,
+        [typeof(Allocation)] = new(e => ByState("Allocation", e), (record, l) =>
+        {
+            var a = (Allocation)record;
+            var person = l.People[a.PersonId];
+            var project = l.Projects[a.ProjectId];
+            return new AllocationData(
+                a.Id, a.PersonId, person.DisplayName, person.Email, a.ProjectId, project.Name, project.ClientId,
+                l.Clients[project.ClientId].Name, a.StartDate, a.EndDate, a.Percentage, a.DateModified, a.LastChangedBy);
+        }),
+        [typeof(TimeOff)] = new(e => ByState("TimeOff", e), (record, l) =>
+        {
+            var t = (TimeOff)record;
+            var owner = l.People[t.PersonId];
+            return new TimeOffData(
+                t.Id, t.PersonId, owner.DisplayName, owner.Email, t.StartDate, DayPartNames.ToApi(t.StartPart),
+                t.EndDate, DayPartNames.ToApi(t.EndPart), t.DateModified, t.LastChangedBy);
+        }),
+        [typeof(Project)] = new(
+            // Only a status change is an Event. Other Project edits are not.
+            e => e.State == EntityState.Modified && e.Property(nameof(Project.Status)).IsModified
+                && !Equals(e.Property(nameof(Project.Status)).OriginalValue, e.Property(nameof(Project.Status)).CurrentValue)
+                ? new("headroom.Project.changed", e.Entity) : null,
+            (record, l) =>
+            {
+                // The same shape as ProjectResponse, plus the Client name.
+                var p = (Project)record;
+                l.Stats.TryGetValue(p.Id, out var s);
+                return new ProjectData(new ProjectResponse("Project", p.Id, p.ClientId, p.Name, p.StatusName,
+                    s?.Start, s?.End, s?.Count ?? 0, p.DateModified, p.LastChangedBy), l.Clients[p.ClientId].Name);
+            }),
     };
+
+    public static List<Change> Collect(IEnumerable<EntityEntry> entries) =>
+        entries.Select(e => Sources.TryGetValue(e.Entity.GetType(), out var source) ? source.Classify(e) : null)
+            .OfType<Change>().ToList();
 
     private static Change? ByState(string name, EntityEntry e) => e.State switch
     {
@@ -56,37 +87,15 @@ public static class EventRecorder
         var clients = await db.Clients.AsNoTracking().Where(c => clientIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
         var changedIds = changedProjects.Select(p => p.Id).ToList();
         var stats = await db.Allocations.Where(a => changedIds.Contains(a.ProjectId)).GroupBy(a => a.ProjectId)
-            .Select(g => new { g.Key, Start = g.Min(a => a.StartDate), End = g.Max(a => a.EndDate), Count = g.Count() })
+            .Select(g => new ProjectStats(g.Key, g.Min(a => a.StartDate), g.Max(a => a.EndDate), g.Count()))
             .ToDictionaryAsync(g => g.Key, ct);
 
-        object DataOf(object record)
-        {
-            switch (record)
-            {
-                case Allocation a:
-                    var person = people[a.PersonId];
-                    var project = projects[a.ProjectId];
-                    return new AllocationData(
-                        a.Id, a.PersonId, person.DisplayName, person.Email, a.ProjectId, project.Name, project.ClientId,
-                        clients[project.ClientId].Name, a.StartDate, a.EndDate, a.Percentage, a.DateModified, a.LastChangedBy);
-                case TimeOff t:
-                    var owner = people[t.PersonId];
-                    return new TimeOffData(
-                        t.Id, t.PersonId, owner.DisplayName, owner.Email, t.StartDate, DayPartNames.ToApi(t.StartPart),
-                        t.EndDate, DayPartNames.ToApi(t.EndPart), t.DateModified, t.LastChangedBy);
-                default:
-                    // The same shape as ProjectResponse, plus the Client name.
-                    var p = (Project)record;
-                    stats.TryGetValue(p.Id, out var s);
-                    return new ProjectData(new ProjectResponse("Project", p.Id, p.ClientId, p.Name, p.StatusName,
-                        s?.Start, s?.End, s?.Count ?? 0, p.DateModified, p.LastChangedBy), clients[p.ClientId].Name);
-            }
-        }
+        var lookups = new Lookups(people, projects, clients, stats);
 
         var events = new List<Event>();
         foreach (var change in changes)
         {
-            var data = DataOf(change.Record);
+            var data = Sources[change.Record.GetType()].DataOf(change.Record, lookups);
             foreach (var webhookId in webhookIds)
             {
                 var id = Guid.CreateVersion7();
