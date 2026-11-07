@@ -1,9 +1,12 @@
 // Passkey login for the login page. Static and same origin: the page allows no inline script.
-if (window.PublicKeyCredential?.parseRequestOptionsFromJSON) {
+if (window.PublicKeyCredential?.parseRequestOptionsFromJSON && PublicKeyCredential.prototype.toJSON) {
   const button = document.getElementById("passkey-login");
   const error = document.getElementById("passkey-error");
   const returnUrl = document.querySelector('input[name="ReturnUrl"]').value;
-  const failure = "Headroom could not log you in with this passkey. Use a login code instead.";
+  const show = (text) => {
+    error.textContent = text;
+    error.hidden = false;
+  };
   let pending;
 
   const login = async (mediation) => {
@@ -23,15 +26,11 @@ if (window.PublicKeyCredential?.parseRequestOptionsFromJSON) {
         body: JSON.stringify(credential.toJSON()),
       });
       if (response.ok) return location.assign((await response.json()).redirect);
-      error.textContent = failure;
-      error.hidden = false;
+      show((await response.json()).error);
     } catch (e) {
       // The Person closed the prompt, or a newer request replaced this one: no message.
       if (e.name === "AbortError") return;
-      if (e.name !== "NotAllowedError") {
-        error.textContent = failure;
-        error.hidden = false;
-      }
+      if (e.name !== "NotAllowedError") show("Headroom could not reach the server. Try again.");
     }
     if (mediation === "optional") startConditional();
   };

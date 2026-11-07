@@ -147,6 +147,15 @@ public class PasskeyTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task AWriteWithoutTheAntiforgeryTokenIsRefused()
+    {
+        var (client, _) = await SignInAsync("pk-ann@example.com");
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync(Url, new StringContent("{}", Encoding.UTF8, "application/json"), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.DeleteAsync($"{Url}/{Guid.NewGuid()}", Ct)).StatusCode);
+    }
+
+    [Fact]
     public async Task AnAccessTokenCannotSaveAPasskey()
     {
         var (client, xsrf) = await SignInAsync("pk-ann@example.com");

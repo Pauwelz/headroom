@@ -73,6 +73,7 @@ public static class FirstRunEndpoints
         await db.SaveChangesAsync(ct);
 
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        LoginEndpoints.MarkPasskeyOffer(http);
         return Results.Redirect("/");
     }
 

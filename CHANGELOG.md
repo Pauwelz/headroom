@@ -6,8 +6,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Log in with a Passkey: select **Log in with a Passkey** on the login page. The Login code keeps working.
+- Save and remove Passkeys on the new Account page.
+- After a Login code login, Headroom offers to save a Passkey.
+
 ### Changed
 
+- The Account page replaces the Access tokens page. It holds your Passkeys, Access tokens and Connections. The `/access-tokens` address is gone.
 - **Split here** now checks the same rules as the other Allocation changes. It refuses an Allocation that covers a day after the end date of the Person.
 
 ## [0.2.0] - 2026-11-07

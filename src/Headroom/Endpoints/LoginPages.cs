@@ -15,7 +15,7 @@ public static class LoginPages
               <button>Send code</button>
             </form>
             <p id="passkey-error" class="error" role="alert" hidden></p>
-            <button type="button" id="passkey-login" hidden>Log in with a passkey</button>
+            <button type="button" id="passkey-login" hidden>Log in with a Passkey</button>
             <script src="/passkey-login.js" defer></script>
             {{Privacy(company)}}
             """);
