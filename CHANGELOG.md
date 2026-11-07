@@ -10,6 +10,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Each GitHub Release carries the build provenance of its image as `headroom-X.Y.Z.sigstore.json`.
 
+### Changed
+
+- The privacy notice no longer promises a backup period. It says that the SQL host of the company sets it.
+
 ### Security
 
 - Erase personal details now blanks the name and email in stored Webhook Events.

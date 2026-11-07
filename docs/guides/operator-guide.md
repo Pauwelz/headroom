@@ -36,11 +36,12 @@ gh attestation verify oci://ghcr.io/pauwelz/headroom:<version> --owner Pauwelz
 
 ### One replica
 
-Run exactly one replica. The app signs OAuth tokens with keys that each process makes at start (`OAuthSetup.cs`).
-A second replica rejects the tokens of the first.
+Run exactly one replica. Each replica runs the daily erase (`ErasureCheck.cs`).
+The erase counter has no concurrency check (`PersonEraser.cs`).
+Two replicas that erase at the same time can give two Persons the same "Former Person N".
 The app may scale to zero when idle: the first request after that is slow (see ADR 0004).
 Sending Webhook Events is safe with more replicas, because a replica claims an Event before it sends.
-The OAuth keys still make one replica the rule.
+OAuth tokens and login cookies use the Data Protection key ring in SQL, so they work on every replica.
 
 ### Configuration
 
@@ -147,7 +148,7 @@ The file holds personal data. Store it with care.
 A Planner answers an access request for one Person by hand.
 A request for full erasure, including Time off, is also handled by hand.
 Headroom erases personal details automatically 12 months after the end date.
-SQL backups keep data for up to 7 days.
+Your SQL host sets how long backups keep data.
 
 ## Delete the Instance
 
