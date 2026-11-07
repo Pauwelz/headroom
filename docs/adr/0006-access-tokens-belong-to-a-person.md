@@ -14,3 +14,9 @@ An Access token belonged to the Instance and could only read, so an AI assistant
 - A client that stores one key for all its users (Claude Team or Enterprise, and possibly Copilot Studio) acts as the Person who owns the key. Per-user calls in those clients need OAuth.
 - An Access token cannot manage Access tokens. Otherwise a leaked token could create new tokens and keep access after it is revoked.
 - Each call loads the Person, which adds one database lookup.
+
+## Update
+
+Since #32, any Person can set Can change on an Access token or Connection.
+The token gives the rights of its Person at request time.
+A token of a Person who is not a Planner can change only the Time off of that Person.

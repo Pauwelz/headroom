@@ -25,7 +25,7 @@ Someone who works for the company, as an employee or a freelancer, and can be sc
 _Avoid_: Resource, employee, user
 
 **Planner**:
-A Person who can create and change Allocations. Usually a managing partner. Other People can only view the schedule.
+A Person who can create and change Allocations, and the Time off of every Person. Usually a managing partner. Other People view the schedule and manage only their own Time off.
 _Avoid_: Resource manager, scheduler, admin
 
 **Client**:
@@ -57,7 +57,7 @@ The hours a Person works on each weekday, valid from a start date until the next
 _Avoid_: Work pattern, working hours, schedule
 
 **Time off**:
-A period in which a Person does not work. It has no type: leave, sickness and other absence are all the same Time off. It starts and ends on a morning or an afternoon, so only its first and last day can be a half day.
+A period in which a Person does not work. It has no type: leave, sickness and other absence are all the same Time off. It starts and ends on a morning or an afternoon, so only its first and last day can be a half day. A Person adds, changes and deletes their own Time off without approval, also for past dates. A Planner can do this for every Person.
 _Avoid_: Absence, leave (as a general term)
 
 **Company day off**:

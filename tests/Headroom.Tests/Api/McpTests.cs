@@ -51,7 +51,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         db.Allocations.Add(new Allocation { PersonId = bob.Id, ProjectId = project.Id, StartDate = new(2026, 3, 2), EndDate = new(2026, 3, 6), Percentage = 50 });
         db.AccessTokens.Add(new AccessToken { Name = "Claude", PersonId = ann.Id, TokenHash = AccessTokenAuth.Hash(Secret), LastChangedBy = ann.Id });
         db.AccessTokens.Add(new AccessToken { Name = "Writer", PersonId = ann.Id, CanChange = true, TokenHash = AccessTokenAuth.Hash(WriterSecret), LastChangedBy = ann.Id });
-        // Bob is no Planner, so even a token with Can change cannot write.
+        // Bob is no Planner, so his token with Can change writes only his own Time off.
         db.AccessTokens.Add(new AccessToken { Name = "Worker", PersonId = bob.Id, CanChange = true, TokenHash = AccessTokenAuth.Hash(WorkerSecret), LastChangedBy = bob.Id });
         db.Webhooks.Add(new Webhook { Name = "Hook", Url = "https://hooks.example.com/a", Secret = "whsec_x", LastChangedBy = ann.Id });
         db.Webhooks.Add(new Webhook { Name = "Hook 2", Url = "https://hooks.example.com/b", Secret = "whsec_y", LastChangedBy = ann.Id });
@@ -310,13 +310,80 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task ATokenOfAPersonWhoIsNoPlannerCannotDeleteTimeOff()
+    public async Task AReadOnlyTokenCannotChangeOrDeleteTimeOff()
     {
+        await using var mcp = await ConnectAsync();
+
+        var changed = await ErrorAsync(mcp, "change_time_off", new() { ["id"] = Guid.NewGuid(), ["startDate"] = "2026-04-07", ["startPart"] = "morning", ["endDate"] = "2026-04-08", ["endPart"] = "afternoon" });
+        var deleted = await ErrorAsync(mcp, "delete_time_off", new() { ["id"] = Guid.NewGuid() });
+
+        Assert.Contains("read only", changed);
+        Assert.Contains("read only", deleted);
+    }
+
+    [Fact]
+    public async Task ATokenOfAPersonWhoIsNoPlannerCannotDeleteTimeOffOfAnotherPerson()
+    {
+        await using var planner = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        await WriteAsync(planner, "add_time_off", new() { ["personId"] = ann, ["startDate"] = "2026-05-04", ["startPart"] = "morning", ["endDate"] = "2026-05-04", ["endPart"] = "afternoon" });
+        var id = TimeOffIds(await CallAsync(planner, "get_schedule", new Dictionary<string, object?> { ["from"] = "2026-05-04", ["to"] = "2026-05-08", ["person"] = "ann" })).Single();
         await using var mcp = await ConnectAsync(secret: WorkerSecret);
 
-        var error = await ErrorAsync(mcp, "delete_time_off", new() { ["id"] = Guid.NewGuid() });
+        var error = await ErrorAsync(mcp, "delete_time_off", new() { ["id"] = id });
 
-        Assert.Contains("Planner", error);
+        Assert.Contains("You can only change your own Time off.", error);
+    }
+
+    [Fact]
+    public async Task ANonPlannerWithCanChangeAddsChangesAndDeletesTheirOwnTimeOff()
+    {
+        await using var mcp = await ConnectAsync(secret: WorkerSecret);
+        var bob = BobId();
+        var range = new Dictionary<string, object?> { ["from"] = "2026-06-01", ["to"] = "2026-06-05", ["person"] = "bob" };
+
+        await WriteAsync(mcp, "add_time_off", new() { ["personId"] = bob, ["startDate"] = "2026-06-02", ["startPart"] = "morning", ["endDate"] = "2026-06-02", ["endPart"] = "afternoon" });
+        var id = TimeOffIds(await CallAsync(mcp, "get_schedule", range)).Single();
+        await WriteAsync(mcp, "change_time_off", new() { ["id"] = id, ["startDate"] = "2026-06-02", ["startPart"] = "morning", ["endDate"] = "2026-06-03", ["endPart"] = "afternoon" });
+        await WriteAsync(mcp, "delete_time_off", new() { ["id"] = id });
+
+        Assert.Empty(TimeOffIds(await CallAsync(mcp, "get_schedule", range)));
+    }
+
+    [Fact]
+    public async Task ANonPlannerCannotAddOrChangeTimeOffOfAnotherPerson()
+    {
+        await using var planner = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        await WriteAsync(planner, "add_time_off", new() { ["personId"] = ann, ["startDate"] = "2026-06-08", ["startPart"] = "morning", ["endDate"] = "2026-06-08", ["endPart"] = "afternoon" });
+        var id = TimeOffIds(await CallAsync(planner, "get_schedule", new Dictionary<string, object?> { ["from"] = "2026-06-08", ["to"] = "2026-06-12", ["person"] = "ann" })).Single();
+        await using var mcp = await ConnectAsync(secret: WorkerSecret);
+
+        var added = await ErrorAsync(mcp, "add_time_off", new() { ["personId"] = ann, ["startDate"] = "2026-06-09", ["startPart"] = "morning", ["endDate"] = "2026-06-09", ["endPart"] = "afternoon" });
+        var changed = await ErrorAsync(mcp, "change_time_off", new() { ["id"] = id, ["startDate"] = "2026-06-08", ["startPart"] = "morning", ["endDate"] = "2026-06-09", ["endPart"] = "afternoon" });
+
+        Assert.Contains("You can only change your own Time off.", added);
+        Assert.Contains("You can only change your own Time off.", changed);
+    }
+
+    [Fact]
+    public async Task ANonPlannerWithCanChangeGetsAToolErrorFromEveryAllocationTool()
+    {
+        await using var mcp = await ConnectAsync(secret: WorkerSecret);
+        var (ann, project) = await IdsAsync();
+        var dates = new Dictionary<string, object?> { ["startDate"] = "2026-06-01", ["endDate"] = "2026-06-05", ["percentage"] = 40 };
+
+        var create = await ErrorAsync(mcp, "create_allocation", new(dates) { ["personId"] = ann, ["projectId"] = project });
+        var change = await ErrorAsync(mcp, "change_allocation", new(dates) { ["id"] = Guid.NewGuid() });
+
+        Assert.Contains("Planner", create);
+        Assert.Contains("Planner", change);
+    }
+
+    private Guid BobId()
+    {
+        using var scope = _factory.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People.Single(p => p.Email == "mcp-bob@example.com").Id;
     }
 
     private static List<Guid> TimeOffIds(JsonElement schedule) => schedule.GetProperty("people").EnumerateArray()

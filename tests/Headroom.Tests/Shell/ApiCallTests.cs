@@ -48,6 +48,14 @@ public class ApiCallTests
         Assert.Equal(plain, people.Message);
     }
 
+    [Fact]
+    public async Task AForbiddenProblemShowsItsDetail()
+    {
+        var text = await ApiCall.SendAsync(Client(HttpStatusCode.Forbidden, """{"detail":"You can only change your own Time off."}""").DeleteAsync("api/x", TestContext.Current.CancellationToken));
+
+        Assert.Equal("You can only change your own Time off.", text);
+    }
+
     [Theory]
     [InlineData("", "application/problem+json")]
     [InlineData("<html>Bad gateway</html>", "text/html")]

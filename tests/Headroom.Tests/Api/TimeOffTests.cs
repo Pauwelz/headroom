@@ -113,15 +113,80 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task NonPlannerGets403OnEveryTimeOffWrite()
+    public async Task NonPlannerAddsChangesAndDeletesOwnTimeOffAlsoInThePast()
+    {
+        var (zed, token) = await SignIn("off-zed@example.com");
+        var past = new DateOnly(2026, 1, 5);
+
+        var created = await (await Add(zed, token, _zed, past, "morning", past, "afternoon")).Content.ReadFromJsonAsync<ScheduleTimeOff>(cancellationToken: TestContext.Current.CancellationToken);
+        var edit = await Send(zed, token, HttpMethod.Put, $"/api/time-off/{created!.Id}", new TimeOffRequest(past, "morning", past.AddDays(1), "afternoon"));
+
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(zed, token, HttpMethod.Delete, $"/api/time-off/{created.Id}", null)).StatusCode);
+        Assert.Empty(await TimeOffRows());
+    }
+
+    [Fact]
+    public async Task NonPlannerChangesAndDeletesTimeOffThatAPlannerEnteredForThem()
+    {
+        var (ann, annToken) = await SignIn("off-ann@example.com");
+        var (zed, zedToken) = await SignIn("off-zed@example.com");
+        var created = await (await Add(ann, annToken, _zed, Mon, "morning", Mon, "afternoon")).Content.ReadFromJsonAsync<ScheduleTimeOff>(cancellationToken: TestContext.Current.CancellationToken);
+
+        var edit = await Send(zed, zedToken, HttpMethod.Put, $"/api/time-off/{created!.Id}", new TimeOffRequest(Mon, "morning", Mon.AddDays(1), "afternoon"));
+
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        Assert.Equal(_zed, (await TimeOffRows()).Single().LastChangedBy);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(zed, zedToken, HttpMethod.Delete, $"/api/time-off/{created.Id}", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task NonPlannerGets403OnTimeOffOfAnotherPerson()
+    {
+        var (ann, annToken) = await SignIn("off-ann@example.com");
+        var (zed, zedToken) = await SignIn("off-zed@example.com");
+        var annsId = await AnnId();
+        var anns = await (await Add(ann, annToken, annsId, Mon, "morning", Mon, "afternoon")).Content.ReadFromJsonAsync<ScheduleTimeOff>(cancellationToken: TestContext.Current.CancellationToken);
+        var body = new TimeOffRequest(Mon, "morning", Mon.AddDays(1), "afternoon");
+
+        var responses = new[]
+        {
+            await Send(zed, zedToken, HttpMethod.Post, $"/api/people/{annsId}/time-off", body),
+            await Send(zed, zedToken, HttpMethod.Put, $"/api/time-off/{anns!.Id}", body),
+            await Send(zed, zedToken, HttpMethod.Delete, $"/api/time-off/{anns.Id}", null),
+        };
+
+        foreach (var response in responses)
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Contains("You can only change your own Time off.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        }
+        Assert.Single(await TimeOffRows());
+    }
+
+    [Fact]
+    public async Task NonPlannerStillGets403OnAllocationsAndCompanyDaysOff()
     {
         var (zed, token) = await SignIn("off-zed@example.com");
         var id = Guid.NewGuid();
-        var body = new TimeOffRequest(Mon, "morning", Mon, "afternoon");
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await Send(zed, token, HttpMethod.Post, $"/api/people/{_zed}/time-off", body)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await Send(zed, token, HttpMethod.Put, $"/api/time-off/{id}", body)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await Send(zed, token, HttpMethod.Delete, $"/api/time-off/{id}", null)).StatusCode);
+        var allocation = await Send(zed, token, HttpMethod.Delete, $"/api/allocations/{id}", null);
+        var dayOff = await Send(zed, token, HttpMethod.Delete, $"/api/settings/company-days-off/{id}", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, allocation.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, dayOff.StatusCode);
+    }
+
+    private async Task<List<TimeOff>> TimeOffRows()
+    {
+        using var scope = _factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().TimeOff.AsNoTracking().ToListAsync(TestContext.Current.CancellationToken);
+    }
+
+    private async Task<Guid> AnnId()
+    {
+        using var scope = _factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People.Where(p => p.Name == "Ann").Select(p => p.Id).SingleAsync(TestContext.Current.CancellationToken);
     }
 
     private async Task<(HttpClient Client, string Token)> SignIn(string email)

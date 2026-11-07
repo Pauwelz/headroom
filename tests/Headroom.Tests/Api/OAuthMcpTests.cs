@@ -21,6 +21,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string Ann = "oauth-ann@example.com";
     private const string Demoted = "oauth-demoted@example.com";
     private const string Old = "oauth-old@example.com";
+    private const string Fallen = "oauth-fallen@example.com";
     private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly OAuthFlow _flow;
@@ -42,6 +43,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         db.People.Add(ann);
         db.People.Add(new Person { Name = "Zed", Email = "oauth-zed@example.com" });
         db.People.Add(new Person { Name = "Old", Email = Old });
+        db.People.Add(new Person { Name = "Fallen", Email = Fallen, IsPlanner = true });
         db.People.Add(new Person { Name = "Demoted", Email = Demoted, IsPlanner = true });
         var client = new Headroom.Data.Client { Name = "Client" };
         db.Clients.Add(client);
@@ -96,7 +98,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public void ConsentPageEncodesHiddenFieldNames()
     {
-        var html = ConsentPages.Consent("t", "Acme", "App", "Ann", false, [new("\"><script>", "x")]);
+        var html = ConsentPages.Consent("t", "Acme", "App", "Ann", [new("\"><script>", "x")]);
 
         Assert.DoesNotContain("<script", html);
     }
@@ -286,7 +288,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task OnlyAPlannerSeesCanChangeOnTheConsentScreen()
+    public async Task EveryPersonSeesCanChangeOnTheConsentScreen()
     {
         var app = await _flow.AddAppAsync();
         var url = OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New());
@@ -295,7 +297,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var other = await (await TestLogin.SignInAsync(_factory, _mail, "oauth-zed@example.com")).GetStringAsync(url, Ct);
 
         Assert.Contains("Can change", planner);
-        Assert.DoesNotContain("Can change", other);
+        Assert.Contains("Can change", other);
     }
 
     [Fact]
@@ -324,6 +326,20 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var allocation = await db.Allocations.SingleAsync(a => a.PersonId == (Guid)args["personId"]! && a.StartDate == new DateOnly(2026, 12, 7), Ct);
         Assert.Equal(allocation.PersonId, allocation.LastChangedBy);
         Assert.Contains(await db.Events.Select(e => e.Payload).ToListAsync(Ct), p => p.Contains("headroom.Allocation.created") && p.Contains(allocation.Id.ToString()));
+    }
+
+    [Fact]
+    public async Task ANonPlannersConnectionWithCanChangeAddsTheirOwnTimeOff()
+    {
+        var token = await _flow.TokenAsync(await _flow.AddAppAsync(), "oauth-zed@example.com", canChange: true);
+        Guid zed;
+        using (var scope = _factory.Services.CreateScope())
+            zed = await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People.Where(p => p.Email == "oauth-zed@example.com").Select(p => p.Id).SingleAsync(Ct);
+
+        await using var mcp = await McpAsync(token);
+        var result = await mcp.CallToolAsync("add_time_off", new Dictionary<string, object?> { ["personId"] = zed, ["startDate"] = "2026-12-07", ["startPart"] = "morning", ["endDate"] = "2026-12-07", ["endPart"] = "afternoon" }, cancellationToken: Ct);
+
+        Assert.NotEqual(true, result.IsError);
     }
 
     [Fact]
@@ -364,6 +380,31 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
                 .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, false), Ct);
 
         Assert.True((await mcp.CallToolAsync("create_allocation", args, cancellationToken: Ct)).IsError);
+    }
+
+    [Fact]
+    public async Task AConnectionWithCanChangeKeepsWorkingOnlyForItsOwnTimeOffAfterItsPersonLosesThePlannerRole()
+    {
+        var token = await _flow.TokenAsync(await _flow.AddAppAsync(), Fallen, canChange: true);
+        using (var scope = _factory.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People.Where(p => p.Email == Fallen)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, false), Ct);
+        Guid fallen, zed;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            fallen = (await db.People.SingleAsync(p => p.Email == Fallen, Ct)).Id;
+            zed = (await db.People.SingleAsync(p => p.Email == "oauth-zed@example.com", Ct)).Id;
+        }
+        Dictionary<string, object?> Args(Guid personId) => new() { ["personId"] = personId, ["startDate"] = "2026-12-01", ["startPart"] = "morning", ["endDate"] = "2026-12-01", ["endPart"] = "afternoon" };
+
+        await using var mcp = await McpAsync(token);
+        var own = await mcp.CallToolAsync("add_time_off", Args(fallen), cancellationToken: Ct);
+        var other = await mcp.CallToolAsync("add_time_off", Args(zed), cancellationToken: Ct);
+
+        Assert.NotEqual(true, own.IsError);
+        Assert.True(other.IsError);
+        Assert.Contains("You can only change your own Time off.", string.Join(" ", other.Content.OfType<TextContentBlock>().Select(c => c.Text)));
     }
 
     [Fact]

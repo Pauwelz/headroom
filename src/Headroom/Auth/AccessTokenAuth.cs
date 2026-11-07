@@ -57,8 +57,8 @@ public static class AccessTokenAuth
             if (person is null || person.ErasedNumber is not null || !person.CanLogIn(BrusselsTime.Today(time)))
                 return AuthenticateResult.Fail("The Person of this Access token has left.");
             var claims = new List<Claim> { new(TokenClaim, token.Id.ToString()) };
-            // Rights follow the role: a token of a Person who is no longer a Planner cannot change.
-            if (token.CanChange && person.IsPlanner) claims.Add(new Claim(CanChangeClaim, "true"));
+            // "Can change" only unlocks writes. What the token may change comes from the Person on each request.
+            if (token.CanChange) claims.Add(new Claim(CanChangeClaim, "true"));
             var principal = PersonPrincipal.Create(person, AccessTokenAuth.Scheme, [.. claims]);
             return AuthenticateResult.Success(new AuthenticationTicket(principal, AccessTokenAuth.Scheme));
         }

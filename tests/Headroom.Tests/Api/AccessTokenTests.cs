@@ -254,13 +254,35 @@ public class AccessTokenTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task PersonWhoIsNotAPlannerCannotAskForCanChange()
+    public async Task NonPlannerTokenThatCanChangeWritesOnlyOwnTimeOff()
     {
         var (flo, xsrf) = await SignInAsync("token-flo@example.com");
+        var created = await CreateAsync(flo, xsrf, "Flo writer", canChange: true);
+        var bearer = BearerClient(created.Secret);
+        var (floId, annId) = await PersonIdsAsync("token-flo@example.com", "token-ann@example.com");
+        var body = new TimeOffRequest(new(2026, 3, 2), "morning", new(2026, 3, 2), "afternoon");
 
-        var response = await Send(flo, xsrf, HttpMethod.Post, OwnUrl, new AccessTokenRequest("Nope", CanChange: true));
+        Assert.True(created.CanChange);
+        var own = await bearer.PostAsJsonAsync($"/api/people/{floId}/time-off", body, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        var id = (await own.Content.ReadFromJsonAsync<ScheduleTimeOff>(TestContext.Current.CancellationToken))!.Id;
+        Assert.Equal(HttpStatusCode.OK, (await bearer.PutAsJsonAsync($"/api/time-off/{id}", body with { EndDate = new(2026, 3, 3) }, TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await bearer.DeleteAsync($"/api/time-off/{id}", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bearer.PostAsJsonAsync($"/api/people/{annId}/time-off", body, TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bearer.DeleteAsync($"/api/allocations/{Guid.NewGuid()}", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bearer.DeleteAsync($"/api/settings/company-days-off/{Guid.NewGuid()}", TestContext.Current.CancellationToken)).StatusCode);
+    }
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    [Fact]
+    public async Task ReadOnlyTokenOfANonPlannerGets403OnTimeOffWrites()
+    {
+        var (flo, xsrf) = await SignInAsync("token-flo@example.com");
+        var bearer = BearerClient((await CreateAsync(flo, xsrf, "Flo reader")).Secret);
+        var (floId, _) = await PersonIdsAsync("token-flo@example.com", "token-ann@example.com");
+
+        var response = await bearer.PostAsJsonAsync($"/api/people/{floId}/time-off", new TimeOffRequest(new(2026, 3, 2), "morning", new(2026, 3, 2), "afternoon"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -305,20 +327,35 @@ public class AccessTokenTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task TokenThatCanChangeFailsOnItsNextChangeWhenThePersonLosesThePlannerRole()
+    public async Task TokenThatCanChangeFollowsTheCurrentPlannerRoleOfItsPerson()
     {
-        var (ivy, xsrf) = await SignInAsync("token-jon@example.com");
-        var bearer = BearerClient((await CreateAsync(ivy, xsrf, "Ivy writer", canChange: true)).Secret);
-        Assert.Equal(HttpStatusCode.Created, (await bearer.PostAsJsonAsync("/api/clients", new ClientRequest("Ivy client " + Guid.NewGuid()), cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        var (jon, xsrf) = await SignInAsync("token-jon@example.com");
+        var bearer = BearerClient((await CreateAsync(jon, xsrf, "Jon writer", canChange: true)).Secret);
+        var (jonId, _) = await PersonIdsAsync("token-jon@example.com", "token-ann@example.com");
+        var body = new TimeOffRequest(new(2026, 3, 9), "morning", new(2026, 3, 9), "afternoon");
+        Assert.Equal(HttpStatusCode.Created, (await bearer.PostAsJsonAsync("/api/clients", new ClientRequest("Jon client " + Guid.NewGuid()), TestContext.Current.CancellationToken)).StatusCode);
 
-        using (var scope = _factory.Services.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People
-                .Where(p => p.Email == "token-jon@example.com").ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, false), TestContext.Current.CancellationToken);
+        await SetPlannerAsync("token-jon@example.com", false);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bearer.PostAsJsonAsync("/api/clients", new ClientRequest("Too late"), TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await bearer.PostAsJsonAsync($"/api/people/{jonId}/time-off", body, TestContext.Current.CancellationToken)).StatusCode);
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await bearer.PostAsJsonAsync("/api/clients", new ClientRequest("Too late"), cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
-        using (var scope = _factory.Services.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People
-                .Where(p => p.Email == "token-jon@example.com").ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, true), TestContext.Current.CancellationToken);
+        await SetPlannerAsync("token-jon@example.com", true);
+        Assert.Equal(HttpStatusCode.Created, (await bearer.PostAsJsonAsync("/api/clients", new ClientRequest("Jon again " + Guid.NewGuid()), TestContext.Current.CancellationToken)).StatusCode);
+    }
+
+    private async Task SetPlannerAsync(string email, bool isPlanner)
+    {
+        using var scope = _factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().People
+            .Where(p => p.Email == email).ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, isPlanner), TestContext.Current.CancellationToken);
+    }
+
+    private async Task<(Guid First, Guid Second)> PersonIdsAsync(string first, string second)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        return ((await db.People.SingleAsync(p => p.Email == first, TestContext.Current.CancellationToken)).Id,
+            (await db.People.SingleAsync(p => p.Email == second, TestContext.Current.CancellationToken)).Id);
     }
 
     [Fact]

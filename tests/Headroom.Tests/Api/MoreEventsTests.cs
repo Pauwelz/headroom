@@ -87,6 +87,26 @@ public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task ATimeOffWriteByANonPlannerStoresTheSameEventAsAPlannerWriteAndSetsLastChangedBy()
+    {
+        var body = new TimeOffRequest(new(2026, 4, 6), "morning", new(2026, 4, 7), "afternoon");
+        await _planner.PostAsJsonAsync($"/api/people/{_floId}/time-off", body, cancellationToken: TestContext.Current.CancellationToken);
+        var flo = await TestLogin.SignInAsync(_factory, _mail, $"ev-flo-{_run}@example.com");
+        flo.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(flo));
+
+        var created = await flo.PostAsJsonAsync($"/api/people/{_floId}/time-off", body with { StartDate = new(2026, 5, 4), EndDate = new(2026, 5, 5) }, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        var events = await StoredEvents();
+        Assert.Equal(["headroom.TimeOff.created", "headroom.TimeOff.created"], events.Select(e => e.Type));
+        Assert.Equal(events[0].Data.EnumerateObject().Select(p => p.Name), events[1].Data.EnumerateObject().Select(p => p.Name));
+        var id = (await created.Content.ReadFromJsonAsync<ScheduleTimeOff>(cancellationToken: TestContext.Current.CancellationToken))!.Id;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        Assert.Equal(_floId, (await db.TimeOff.SingleAsync(t => t.Id == id, TestContext.Current.CancellationToken)).LastChangedBy);
+    }
+
+    [Fact]
     public async Task OnlyAProjectStatusChangeStoresAProjectEvent()
     {
         Assert.Equal(HttpStatusCode.OK, (await PutProject("Website 2", "tentative")).StatusCode);

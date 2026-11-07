@@ -55,7 +55,7 @@
     /// <summary>The Person of the row. Screen readers need it: they do not see the row label next to the bar.</summary>
     [Parameter, EditorRequired] public string PersonName { get; set; } = "";
 
-    /// <summary>A Planner may change Time off. The server enforces it too.</summary>
+    /// <summary>The viewer may change this Time off. The server enforces it too.</summary>
     [Parameter] public bool CanEdit { get; set; }
 
     /// <summary>The visible days of the bar, also while a drag runs. The grid column style places the bar.</summary>

@@ -42,6 +42,7 @@
     {
         var open = _open.Contains(person.Id);
         var mine = person.Id == MeId;
+        var edit = ScheduleEdit.For(IsPlanner, mine);
         <div class="row group @(mine ? "me" : null)">
             <div class="label">
                 <MudIconButton Icon="@(open ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)"
@@ -67,7 +68,7 @@
         {
             @foreach (var project in Rows(person))
             {
-                var editable = CanEdit && project.Status != ProjectStatusName.Archived;
+                var editable = edit.Allocations && project.Status != ProjectStatusName.Archived;
                 <div class="row sub @(_timeOffDrag is not null || _allocationDrag is not null || _start is not null ? "dragging" : null)">
                     <div class="label sub-label">
                         <div class="name">
@@ -94,7 +95,7 @@
                         var (first, last) = Preview(a);
                         <AllocationBar @key="a.Id" Bar="a" Status="@project.Status" RowName="@($"{person.Name}, {project.ProjectName}")" Editable="editable" First="first" Last="last"
                                        Style="@Span(first, last)" Days="@VisibleDays(first, last)"
-                                       OnPress="@(p => StartDrag(person.Id, project.ProjectId, a, p.Mode, p.Day, p.Args))"
+                                       OnPress="@(p => StartDrag(person.Id, edit.Allocations, project.ProjectId, a, p.Mode, p.Day, p.Args))"
                                        OnRelease="@(day => DropAsync(person.Id, project.ProjectId, day))"
                                        OnPercentage="OnPercentage" OnEdit="() => EditAsync(person, project, a)"
                                        OnSplit="at => RunAsync(Api.SplitAllocationAsync(a.Id, at))"
@@ -106,7 +107,7 @@
                     }
                 </div>
             }
-            @if (CanEdit)
+            @if (edit.Allocations)
             {
                 <div class="row sub">
                     <div class="label sub-label">
@@ -125,9 +126,9 @@
                 <div class="label sub-label"><span class="name">Time off</span></div>
                 @foreach (var day in Dates)
                 {
-                    <div class="@CellClass(day, "cell") @(CanEdit ? "editable" : null)"
-                         style="@Col(day)" title="@(CanEdit ? "Click the first day, then the last day, to add Time off" : null)"
-                         @onclick="() => ClickAsync(person.Id, day)"
+                    <div class="@CellClass(day, "cell") @(edit.TimeOff ? "editable" : null)"
+                         style="@Col(day)" title="@(edit.TimeOff ? "Click the first day, then the last day, to add Time off" : null)"
+                         @onclick="() => ClickAsync(person.Id, edit.TimeOff, day)"
                          @onmouseenter="@(() => { if (_pick?.Person == person.Id) _hover = day; })"
                          @onpointerenter="() => _timeOffDrag?.Enter(person.Id, null, day)"
                          @onpointerup="() => DropAsync(person.Id, day)" @onpointerup:stopPropagation="true"></div>
@@ -135,8 +136,8 @@
                 @foreach (var t in person.TimeOff)
                 {
                     var (first, last) = Preview(t);
-                    <TimeOffBar @key="t.Id" Bar="t" PersonName="@person.Name" CanEdit="CanEdit" Style="@Span(first, last)" Days="@VisibleDays(first, last)"
-                                OnPress="@(p => StartDrag(person.Id, t, p.Mode, p.Day))"
+                    <TimeOffBar @key="t.Id" Bar="t" PersonName="@person.Name" CanEdit="edit.TimeOff" Style="@Span(first, last)" Days="@VisibleDays(first, last)"
+                                OnPress="@(p => StartDrag(person.Id, edit.TimeOff, t, p.Mode, p.Day))"
                                 OnChange="request => ChangeAsync(t, request)" OnEdit="() => EditAsync(t)" OnDelete="() => DeleteAsync(t)" />
                 }
                 @if (_pick is { } p && p.Person == person.Id)
@@ -158,8 +159,8 @@
     /// <summary>The group of this Person is highlighted.</summary>
     [Parameter] public Guid? MeId { get; set; }
 
-    /// <summary>A Planner may create and change Time off. The server enforces it too.</summary>
-    [Parameter] public bool CanEdit { get; set; }
+    /// <summary>A Planner edits every row. Other People edit only Time off on their own row.</summary>
+    [Parameter] public bool IsPlanner { get; set; }
 
     /// <summary>Raised after a write, so the page reloads the Schedule.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -379,14 +380,14 @@
     private (DateOnly First, DateOnly Last) Preview(ScheduleAllocation a) =>
         _allocationDrag?.Bar.Id == a.Id ? _allocationDrag.Dates : (a.StartDate, a.EndDate);
 
-    private void StartDrag(Guid personId, ScheduleTimeOff bar, DragMode mode, DateOnly day)
+    private void StartDrag(Guid personId, bool canEdit, ScheduleTimeOff bar, DragMode mode, DateOnly day)
     {
-        if (CanEdit) _timeOffDrag = new(personId, null, bar, bar.StartDate, bar.EndDate, mode, day);
+        if (canEdit) _timeOffDrag = new(personId, null, bar, bar.StartDate, bar.EndDate, mode, day);
     }
 
-    private void StartDrag(Guid personId, Guid projectId, ScheduleAllocation bar, DragMode mode, DateOnly day, PointerEventArgs e)
+    private void StartDrag(Guid personId, bool canEdit, Guid projectId, ScheduleAllocation bar, DragMode mode, DateOnly day, PointerEventArgs e)
     {
-        if (CanEdit && e.Button == 0) _allocationDrag = new(personId, projectId, bar, bar.StartDate, bar.EndDate, mode, day);
+        if (canEdit && e.Button == 0) _allocationDrag = new(personId, projectId, bar, bar.StartDate, bar.EndDate, mode, day);
     }
 
     private void CancelDrag() => (_timeOffDrag, _allocationDrag) = (null, null);
@@ -441,9 +442,9 @@
     }
 
     // First click picks the start day. Second click on the same Person's row creates the Time off.
-    private async Task ClickAsync(Guid personId, DateOnly day)
+    private async Task ClickAsync(Guid personId, bool canEdit, DateOnly day)
     {
-        if (!CanEdit || _timeOffDrag is not null) return;
+        if (!canEdit || _timeOffDrag is not null) return;
         if (_pick is not { } pick || pick.Person != personId) { (_pick, _start, _hover) = ((personId, day), null, day); return; }
         _pick = null;
         await RunAsync(() => TimeOff.AddAsync(personId, TimeOffChanges.Create(pick.Day, day)));

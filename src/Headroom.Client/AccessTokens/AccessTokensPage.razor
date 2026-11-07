@@ -8,7 +8,7 @@
 <MudPaper Class="pa-4">
     <MudText Typo="Typo.body2" Class="mb-2">
         An Access token lets a script or an AI assistant act as you. It has your rights.
-        It can only read, unless a Planner allows it to change things (Can change). It stops working when it expires. Send it in the header <code>Authorization: Bearer &lt;token&gt;</code>.
+        It can only read, unless you allow it to change things (Can change). A Person can then change only their own Time off, a Planner more. It stops working when it expires. Send it in the header <code>Authorization: Bearer &lt;token&gt;</code>.
     </MudText>
     @if (_error is not null)
     {
@@ -52,10 +52,7 @@
                     </MudSelect>
                 </td>
                 <td>
-                    @if (Me.IsPlanner)
-                    {
-                        <MudCheckBox T="bool" @bind-Value="_canChange" Label="Can change" />
-                    }
+                    <MudCheckBox T="bool" @bind-Value="_canChange" Label="Can change" />
                 </td>
                 <td><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddAsync" Disabled="@(!_valid)">Create</MudButton></td>
             </tr>

@@ -38,7 +38,7 @@
 }
 else
 {
-    <ScheduleGrid Data="@Shown" MeId="@Me.Id" CanEdit="@Me.IsPlanner" Clients="@_clients"
+    <ScheduleGrid Data="@Shown" MeId="@Me.Id" IsPlanner="@Me.IsPlanner" Clients="@_clients"
                   FirstDay="@_range.From" ShownDays="@_range.Days" OnScrolled="ScrolledAsync"
                   OnChanged="ReloadAsync" OnPercentage="SetPercentageAsync" />
 }
