@@ -11,9 +11,12 @@ public static class LoginPages
         FirstRunPages.Layout("Log in", error, Steps, 0, company, $$"""
             <form method="post" action="/login">
               {{FirstRunPages.Hidden("__RequestVerificationToken", token)}}{{FirstRunPages.Hidden("ReturnUrl", returnUrl)}}
-              <label>Email <input name="email" type="email" value="{{FirstRunPages.E(email)}}" maxlength="254" autocomplete="email" required autofocus></label>
+              <label>Email <input name="email" type="email" value="{{FirstRunPages.E(email)}}" maxlength="254" autocomplete="username webauthn" required autofocus></label>
               <button>Send code</button>
             </form>
+            <p id="passkey-error" class="error" role="alert" hidden></p>
+            <button type="button" id="passkey-login" hidden>Log in with a passkey</button>
+            <script src="/passkey-login.js" defer></script>
             {{Privacy(company)}}
             """);
 
