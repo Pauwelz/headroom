@@ -13,7 +13,7 @@ public static class PeopleEndpoints
     public static void MapPeopleEndpoints(this RouteGroupBuilder api)
     {
         var people = api.MapGroup("/people").RequirePlanner();
-        people.MapGet("", List);
+        people.MapGet("", async (HeadroomDbContext db, TimeProvider time) => Results.Ok(await ListAsync(db, time)));
         people.MapPost("", Add);
         people.MapPut("/{id:guid}", Edit);
         people.MapPost("/{id:guid}/contracts", AddContract);
@@ -25,14 +25,14 @@ public static class PeopleEndpoints
         people.MapPost("/{id:guid}/erase", Erase);
     }
 
-    private static async Task<IResult> List(HeadroomDbContext db, TimeProvider time)
+    public static async Task<List<PersonResponse>> ListAsync(HeadroomDbContext db, TimeProvider time)
     {
         var contracts = (await db.Contracts.AsNoTracking().ToListAsync()).ToLookup(c => c.PersonId);
         var everyone = await db.People.AsNoTracking().ToListAsync();
         var today = BrusselsTime.Today(time);
         var rows = new List<PersonResponse>();
         foreach (var p in everyone) rows.Add(await ToResponseAsync(db, p, contracts[p.Id], today));
-        return Results.Ok(rows);
+        return rows;
     }
 
     private static async Task<IResult> Add(AddPersonRequest request, HttpContext http, HeadroomDbContext db, TimeProvider time)

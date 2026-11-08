@@ -62,6 +62,13 @@ public sealed class HeadroomTools
         (await ProjectEndpoints.ListClientsAsync(db)).SelectMany(c => c.Projects)
             .Where(p => status is null || p.Status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
 
+    [McpServerTool(Name = "list_people", ReadOnly = true), Description("Every Person with status, Contracts (with their ids), hours per week and end date. Gives the Person ids. Needs an Access token of a Planner. Can change is not needed.")]
+    public static async Task<List<PersonResponse>> ListPeople(HeadroomDbContext db, TimeProvider time, IHttpContextAccessor http)
+    {
+        McpReadGuard.RequirePlanner(http);
+        return await PeopleEndpoints.ListAsync(db, time);
+    }
+
     [McpServerTool(Name = "get_me", ReadOnly = true), Description("The Person that this Access token acts for: id, name and whether they are a Planner.")]
     public static async Task<MeResponse> GetMe(IHttpContextAccessor http, HeadroomDbContext db) =>
         MeEndpoints.ToResponse(await MeEndpoints.OfCallerAsync(http.HttpContext!, db));

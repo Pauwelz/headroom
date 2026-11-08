@@ -69,7 +69,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var tools = await mcp.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_projects"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_people", "list_projects"], tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -128,6 +128,30 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.DoesNotContain(found.EnumerateArray(), x => x.GetProperty("name").GetString()!.StartsWith("Former Person"));
         var bob = found.EnumerateArray().Single(x => x.GetProperty("name").GetString() == "Bob Worker");
         Assert.Equal((16m, 8m, 8m), (bob.GetProperty("capacity").GetDecimal(), bob.GetProperty("allocatedHours").GetDecimal(), bob.GetProperty("freeHours").GetDecimal()));
+    }
+
+    [Fact]
+    public async Task ListPeopleReturnsEveryPersonWithContractsForAReadOnlyPlannerToken()
+    {
+        await using var mcp = await ConnectAsync();
+
+        var people = (await CallAsync(mcp, "list_people", [])).EnumerateArray().ToList();
+
+        var bob = people.Single(x => x.GetProperty("name").GetString() == "Bob Worker");
+        Assert.NotEqual(Guid.Empty, bob.GetProperty("id").GetGuid());
+        Assert.Equal("mcp-bob@example.com", bob.GetProperty("email").GetString());
+        var contract = bob.GetProperty("contracts").EnumerateArray().Single();
+        Assert.NotEqual(Guid.Empty, contract.GetProperty("id").GetGuid());
+        Assert.Equal("2026-01-01", contract.GetProperty("startDate").GetString());
+        Assert.Contains(people, x => x.GetProperty("name").GetString() == "Ann Planner");
+    }
+
+    [Fact]
+    public async Task ListPeopleIsRefusedForAPersonWhoIsNoPlanner()
+    {
+        await using var mcp = await ConnectAsync(secret: WorkerSecret);
+
+        Assert.Contains("not a Planner", await ErrorAsync(mcp, "list_people", []));
     }
 
     [Fact]
