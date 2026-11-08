@@ -42,8 +42,8 @@ The page has two groups: **Company** and **Access and integrations**.
 ## Connect Claude
 
 Headroom has an MCP server at `/mcp`. Claude uses it to answer questions about the Schedule and to change it.
-It has six read tools: `get_schedule`, `get_utilisation`, `list_projects`, `list_clients`, `find_headroom` and `get_me`.
-Every Access token can use them.
+It has seven read tools: `get_schedule`, `get_utilisation`, `list_projects`, `list_clients`, `find_headroom`, `list_people` and `get_me`.
+Every Access token can use them, except `list_people`.
 `list_clients` gives the Clients with their Projects, and the ids that the Client and Project tools need.
 `list_people` is a read tool for Planners. It gives every Person with status, Contracts, hours per week and end date, and the ids of the Persons and Contracts. A token without **Can change** can use it. A token of a Person who is not a Planner gets an error.
 It has eleven write tools: `create_allocation`, `change_allocation`, `split_allocation`, `delete_allocation`, `add_time_off`, `change_time_off`, `delete_time_off`, `create_client`, `rename_client`, `create_project` and `change_project`.
