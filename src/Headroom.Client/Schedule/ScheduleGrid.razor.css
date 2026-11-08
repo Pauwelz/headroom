@@ -20,9 +20,9 @@
 .cell { position: relative; display: flex; align-items: flex-end; justify-content: center; min-height: 32px; }
 
 /* Shading behind the rows: weekend, public holiday, Company day off. */
-.weekend { background: var(--mud-palette-action-disabled-background); }
-.ph { background: color-mix(in srgb, var(--mud-palette-warning) 22%, transparent); }
-.co { background: color-mix(in srgb, var(--mud-palette-tertiary) 28%, transparent); }
+.weekend { background: var(--hr-shade-weekend); }
+.ph { background: var(--hr-shade-ph); }
+.co { background: var(--hr-shade-co); }
 
 /* Daily load: the bar fills the whole day, so working days join up. Red above 100%. A day without Capacity has no bar (a gap). */
 .load { display: block; width: 100%; max-height: 100%; opacity: 0.75; background: var(--mud-palette-success); }

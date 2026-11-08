@@ -333,12 +333,12 @@
     }
 
     private bool IsWorkingDay(DateOnly day) =>
-        !_daysOff.ContainsKey(day) && day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+        !_daysOff.ContainsKey(day) && !ScheduleRange.IsWeekend(day);
 
     // Shading behind the rows: weekends, public holidays and Company days off.
     private string CellClass(DateOnly day, string kind)
     {
-        var shade = _daysOff.TryGetValue(day, out var off) ? (off.Type == DayOffTypeName.PublicHoliday ? "ph" : "co")
+        var shade = _daysOff.TryGetValue(day, out var off) ? off.ShadeClass
             : IsWorkingDay(day) ? "" : "weekend";
         return $"{kind} {shade}";
     }
