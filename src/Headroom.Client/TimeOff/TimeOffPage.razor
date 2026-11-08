@@ -32,9 +32,10 @@ else
         @foreach (var week in _weeks)
         {
             <div class="week" style="grid-template-rows: 2.75rem repeat(@(week.Bars.Count == 0 ? 0 : week.Bars.Max(b => b.Lane) + 1), 1.5rem)">
-                @foreach (var cell in week.Cells)
+                @foreach (var (cell, column) in week.Cells.Select((c, i) => (c, i + 1)))
                 {
-                    <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "") @cell.DayOff?.ShadeClass">
+                    @* A fixed column, or the grid moves day cells around the placed bars. *@
+                    <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "") @cell.DayOff?.ShadeClass" style="grid-column: @column">
                         <div class="number">@cell.Date.Day</div>
                         @if (cell.DayOff is { } off)
                         {
