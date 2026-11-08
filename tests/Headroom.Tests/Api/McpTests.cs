@@ -32,7 +32,11 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
-        if (db.People.Any()) return;
+        if (db.People.Any())
+        {
+            _seededPeople = db.People.Select(p => p.Id).ToHashSet();
+            return;
+        }
         var ann = new Person { Name = "Ann Planner", Email = "mcp-ann@example.com", IsPlanner = true };
         var bob = new Person { Name = "Bob Worker", Email = "mcp-bob@example.com" };
         var client = new Headroom.Data.Client { Name = "Globex" };
@@ -56,22 +60,21 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         db.Webhooks.Add(new Webhook { Name = "Hook", Url = "https://hooks.example.com/a", Secret = "whsec_x", LastChangedBy = ann.Id });
         db.Webhooks.Add(new Webhook { Name = "Hook 2", Url = "https://hooks.example.com/b", Secret = "whsec_y", LastChangedBy = ann.Id });
         await db.SaveChangesAsync();
+        _seededPeople = [ann.Id, bob.Id, former.Id];
     }
 
     // The tests that add People remove them again. The other tests expect only Ann, Bob and the erased Person.
     // The Leavers of the end date tests must not show in the other tests either.
+    private HashSet<Guid> _seededPeople = [];
+
     public async ValueTask DisposeAsync()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
-        var added = await db.People.Where(p => p.Name.StartsWith("Eva")).ToListAsync();
-        db.Contracts.RemoveRange(db.Contracts.Where(c => added.Select(p => p.Id).Contains(c.PersonId)));
-        db.People.RemoveRange(added);
-        await db.SaveChangesAsync();
-        var ids = (await db.People.Select(p => new { p.Id, p.Email }).ToListAsync()).Where(p => p.Email?.StartsWith("mcp-leaver-") == true).Select(p => p.Id).ToList();
-        await db.Allocations.Where(a => ids.Contains(a.PersonId)).ExecuteDeleteAsync();
-        await db.Contracts.Where(c => ids.Contains(c.PersonId)).ExecuteDeleteAsync();
-        await db.People.Where(p => ids.Contains(p.Id)).ExecuteDeleteAsync();
+        var added = (await db.People.Select(p => p.Id).ToListAsync()).Where(id => !_seededPeople.Contains(id)).ToList();
+        await db.Allocations.Where(a => added.Contains(a.PersonId)).ExecuteDeleteAsync();
+        await db.Contracts.Where(c => added.Contains(c.PersonId)).ExecuteDeleteAsync();
+        await db.People.Where(p => added.Contains(p.Id)).ExecuteDeleteAsync();
     }
 
     [Fact]
@@ -747,7 +750,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         (await CallAsync(mcp, "list_people", [])).EnumerateArray().Single(x => x.TryGetProperty("email", out var e) && e.GetString() == email);
 
     [Fact]
-    public async Task APlannerAddsAPersonWithAFirstContractAndTheEventsNameThePlanner()
+    public async Task APlannerAddsAPersonWithAFirstContractAndTheChangeNamesThePlanner()
     {
         await using var mcp = await ConnectAsync(secret: WriterSecret);
 
