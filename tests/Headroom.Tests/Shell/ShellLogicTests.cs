@@ -8,12 +8,12 @@ public class ShellLogicTests
 {
     [Fact]
     public void PlannerSeesAllEntriesInOrder() =>
-        Assert.Equal(["Schedule", "Projects", "People", "Utilisation", "Account", "Settings"],
+        Assert.Equal(["Schedule", "Time off", "Projects", "People", "Utilisation", "Account", "Settings"],
             NavItem.For(isPlanner: true).Select(i => i.Label));
 
     [Fact]
     public void NonPlannerDoesNotSeePeopleOrSettings() =>
-        Assert.Equal(["Schedule", "Projects", "Utilisation", "Account"], NavItem.For(isPlanner: false).Select(i => i.Label));
+        Assert.Equal(["Schedule", "Time off", "Projects", "Utilisation", "Account"], NavItem.For(isPlanner: false).Select(i => i.Label));
 
     [Theory]
     [InlineData(true, true, true)]

@@ -1,0 +1,8 @@
+.calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--mud-palette-lines-default); border-left: 1px solid var(--mud-palette-lines-default); }
+.head, .day { border-right: 1px solid var(--mud-palette-lines-default); border-bottom: 1px solid var(--mud-palette-lines-default); padding: 4px; }
+.head { font-weight: 500; text-align: center; }
+.day { min-height: 80px; overflow-wrap: anywhere; }
+.number { font-size: 0.75rem; color: var(--mud-palette-text-secondary); }
+.entry { font-size: 0.8125rem; }
+.weekend { background: var(--mud-palette-action-disabled-background); }
+.outside { opacity: 0.5; }

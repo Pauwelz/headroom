@@ -1,0 +1,56 @@
+@page "/time-off"
+@using Headroom.Client.Schedule
+@inject ScheduleApi Api
+@inject TimeProvider Time
+
+<PageTitle>Time off - Headroom</PageTitle>
+
+<div class="d-flex align-center gap-2 mb-3 flex-wrap">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" aria-label="Previous" OnClick="@(() => ShowAsync(_month.AddMonths(-1)))" />
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" aria-label="Next" OnClick="@(() => ShowAsync(_month.AddMonths(1)))" />
+    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => ShowAsync(Today))">Today</MudButton>
+    <MudText Typo="Typo.h6">@DisplayDate.Month(_month, false)</MudText>
+</div>
+
+@if (_weeks is null)
+{
+    <LoadingSkeleton />
+}
+else
+{
+    <div class="calendar">
+        @foreach (var name in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+        {
+            <div class="head">@name</div>
+        }
+        @foreach (var cell in _weeks.SelectMany(w => w))
+        {
+            <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "")">
+                <div class="number">@cell.Date.Day</div>
+                @foreach (var entry in cell.Entries)
+                {
+                    <div class="entry">@entry.Name@(entry.Part is null ? "" : $" ({entry.Part})")</div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private DateOnly _month;
+    private IReadOnlyList<IReadOnlyList<CalendarCell>>? _weeks;
+
+    private DateOnly Today => ScheduleRange.TodayInBrussels(Time);
+
+    protected override Task OnInitializedAsync() => ShowAsync(Today);
+
+    private async Task ShowAsync(DateOnly month)
+    {
+        _month = new DateOnly(month.Year, month.Month, 1);
+        var (from, to) = TimeOffCalendar.Range(_month);
+        var month0 = _month;
+        var data = await Api.GetAsync(from, to);
+        // A slower earlier load must not replace a newer month.
+        if (month0 == _month) _weeks = TimeOffCalendar.Weeks(_month, data);
+    }
+}
