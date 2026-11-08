@@ -69,7 +69,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var tools = await mcp.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_projects"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_time_off", "change_allocation", "change_project", "change_time_off", "create_allocation", "create_client", "create_project", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_clients", "list_projects", "rename_client"], tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -378,6 +378,119 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         Assert.Contains("Planner", create);
         Assert.Contains("Planner", change);
+    }
+
+    [Fact]
+    public async Task ListClientsWorksWithAReadOnlyTokenAndShowsTheProjectsOfEachClient()
+    {
+        await using var mcp = await ConnectAsync();
+
+        var clients = await CallAsync(mcp, "list_clients", []);
+
+        var globex = clients.EnumerateArray().Single(c => c.GetProperty("name").GetString() == "Globex");
+        Assert.Equal("Rollout", Assert.Single(globex.GetProperty("projects").EnumerateArray()).GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task ClientToolsCreateAndRenameAndStoreEventsWithThePersonOfTheToken()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        try
+        {
+            await WriteAsync(mcp, "create_client", new() { ["name"] = "Initech-mcp" });
+            var id = await ClientIdAsync(mcp, "Initech-mcp");
+            await WriteAsync(mcp, "rename_client", new() { ["id"] = id, ["name"] = "Initrode-mcp" });
+
+            Assert.Equal(id, await ClientIdAsync(mcp, "Initrode-mcp"));
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            Assert.Equal(ann, (await db.Clients.SingleAsync(c => c.Id == id, TestContext.Current.CancellationToken)).LastChangedBy);
+        }
+        finally { await RemoveClientsAsync("Initech-mcp", "Initrode-mcp"); }
+    }
+
+    [Fact]
+    public async Task ClientToolsRefuseADuplicateNameWithTheMessageOfTheApi()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+
+        try
+        {
+            await WriteAsync(mcp, "create_client", new() { ["name"] = "Umbrella-mcp" });
+            var id = await ClientIdAsync(mcp, "Umbrella-mcp");
+
+            var created = await ErrorAsync(mcp, "create_client", new() { ["name"] = "globex" });
+            var renamed = await ErrorAsync(mcp, "rename_client", new() { ["id"] = id, ["name"] = "GLOBEX" });
+
+            Assert.Contains("A Client with this name exists.", created);
+            Assert.Contains("A Client with this name exists.", renamed);
+        }
+        finally { await RemoveClientsAsync("Umbrella-mcp"); }
+    }
+
+    [Fact]
+    public async Task ProjectToolsCreateAndChangeAProjectAndRefuseWhatTheApiRefuses()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        try
+        {
+            await WriteAsync(mcp, "create_client", new() { ["name"] = "Hooli-mcp" });
+            var client = await ClientIdAsync(mcp, "Hooli-mcp");
+            await WriteAsync(mcp, "create_project", new() { ["clientId"] = client, ["name"] = "Phase 1", ["status"] = "tentative" });
+            var project = await ProjectIdAsync(mcp, "Phase 1");
+
+            Assert.Contains("A new Project is Tentative or Confirmed.", await ErrorAsync(mcp, "create_project", new() { ["clientId"] = client, ["name"] = "Phase 2", ["status"] = "archived" }));
+            Assert.Contains("This Client has a Project with this name.", await ErrorAsync(mcp, "create_project", new() { ["clientId"] = client, ["name"] = "Phase 1", ["status"] = "confirmed" }));
+
+            await WriteAsync(mcp, "change_project", new() { ["id"] = project, ["name"] = "Phase 1b", ["clientId"] = client, ["status"] = "archived" });
+            Assert.Contains("An Archived Project cannot become Tentative", await ErrorAsync(mcp, "change_project", new() { ["id"] = project, ["name"] = "Phase 1b", ["clientId"] = client, ["status"] = "tentative" }));
+
+            var shown = (await CallAsync(mcp, "list_projects", new() { ["status"] = "archived" })).EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == project);
+            Assert.Equal("Phase 1b", shown.GetProperty("name").GetString());
+            Assert.Equal(ann, shown.GetProperty("lastChangedBy").GetGuid());
+        }
+        finally { await RemoveClientsAsync("Hooli-mcp"); }
+    }
+
+    [Fact]
+    public async Task ClientAndProjectWriteToolsNeedAPlannerWithCanChange()
+    {
+        await using var readOnly = await ConnectAsync();
+        await using var worker = await ConnectAsync(secret: WorkerSecret);
+        var id = Guid.NewGuid();
+        var calls = new (string Tool, Dictionary<string, object?> Args)[]
+        {
+            ("create_client", new() { ["name"] = "X" }),
+            ("rename_client", new() { ["id"] = id, ["name"] = "X" }),
+            ("create_project", new() { ["clientId"] = id, ["name"] = "X", ["status"] = "tentative" }),
+            ("change_project", new() { ["id"] = id, ["name"] = "X", ["clientId"] = id, ["status"] = "tentative" }),
+        };
+
+        foreach (var (tool, args) in calls)
+        {
+            Assert.Contains("not a Planner", await ErrorAsync(worker, tool, args));
+            Assert.Contains("read only", await ErrorAsync(readOnly, tool, args));
+        }
+    }
+
+    private static async Task<Guid> ClientIdAsync(McpClient mcp, string name) =>
+        (await CallAsync(mcp, "list_clients", [])).EnumerateArray().Single(c => c.GetProperty("name").GetString() == name).GetProperty("id").GetGuid();
+
+    private static async Task<Guid> ProjectIdAsync(McpClient mcp, string name) =>
+        (await CallAsync(mcp, "list_projects", [])).EnumerateArray().Single(p => p.GetProperty("name").GetString() == name).GetProperty("id").GetGuid();
+
+    // Other tests count the Projects of the fixture, so a test removes what it made.
+    private async Task RemoveClientsAsync(params string[] names)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        var clients = await db.Clients.Where(c => names.Contains(c.Name)).ToListAsync(TestContext.Current.CancellationToken);
+        var ids = clients.Select(c => c.Id).ToList();
+        db.Projects.RemoveRange(db.Projects.Where(p => ids.Contains(p.ClientId)));
+        db.Clients.RemoveRange(clients);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     private Guid BobId()

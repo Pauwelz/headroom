@@ -1,6 +1,7 @@
 using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
+using Headroom.Projects;
 using Microsoft.EntityFrameworkCore;
 using ClientRecord = Headroom.Data.Client; // "Client" alone means the namespace Headroom.Client here.
 using static Headroom.Endpoints.ApiProblem;
@@ -10,8 +11,6 @@ namespace Headroom.Endpoints;
 // Clients and Projects. Anyone logged in reads. Only a Planner writes.
 public static class ProjectEndpoints
 {
-    private const int MaxNameLength = 200;
-
     public static void MapProjectEndpoints(this RouteGroupBuilder api)
     {
         var clients = api.MapGroup("/clients").RequireAuthorization();
@@ -64,23 +63,18 @@ public static class ProjectEndpoints
 
     private static async Task<IResult> CreateClient(ClientRequest request, HeadroomDbContext db, HttpContext http)
     {
-        if (CleanName(request.Name) is not { } name) return Problem(400, "The name is required.");
-        if (await db.Clients.AnyAsync(c => c.Name == name)) return Problem(409, "A Client with this name exists.");
-        var client = new ClientRecord { Name = name, LastChangedBy = http.User.PersonId() };
-        db.Clients.Add(client);
-        await db.SaveChangesAsync();
-        return Results.Created($"/api/clients/{client.Id}", ToResponse(client, [], NoStats));
+        var (client, refusal) = await ClientWrites.CreateAsync(db, http.User.PersonId(), request);
+        return refusal is not null ? Refused(refusal) : Results.Created($"/api/clients/{client!.Id}", ToResponse(client, [], NoStats));
     }
+
+    // A missing record is a plain 404, as before. Other refusals are problems.
+    private static IResult Refused(Refusal refusal) => refusal.Status == 404 ? Results.NotFound() : Problem(refusal);
 
     private static async Task<IResult> RenameClient(Guid id, ClientRequest request, HeadroomDbContext db, HttpContext http)
     {
-        if (CleanName(request.Name) is not { } name) return Problem(400, "The name is required.");
-        if (await db.Clients.FindAsync(id) is not { } client) return Results.NotFound();
-        if (await db.Clients.AnyAsync(c => c.Id != id && c.Name == name)) return Problem(409, "A Client with this name exists.");
-        client.Name = name;
-        client.LastChangedBy = http.User.PersonId();
-        await db.SaveChangesAsync();
-        return Results.Ok(ToResponse(client, await db.Projects.AsNoTracking().Where(p => p.ClientId == id).ToListAsync(), await StatsAsync(db)));
+        var (client, refusal) = await ClientWrites.RenameAsync(db, http.User.PersonId(), id, request);
+        return refusal is not null ? Refused(refusal)
+            : Results.Ok(ToResponse(client!, await db.Projects.AsNoTracking().Where(p => p.ClientId == id).ToListAsync(), await StatsAsync(db)));
     }
 
     private static async Task<IResult> DeleteClient(Guid id, HeadroomDbContext db)
@@ -94,33 +88,14 @@ public static class ProjectEndpoints
 
     private static async Task<IResult> CreateProject(Guid id, CreateProjectRequest request, HeadroomDbContext db, HttpContext http)
     {
-        if (CleanName(request.Name) is not { } name) return Problem(400, "The name is required.");
-        if (!TryStatus(request.Status, out var status) || status == ProjectStatus.Archived)
-            return Problem(400, "A new Project is Tentative or Confirmed.");
-        if (!await db.Clients.AnyAsync(c => c.Id == id)) return Results.NotFound();
-        if (await db.Projects.AnyAsync(p => p.ClientId == id && p.Name == name)) return Problem(409, "This Client has a Project with this name.");
-        var project = new Project { ClientId = id, Name = name, Status = status, LastChangedBy = http.User.PersonId() };
-        db.Projects.Add(project);
-        await db.SaveChangesAsync();
-        return Results.Created($"/api/projects/{project.Id}", ToResponse(project, NoStats));
+        var (project, refusal) = await ProjectWrites.CreateAsync(db, http.User.PersonId(), id, request);
+        return refusal is not null ? Refused(refusal) : Results.Created($"/api/projects/{project!.Id}", ToResponse(project, NoStats));
     }
 
     private static async Task<IResult> UpdateProject(Guid id, UpdateProjectRequest request, HeadroomDbContext db, HttpContext http)
     {
-        if (CleanName(request.Name) is not { } name) return Problem(400, "The name is required.");
-        if (!TryStatus(request.Status, out var status)) return Problem(400, "The status is not valid.");
-        if (await db.Projects.FindAsync(id) is not { } project) return Results.NotFound();
-        if (project.Status == ProjectStatus.Archived && status == ProjectStatus.Tentative)
-            return Problem(400, "An Archived Project cannot become Tentative. Unarchive it to Confirmed.");
-        if (!await db.Clients.AnyAsync(c => c.Id == request.ClientId)) return Problem(400, "The Client does not exist.");
-        if (await db.Projects.AnyAsync(p => p.Id != id && p.ClientId == request.ClientId && p.Name == name))
-            return Problem(409, "This Client has a Project with this name.");
-        project.Name = name;
-        project.ClientId = request.ClientId;
-        project.Status = status;
-        project.LastChangedBy = http.User.PersonId();
-        await db.SaveChangesAsync();
-        return Results.Ok(ToResponse(project, await StatsAsync(db)));
+        var (project, refusal) = await ProjectWrites.UpdateAsync(db, http.User.PersonId(), id, request);
+        return refusal is not null ? Refused(refusal) : Results.Ok(ToResponse(project!, await StatsAsync(db)));
     }
 
     // Allocations go with the Project.
@@ -133,12 +108,6 @@ public static class ProjectEndpoints
         await db.SaveChangesAsync();
         return Results.NoContent();
     }
-
-    private static string? CleanName(string? name) =>
-        name?.Trim() is { Length: > 0 and <= MaxNameLength } clean ? clean : null;
-
-    private static bool TryStatus(string? text, out ProjectStatus status) =>
-        Enum.TryParse(text, ignoreCase: true, out status) && Enum.IsDefined(status);
 
     private record ProjectStats(DateOnly Start, DateOnly End, int Count);
 
