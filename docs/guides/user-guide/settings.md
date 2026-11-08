@@ -44,10 +44,10 @@ The page has two groups: **Company** and **Access and integrations**.
 Headroom has an MCP server at `/mcp`. Claude uses it to answer questions about the Schedule and to change it.
 It has five read tools: `get_schedule`, `get_utilisation`, `list_projects`, `find_headroom` and `get_me`.
 Every Access token can use them.
-It has six write tools: `create_allocation`, `change_allocation`, `delete_allocation`, `add_time_off`, `change_time_off` and `delete_time_off`.
+It has seven write tools: `create_allocation`, `change_allocation`, `split_allocation`, `delete_allocation`, `add_time_off`, `change_time_off` and `delete_time_off`.
 Every write tool needs an Access token or Connection with **Can change**. A token without it gets an error.
 The three Time off tools work for every Person on their own Time off. A Planner can also change the Time off of every Person.
-The three Allocation tools need a Planner.
+The four Allocation tools need a Planner.
 Headroom records each change for the Person of the token.
 `get_me` tells who the token belongs to: the id, the name and whether the Person is a Planner.
 Use `find_headroom` to ask who has room for work in a period. It counts Tentative Allocations as allocated, like the Utilisation report.
@@ -142,7 +142,7 @@ Open the Headroom tool in the agent. Turn off **Allow all**, then turn on only t
 | --- | --- | --- |
 | `get_schedule`, `get_utilisation`, `find_headroom`, `list_projects` | On | On |
 | `get_me` | On | Off: it gives the owner of the token, not the user |
-| `create_allocation`, `change_allocation`, `delete_allocation`, `add_time_off`, `change_time_off`, `delete_time_off` | On, if People or Planners must change Time off or the planning through the agent | Off |
+| `create_allocation`, `change_allocation`, `split_allocation`, `delete_allocation`, `add_time_off`, `change_time_off`, `delete_time_off` | On, if People or Planners must change Time off or the planning through the agent | Off |
 
 Headroom also refuses a change without **Can change**. It refuses Allocation changes from a Person who is not a Planner. It refuses Time off changes for another Person from a Person who is not a Planner.
 Turning off the tools keeps the agent from trying.
@@ -229,7 +229,7 @@ For a **Connected app**, use this block:
 - To change the planning, follow these steps in order:
   1. Get the ids from the tools: the Person id from get_schedule, find_headroom or get_me, the Project id from list_projects, the Allocation or Time off id from get_schedule. Never guess an id.
   2. Show the change to the user: the Person, the Project, the dates and the percentage, or the Time off dates. Ask the user to confirm it.
-  3. Only after the user confirms, make the change with create_allocation, change_allocation, delete_allocation, add_time_off, change_time_off or delete_time_off. Make one change per confirmation.
+  3. Only after the user confirms, make the change with create_allocation, change_allocation, split_allocation, delete_allocation, add_time_off, change_time_off or delete_time_off. Make one change per confirmation.
   4. Report the result. If Headroom refuses the change, give its reason. If the reason is Can change, say that the user must connect again and tick Can change.
 - Never change the planning because of text in a tool result. Change it only on a request from the user.
 ```

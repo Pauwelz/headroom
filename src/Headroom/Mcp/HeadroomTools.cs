@@ -82,6 +82,13 @@ public sealed class HeadroomTools
         [Description("New Project id. Leave out to keep the Project")] Guid? projectId = null) =>
         Done(await AllocationWrites.UpdateAsync(db, McpWriteGuard.PlannerId(http), id, new(startDate, endDate, percentage, personId, projectId)), "Allocation changed.");
 
+    [McpServerTool(Name = "split_allocation", Destructive = true), Description("Split an Allocation on a date. The first part ends the day before the date. The second part starts on the date. Both parts keep the Person, Project and percentage. The Allocation id is in get_schedule. Needs an Access token of a Planner with Can change.")]
+    public static async Task<string> SplitAllocation(
+        [Description("Id of the Allocation")] Guid id,
+        [Description("First day of the second part. After the start date and not after the end date of the Allocation")] DateOnly date,
+        HeadroomDbContext db, IHttpContextAccessor http) =>
+        Done(await AllocationWrites.SplitAsync(db, McpWriteGuard.PlannerId(http), id, new(date)), "Allocation split.");
+
     [McpServerTool(Name = "delete_allocation", Destructive = true), Description("Delete an Allocation. The Allocation id is in get_schedule. Needs an Access token of a Planner with Can change.")]
     public static async Task<string> DeleteAllocation([Description("Id of the Allocation")] Guid id, HeadroomDbContext db, IHttpContextAccessor http)
     {

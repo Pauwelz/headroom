@@ -69,7 +69,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var tools = await mcp.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_projects"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_projects", "split_allocation"], tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -243,6 +243,54 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var error = await ErrorAsync(mcp, "create_allocation", new() { ["personId"] = ann, ["projectId"] = project, ["startDate"] = "2026-04-06", ["endDate"] = "2026-04-10", ["percentage"] = 42 });
 
         Assert.Contains("5 to 100 in steps of 5", error);
+    }
+
+    [Fact]
+    public async Task SplitAllocationMakesTwoAllocationsThatKeepPersonProjectAndPercentage()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, project) = await IdsAsync();
+        var range = new Dictionary<string, object?> { ["from"] = "2026-08-03", ["to"] = "2026-08-07", ["person"] = "ann" };
+        await WriteAsync(mcp, "create_allocation", new() { ["personId"] = ann, ["projectId"] = project, ["startDate"] = "2026-08-03", ["endDate"] = "2026-08-07", ["percentage"] = 30 });
+        var id = Allocations(await CallAsync(mcp, "get_schedule", range)).Single();
+
+        await WriteAsync(mcp, "split_allocation", new() { ["id"] = id, ["date"] = "2026-08-05" });
+
+        Assert.Equal(2, Allocations(await CallAsync(mcp, "get_schedule", range)).Count());
+        using var scope = _factory.Services.CreateScope();
+        var parts = await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().Allocations
+            .Where(a => a.PersonId == ann && a.StartDate >= new DateOnly(2026, 8, 3) && a.StartDate <= new DateOnly(2026, 8, 7))
+            .OrderBy(a => a.StartDate).ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal([new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 5)], parts.Select(a => a.StartDate));
+        Assert.Equal(new DateOnly(2026, 8, 4), parts[0].EndDate);
+        Assert.All(parts, a => Assert.Equal((project, 30), (a.ProjectId, a.Percentage)));
+    }
+
+    [Fact]
+    public async Task SplitAllocationOnTheFirstDayOrOutsideGivesTheMessageOfTheApi()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, project) = await IdsAsync();
+        var range = new Dictionary<string, object?> { ["from"] = "2026-09-07", ["to"] = "2026-09-11", ["person"] = "ann" };
+        await WriteAsync(mcp, "create_allocation", new() { ["personId"] = ann, ["projectId"] = project, ["startDate"] = "2026-09-07", ["endDate"] = "2026-09-11", ["percentage"] = 30 });
+        var id = Allocations(await CallAsync(mcp, "get_schedule", range)).Single();
+
+        var first = await ErrorAsync(mcp, "split_allocation", new() { ["id"] = id, ["date"] = "2026-09-07" });
+        var outside = await ErrorAsync(mcp, "split_allocation", new() { ["id"] = id, ["date"] = "2026-09-12" });
+
+        Assert.Contains("split date must be after the start date", first);
+        Assert.Contains("split date must be after the start date", outside);
+    }
+
+    [Fact]
+    public async Task SplitAllocationNeedsCanChangeAndAPlanner()
+    {
+        await using var readOnly = await ConnectAsync();
+        await using var worker = await ConnectAsync(secret: WorkerSecret);
+        var args = new Dictionary<string, object?> { ["id"] = Guid.NewGuid(), ["date"] = "2026-09-09" };
+
+        Assert.Contains("read only", await ErrorAsync(readOnly, "split_allocation", args));
+        Assert.Contains("not a Planner", await ErrorAsync(worker, "split_allocation", args));
     }
 
     [Fact]
