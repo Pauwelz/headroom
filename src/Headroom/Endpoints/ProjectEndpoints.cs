@@ -67,9 +67,6 @@ public static class ProjectEndpoints
         return refusal is not null ? Refused(refusal) : Results.Created($"/api/clients/{client!.Id}", ToResponse(client, [], NoStats));
     }
 
-    // A missing record is a plain 404, as before. Other refusals are problems.
-    private static IResult Refused(Refusal refusal) => refusal.Status == 404 ? Results.NotFound() : Problem(refusal);
-
     private static async Task<IResult> RenameClient(Guid id, ClientRequest request, HeadroomDbContext db, HttpContext http)
     {
         var (client, refusal) = await ClientWrites.RenameAsync(db, http.User.PersonId(), id, request);

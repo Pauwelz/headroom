@@ -32,7 +32,4 @@ public static class EndDateEndpoints
 
     private static async Task<IResult> Saved((Person? Person, Refusal? Refusal) result, HeadroomDbContext db, TimeProvider time) =>
         result.Refusal is { } refusal ? Refused(refusal) : Results.Ok(await PeopleEndpoints.ToResponseAsync(db, result.Person!, BrusselsTime.Today(time)));
-
-    // A missing Person is a bare 404, as before.
-    private static IResult Refused(Refusal refusal) => refusal.Status == 404 ? Results.NotFound() : Problem(refusal);
 }

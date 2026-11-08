@@ -65,9 +65,6 @@ public static class PeopleEndpoints
     private static async Task<IResult> DeleteContract(Guid id, Guid contractId, HeadroomDbContext db) =>
         await PeopleWrites.DeleteContractAsync(db, id, contractId) is { } refusal ? Refused(refusal) : Results.NoContent();
 
-    // REST answers a missing Person or Contract with an empty 404.
-    private static IResult Refused(Refusal refusal) => refusal.Status == 404 ? Results.NotFound() : Problem(refusal);
-
     // The dialog asks for the "I understand" tick. The result cannot be undone.
     private static async Task<IResult> Erase(Guid id, HttpContext http, HeadroomDbContext db, TimeProvider time)
     {

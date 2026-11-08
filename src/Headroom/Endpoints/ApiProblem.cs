@@ -7,6 +7,9 @@ public static class ApiProblem
 
     public static IResult Problem(Refusal refusal) => Problem(refusal.Status, refusal.Detail);
 
+    // A missing record is a plain 404. Every other refusal is a problem with its detail.
+    public static IResult Refused(Refusal refusal) => refusal.Status == 404 ? Results.NotFound() : Problem(refusal);
+
     public const string NameDetail = "Enter a name of 1 to 200 characters.";
 
     // The one name rule of Access tokens and Webhooks: trimmed, required, at most 200 characters.
