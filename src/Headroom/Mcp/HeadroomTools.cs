@@ -21,6 +21,10 @@ public sealed class HeadroomTools
     private const string DayPart = "\"morning\" or \"afternoon\"";
     private const string PersonIdText = "Id of the Person";
     private const string TimeOffRights = " Needs an Access token or Connection with Can change. A Person can change their own Time off, a Planner the Time off of every Person.";
+    private const string CompanyDayOffRights = " Needs an Access token or Connection of a Planner with Can change.";
+    private const string CompanyDayOffDate = "The date, yyyy-MM-dd";
+    private const string CompanyDayOffName = "The name, 1 to 200 characters";
+    private const string CompanyDayOffId = "Id of the Company day off";
     private const string Percentage = "5 to 100, in steps of 5";
 
     [McpServerTool(Name = "get_schedule", ReadOnly = true), Description("The schedule: per Person, the capacity, hours, Allocations and Time off for each day. The range is at most 140 days.")]
@@ -67,6 +71,29 @@ public sealed class HeadroomTools
     {
         McpReadGuard.RequirePlanner(http);
         return await PeopleEndpoints.ListAsync(db, time);
+    }
+
+    [McpServerTool(Name = "list_company_days_off", ReadOnly = true), Description("The Company days off and public holidays of a year, with the Company day off ids. Needs an Access token of a Planner. Can change is not needed.")]
+    public static async Task<List<DayOffResponse>> ListCompanyDaysOff([Description("The year, for example 2026")] int year, HeadroomDbContext db, IPublicHolidays holidays, IHttpContextAccessor http)
+    {
+        McpReadGuard.RequirePlanner(http);
+        var (days, refusal) = await SettingsEndpoints.ListYearAsync(year, db, holidays);
+        return days ?? throw new McpException(refusal!.Detail);
+    }
+
+    [McpServerTool(Name = "add_company_day_off", Destructive = false), Description("Add a Company day off. The Capacity of every Person is zero on that date. Only one Company day off per date." + CompanyDayOffRights)]
+    public static async Task<string> AddCompanyDayOff([Description(CompanyDayOffDate)] DateOnly date, [Description(CompanyDayOffName)] string name, HeadroomDbContext db, IHttpContextAccessor http) =>
+        Done(await CompanyDaysOffWrites.AddAsync(db, McpWriteGuard.PlannerId(http), new(date, name)), "Company day off added.");
+
+    [McpServerTool(Name = "change_company_day_off", Destructive = true), Description("Change the date and name of a Company day off. The id is in list_company_days_off." + CompanyDayOffRights)]
+    public static async Task<string> ChangeCompanyDayOff([Description(CompanyDayOffId)] Guid id, [Description(CompanyDayOffDate)] DateOnly date, [Description(CompanyDayOffName)] string name, HeadroomDbContext db, IHttpContextAccessor http) =>
+        Done(await CompanyDaysOffWrites.ChangeAsync(db, McpWriteGuard.PlannerId(http), id, new(date, name)), "Company day off changed.");
+
+    [McpServerTool(Name = "delete_company_day_off", Destructive = true), Description("Delete a Company day off. The id is in list_company_days_off." + CompanyDayOffRights)]
+    public static async Task<string> DeleteCompanyDayOff([Description(CompanyDayOffId)] Guid id, HeadroomDbContext db, IHttpContextAccessor http)
+    {
+        McpWriteGuard.PlannerId(http);
+        return Done(await CompanyDaysOffWrites.DeleteAsync(db, id), "Company day off deleted.");
     }
 
     [McpServerTool(Name = "get_me", ReadOnly = true), Description("The Person that this Access token acts for: id, name and whether they are a Planner.")]
@@ -117,6 +144,8 @@ public sealed class HeadroomTools
         Done(await TimeOffWrites.DeleteAsync(db, McpWriteGuard.RequireCanChange(http), id), "Time off deleted.");
 
     private static string Done((ScheduleTimeOff? TimeOff, Refusal? Refusal) result, string message) => Done(result.Refusal, message);
+
+    private static string Done((DayOffResponse? Day, Refusal? Refusal) result, string message) => Done(result.Refusal, message);
 
     // A refusal becomes a tool error with the message of the API.
     private static string Done(Refusal? refusal, string message) => refusal is null ? message : throw new McpException(refusal.Detail);

@@ -69,7 +69,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var tools = await mcp.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_people", "list_projects"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_company_day_off", "add_time_off", "change_allocation", "change_company_day_off", "change_time_off", "create_allocation", "delete_allocation", "delete_company_day_off", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_company_days_off", "list_people", "list_projects"], tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -152,6 +152,72 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await using var mcp = await ConnectAsync(secret: WorkerSecret);
 
         Assert.Contains("not a Planner", await ErrorAsync(mcp, "list_people", []));
+    }
+
+    [Fact]
+    public async Task CompanyDayOffToolsAddListChangeAndDeleteAndRecordThePersonOfTheToken()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        var year = new Dictionary<string, object?> { ["year"] = 2031 };
+
+        await WriteAsync(mcp, "add_company_day_off", new() { ["date"] = "2031-05-02", ["name"] = "Bridge day" });
+        var added = (await CallAsync(mcp, "list_company_days_off", year)).EnumerateArray().Single(d => d.GetProperty("type").GetString() == "CompanyDayOff");
+        var id = added.GetProperty("id").GetGuid();
+        await WriteAsync(mcp, "change_company_day_off", new() { ["id"] = id, ["date"] = "2031-05-03", ["name"] = "Bridge" });
+        var changed = (await CallAsync(mcp, "list_company_days_off", year)).EnumerateArray().Single(d => d.GetProperty("type").GetString() == "CompanyDayOff");
+        using var scope = _factory.Services.CreateScope();
+        var author = (await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().CompanyDaysOff.SingleAsync(d => d.Id == id, TestContext.Current.CancellationToken)).LastChangedBy;
+        await WriteAsync(mcp, "delete_company_day_off", new() { ["id"] = id });
+
+        Assert.Equal(ann, author);
+        Assert.Equal(("2031-05-03", "Bridge"), (changed.GetProperty("date").GetString(), changed.GetProperty("name").GetString()));
+        Assert.DoesNotContain((await CallAsync(mcp, "list_company_days_off", year)).EnumerateArray(), d => d.GetProperty("type").GetString() == "CompanyDayOff");
+    }
+
+    [Fact]
+    public async Task ListCompanyDaysOffShowsPublicHolidaysToAReadOnlyPlanner()
+    {
+        await using var mcp = await ConnectAsync();
+
+        var days = await CallAsync(mcp, "list_company_days_off", new() { ["year"] = 2031 });
+
+        Assert.Contains(days.EnumerateArray(), d => d.GetProperty("type").GetString() == "PublicHoliday");
+    }
+
+    [Fact]
+    public async Task ASecondCompanyDayOffOnTheSameDateIsRefusedWithTheRestMessage()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        await WriteAsync(mcp, "add_company_day_off", new() { ["date"] = "2032-05-02", ["name"] = "First" });
+
+        var error = await ErrorAsync(mcp, "add_company_day_off", new() { ["date"] = "2032-05-02", ["name"] = "Second" });
+
+        Assert.Contains("This date is already a Company day off.", error);
+    }
+
+    [Fact]
+    public async Task CompanyDayOffWriteToolsRefuseAReadOnlyTokenAndANonPlanner()
+    {
+        await using var readOnly = await ConnectAsync();
+        await using var worker = await ConnectAsync(secret: WorkerSecret);
+        var add = new Dictionary<string, object?> { ["date"] = "2033-05-02", ["name"] = "Nope" };
+        var edit = new Dictionary<string, object?> { ["id"] = Guid.NewGuid(), ["date"] = "2033-05-02", ["name"] = "Nope" };
+        var delete = new Dictionary<string, object?> { ["id"] = Guid.NewGuid() };
+
+        foreach (var (tool, args) in new[] { ("add_company_day_off", add), ("change_company_day_off", edit), ("delete_company_day_off", delete) })
+        {
+            Assert.Contains("read only", await ErrorAsync(readOnly, tool, args));
+            Assert.Contains("not a Planner", await ErrorAsync(worker, tool, args));
+        }
+    }
+
+    [Fact]
+    public async Task ListCompanyDaysOffIsRefusedForAPersonWhoIsNoPlanner()
+    {
+        await using var mcp = await ConnectAsync(secret: WorkerSecret);
+
+        Assert.Contains("not a Planner", await ErrorAsync(mcp, "list_company_days_off", new() { ["year"] = 2031 }));
     }
 
     [Fact]

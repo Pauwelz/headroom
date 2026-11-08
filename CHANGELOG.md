@@ -8,6 +8,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- MCP: the new tools `list_company_days_off`, `add_company_day_off`, `change_company_day_off` and `delete_company_day_off` let a Planner manage Company days off through an agent.
 - MCP: the new tool `list_people` gives every Person with Contracts and ids to a Planner. A token without Can change can use it.
 - Log in with a Passkey: select **Log in with a Passkey** on the login page. The Login code keeps working.
 - Save and remove Passkeys on the new Account page.

@@ -18,56 +18,41 @@ public static class SettingsEndpoints
         days.MapDelete("/{id:guid}", Delete);
     }
 
-    // Company days off and Belgian public holidays of one year, by date.
     private static async Task<IResult> ListYear(int year, HeadroomDbContext db, IPublicHolidays holidays)
     {
-        if (year is < 1900 or > 2200) return Results.BadRequest("Year out of range.");
+        var (days, refusal) = await ListYearAsync(year, db, holidays);
+        return refusal is null ? Results.Ok(days) : PlainText(refusal);
+    }
+
+    // Company days off and Belgian public holidays of one year, by date.
+    public static async Task<(List<DayOffResponse>? Days, Refusal? Refusal)> ListYearAsync(int year, HeadroomDbContext db, IPublicHolidays holidays)
+    {
+        if (year is < 1900 or > 2200) return (null, new Refusal(400, "Year out of range."));
         var own = await db.CompanyDaysOff.AsNoTracking()
             .Where(d => d.Date.Year == year)
             .Select(d => new DayOffResponse(DayOffTypeName.CompanyDayOff, d.Id, d.Date, d.Name))
             .ToListAsync();
         var all = own.Concat(holidays.InYear(year).Select(h => new DayOffResponse(DayOffTypeName.PublicHoliday, null, h.Key, h.Value)));
-        return Results.Ok(all.OrderBy(d => d.Date).ThenBy(d => d.Type));
+        return (all.OrderBy(d => d.Date).ThenBy(d => d.Type).ToList(), null);
     }
 
-    private static async Task<IResult> Add(DayOffRequest request, HttpContext http, HeadroomDbContext db)
+    private static async Task<IResult> Add(DayOffRequest request, HttpContext http, HeadroomDbContext db) =>
+        Saved(await CompanyDaysOffWrites.AddAsync(db, http.User.PersonId(), request));
+
+    private static async Task<IResult> Edit(Guid id, DayOffRequest request, HttpContext http, HeadroomDbContext db) =>
+        Saved(await CompanyDaysOffWrites.ChangeAsync(db, http.User.PersonId(), id, request));
+
+    private static async Task<IResult> Delete(Guid id, HeadroomDbContext db) =>
+        await CompanyDaysOffWrites.DeleteAsync(db, id) is { } refusal ? PlainText(refusal) : Results.NoContent();
+
+    private static IResult Saved((DayOffResponse? Day, Refusal? Refusal) result) =>
+        result.Refusal is { } refusal ? PlainText(refusal) : Results.Ok(result.Day);
+
+    // These endpoints always sent plain-text bodies, not problem details. Integrators rely on them.
+    private static IResult PlainText(Refusal refusal) => refusal.Status switch
     {
-        if (Validate(request) is { } invalid) return invalid;
-        if (await db.CompanyDaysOff.AnyAsync(d => d.Date == request.Date)) return Duplicate();
-        var day = new CompanyDayOff { Date = request.Date, Name = request.Name.Trim(), LastChangedBy = http.User.PersonId() };
-        db.CompanyDaysOff.Add(day);
-        await db.SaveChangesAsync();
-        return Results.Ok(ToResponse(day));
-    }
-
-    private static async Task<IResult> Edit(Guid id, DayOffRequest request, HttpContext http, HeadroomDbContext db)
-    {
-        if (Validate(request) is { } invalid) return invalid;
-        var day = await db.CompanyDaysOff.FindAsync(id);
-        if (day is null) return Results.NotFound();
-        if (await db.CompanyDaysOff.AnyAsync(d => d.Date == request.Date && d.Id != id)) return Duplicate();
-        day.Date = request.Date;
-        day.Name = request.Name.Trim();
-        day.LastChangedBy = http.User.PersonId();
-        await db.SaveChangesAsync();
-        return Results.Ok(ToResponse(day));
-    }
-
-    private static async Task<IResult> Delete(Guid id, HeadroomDbContext db)
-    {
-        var day = await db.CompanyDaysOff.FindAsync(id);
-        if (day is null) return Results.NotFound();
-        db.CompanyDaysOff.Remove(day);
-        await db.SaveChangesAsync();
-        return Results.NoContent();
-    }
-
-    private static DayOffResponse ToResponse(CompanyDayOff d) => new(DayOffTypeName.CompanyDayOff, d.Id, d.Date, d.Name);
-
-    private static IResult? Validate(DayOffRequest request) =>
-        string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200
-            ? Results.BadRequest("The name is required and has at most 200 characters.")
-            : null;
-
-    private static IResult Duplicate() => Results.Conflict("This date is already a Company day off.");
+        404 => Results.NotFound(),
+        409 => Results.Conflict(refusal.Detail),
+        _ => Results.BadRequest(refusal.Detail),
+    };
 }
