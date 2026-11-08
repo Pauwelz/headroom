@@ -78,7 +78,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var tools = await mcp.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_end_date_impact", "get_me", "get_schedule", "get_utilisation", "list_people", "list_projects", "remove_end_date", "set_end_date"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_time_off", "change_allocation", "change_project", "change_time_off", "create_allocation", "create_client", "create_project", "delete_allocation", "delete_time_off", "find_headroom", "get_end_date_impact", "get_me", "get_schedule", "get_utilisation", "list_clients", "list_people", "list_projects", "remove_end_date", "rename_client", "set_end_date", "split_allocation"], tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -276,6 +276,54 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var error = await ErrorAsync(mcp, "create_allocation", new() { ["personId"] = ann, ["projectId"] = project, ["startDate"] = "2026-04-06", ["endDate"] = "2026-04-10", ["percentage"] = 42 });
 
         Assert.Contains("5 to 100 in steps of 5", error);
+    }
+
+    [Fact]
+    public async Task SplitAllocationMakesTwoAllocationsThatKeepPersonProjectAndPercentage()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, project) = await IdsAsync();
+        var range = new Dictionary<string, object?> { ["from"] = "2026-08-03", ["to"] = "2026-08-07", ["person"] = "ann" };
+        await WriteAsync(mcp, "create_allocation", new() { ["personId"] = ann, ["projectId"] = project, ["startDate"] = "2026-08-03", ["endDate"] = "2026-08-07", ["percentage"] = 30 });
+        var id = Allocations(await CallAsync(mcp, "get_schedule", range)).Single();
+
+        await WriteAsync(mcp, "split_allocation", new() { ["id"] = id, ["date"] = "2026-08-05" });
+
+        Assert.Equal(2, Allocations(await CallAsync(mcp, "get_schedule", range)).Count());
+        using var scope = _factory.Services.CreateScope();
+        var parts = await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().Allocations
+            .Where(a => a.PersonId == ann && a.StartDate >= new DateOnly(2026, 8, 3) && a.StartDate <= new DateOnly(2026, 8, 7))
+            .OrderBy(a => a.StartDate).ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal([new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 5)], parts.Select(a => a.StartDate));
+        Assert.Equal(new DateOnly(2026, 8, 4), parts[0].EndDate);
+        Assert.All(parts, a => Assert.Equal((project, 30), (a.ProjectId, a.Percentage)));
+    }
+
+    [Fact]
+    public async Task SplitAllocationOnTheFirstDayOrOutsideGivesTheMessageOfTheApi()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, project) = await IdsAsync();
+        var range = new Dictionary<string, object?> { ["from"] = "2026-09-07", ["to"] = "2026-09-11", ["person"] = "ann" };
+        await WriteAsync(mcp, "create_allocation", new() { ["personId"] = ann, ["projectId"] = project, ["startDate"] = "2026-09-07", ["endDate"] = "2026-09-11", ["percentage"] = 30 });
+        var id = Allocations(await CallAsync(mcp, "get_schedule", range)).Single();
+
+        var first = await ErrorAsync(mcp, "split_allocation", new() { ["id"] = id, ["date"] = "2026-09-07" });
+        var outside = await ErrorAsync(mcp, "split_allocation", new() { ["id"] = id, ["date"] = "2026-09-12" });
+
+        Assert.Contains("split date must be after the start date", first);
+        Assert.Contains("split date must be after the start date", outside);
+    }
+
+    [Fact]
+    public async Task SplitAllocationNeedsCanChangeAndAPlanner()
+    {
+        await using var readOnly = await ConnectAsync();
+        await using var worker = await ConnectAsync(secret: WorkerSecret);
+        var args = new Dictionary<string, object?> { ["id"] = Guid.NewGuid(), ["date"] = "2026-09-09" };
+
+        Assert.Contains("read only", await ErrorAsync(readOnly, "split_allocation", args));
+        Assert.Contains("not a Planner", await ErrorAsync(worker, "split_allocation", args));
     }
 
     [Fact]
@@ -503,6 +551,119 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         db.Allocations.Add(new Allocation { PersonId = person.Id, ProjectId = project.Id, StartDate = new(2027, 7, 12), EndDate = new(2027, 7, 16), Percentage = 50 });
         await db.SaveChangesAsync();
         return person.Id;
+    }
+
+    [Fact]
+    public async Task ListClientsWorksWithAReadOnlyTokenAndShowsTheProjectsOfEachClient()
+    {
+        await using var mcp = await ConnectAsync();
+
+        var clients = await CallAsync(mcp, "list_clients", []);
+
+        var globex = clients.EnumerateArray().Single(c => c.GetProperty("name").GetString() == "Globex");
+        Assert.Equal("Rollout", Assert.Single(globex.GetProperty("projects").EnumerateArray()).GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task ClientToolsCreateAndRenameAndStoreEventsWithThePersonOfTheToken()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        try
+        {
+            await WriteAsync(mcp, "create_client", new() { ["name"] = "Initech-mcp" });
+            var id = await ClientIdAsync(mcp, "Initech-mcp");
+            await WriteAsync(mcp, "rename_client", new() { ["id"] = id, ["name"] = "Initrode-mcp" });
+
+            Assert.Equal(id, await ClientIdAsync(mcp, "Initrode-mcp"));
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            Assert.Equal(ann, (await db.Clients.SingleAsync(c => c.Id == id, TestContext.Current.CancellationToken)).LastChangedBy);
+        }
+        finally { await RemoveClientsAsync("Initech-mcp", "Initrode-mcp"); }
+    }
+
+    [Fact]
+    public async Task ClientToolsRefuseADuplicateNameWithTheMessageOfTheApi()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+
+        try
+        {
+            await WriteAsync(mcp, "create_client", new() { ["name"] = "Umbrella-mcp" });
+            var id = await ClientIdAsync(mcp, "Umbrella-mcp");
+
+            var created = await ErrorAsync(mcp, "create_client", new() { ["name"] = "globex" });
+            var renamed = await ErrorAsync(mcp, "rename_client", new() { ["id"] = id, ["name"] = "GLOBEX" });
+
+            Assert.Contains("A Client with this name exists.", created);
+            Assert.Contains("A Client with this name exists.", renamed);
+        }
+        finally { await RemoveClientsAsync("Umbrella-mcp"); }
+    }
+
+    [Fact]
+    public async Task ProjectToolsCreateAndChangeAProjectAndRefuseWhatTheApiRefuses()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        var (ann, _) = await IdsAsync();
+        try
+        {
+            await WriteAsync(mcp, "create_client", new() { ["name"] = "Hooli-mcp" });
+            var client = await ClientIdAsync(mcp, "Hooli-mcp");
+            await WriteAsync(mcp, "create_project", new() { ["clientId"] = client, ["name"] = "Phase 1", ["status"] = "tentative" });
+            var project = await ProjectIdAsync(mcp, "Phase 1");
+
+            Assert.Contains("A new Project is Tentative or Confirmed.", await ErrorAsync(mcp, "create_project", new() { ["clientId"] = client, ["name"] = "Phase 2", ["status"] = "archived" }));
+            Assert.Contains("This Client has a Project with this name.", await ErrorAsync(mcp, "create_project", new() { ["clientId"] = client, ["name"] = "Phase 1", ["status"] = "confirmed" }));
+
+            await WriteAsync(mcp, "change_project", new() { ["id"] = project, ["name"] = "Phase 1b", ["clientId"] = client, ["status"] = "archived" });
+            Assert.Contains("An Archived Project cannot become Tentative", await ErrorAsync(mcp, "change_project", new() { ["id"] = project, ["name"] = "Phase 1b", ["clientId"] = client, ["status"] = "tentative" }));
+
+            var shown = (await CallAsync(mcp, "list_projects", new() { ["status"] = "archived" })).EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == project);
+            Assert.Equal("Phase 1b", shown.GetProperty("name").GetString());
+            Assert.Equal(ann, shown.GetProperty("lastChangedBy").GetGuid());
+        }
+        finally { await RemoveClientsAsync("Hooli-mcp"); }
+    }
+
+    [Fact]
+    public async Task ClientAndProjectWriteToolsNeedAPlannerWithCanChange()
+    {
+        await using var readOnly = await ConnectAsync();
+        await using var worker = await ConnectAsync(secret: WorkerSecret);
+        var id = Guid.NewGuid();
+        var calls = new (string Tool, Dictionary<string, object?> Args)[]
+        {
+            ("create_client", new() { ["name"] = "X" }),
+            ("rename_client", new() { ["id"] = id, ["name"] = "X" }),
+            ("create_project", new() { ["clientId"] = id, ["name"] = "X", ["status"] = "tentative" }),
+            ("change_project", new() { ["id"] = id, ["name"] = "X", ["clientId"] = id, ["status"] = "tentative" }),
+        };
+
+        foreach (var (tool, args) in calls)
+        {
+            Assert.Contains("not a Planner", await ErrorAsync(worker, tool, args));
+            Assert.Contains("read only", await ErrorAsync(readOnly, tool, args));
+        }
+    }
+
+    private static async Task<Guid> ClientIdAsync(McpClient mcp, string name) =>
+        (await CallAsync(mcp, "list_clients", [])).EnumerateArray().Single(c => c.GetProperty("name").GetString() == name).GetProperty("id").GetGuid();
+
+    private static async Task<Guid> ProjectIdAsync(McpClient mcp, string name) =>
+        (await CallAsync(mcp, "list_projects", [])).EnumerateArray().Single(p => p.GetProperty("name").GetString() == name).GetProperty("id").GetGuid();
+
+    // Other tests count the Projects of the fixture, so a test removes what it made.
+    private async Task RemoveClientsAsync(params string[] names)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        var clients = await db.Clients.Where(c => names.Contains(c.Name)).ToListAsync(TestContext.Current.CancellationToken);
+        var ids = clients.Select(c => c.Id).ToList();
+        db.Projects.RemoveRange(db.Projects.Where(p => ids.Contains(p.ClientId)));
+        db.Clients.RemoveRange(clients);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     private Guid BobId()
