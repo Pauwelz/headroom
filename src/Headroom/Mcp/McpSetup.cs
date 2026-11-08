@@ -20,7 +20,12 @@ public static class McpSetup
             o.ResourceMetadata = new ProtectedResourceMetadata { Resource = r.Mcp, AuthorizationServers = [r.Issuer] });
         services.AddMcpServer()
             .WithHttpTransport(o => o.SessionMode = HttpServerSessionMode.Stateless)
-            .WithTools<HeadroomTools>();
+            .WithTools<ScheduleTools>()
+            .WithTools<AllocationTools>()
+            .WithTools<TimeOffTools>()
+            .WithTools<ClientProjectTools>()
+            .WithTools<PeopleTools>()
+            .WithTools<CompanyDayOffTools>();
     }
 
     public static void MapHeadroomMcp(this IEndpointRouteBuilder app) => app.MapMcp(Path)
