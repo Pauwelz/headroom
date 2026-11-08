@@ -10,6 +10,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - MCP: the new tools `list_company_days_off`, `add_company_day_off`, `change_company_day_off` and `delete_company_day_off` let a Planner manage Company days off through an agent.
 - MCP: the new tool `list_people` gives every Person with Contracts and ids to a Planner. A token without Can change can use it.
+- MCP: the new tools `add_person`, `change_person`, `add_contract`, `change_contract` and `delete_contract` let a Planner add and change People and Contracts.
 - Log in with a Passkey: select **Log in with a Passkey** on the login page. The Login code keeps working.
 - Save and remove Passkeys on the new Account page.
 - After a Login code login, Headroom offers to save a Passkey.
