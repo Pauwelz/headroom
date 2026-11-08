@@ -6,6 +6,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-08
+
 ### Added
 
 - MCP: the new tools `list_company_days_off`, `add_company_day_off`, `change_company_day_off` and `delete_company_day_off` let a Planner manage Company days off.
@@ -17,6 +19,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - After a Login code login, Headroom offers to save a Passkey.
 - MCP: the new tools `list_clients`, `create_client`, `rename_client`, `create_project` and `change_project` let a Planner manage Clients and Projects.
 - MCP: the new tool `split_allocation` lets a Planner split an Allocation on a date. It needs **Can change**.
+- Each Person can add, change and delete their own Time off in the Schedule.
 - The new **Time off** page shows a month calendar of who is off on each day. It also shows public holidays and Company days off. Every Person can see it. Change Time off in the Schedule.
 
 ### Changed
