@@ -21,7 +21,8 @@ public sealed class HeadroomTools
     private const int WeeklyUntilDays = 62;
     private const string FirstDay = "First day, yyyy-MM-dd";
     private const string LastDay = "Last day, inclusive, yyyy-MM-dd";
-    private const string DayPart = "\"morning\" or \"afternoon\"";
+    private const string LastWorkingDay = "Last working day, yyyy-MM-dd";
+    private const string DayPart ="\"morning\" or \"afternoon\"";
     private const string PersonIdText = "Id of the Person";
     private const string TimeOffRights = " Needs an Access token or Connection with Can change. A Person can change their own Time off, a Planner the Time off of every Person.";
     private const string PlannerRights = " Needs an Access token of a Planner with Can change.";
@@ -124,6 +125,27 @@ public sealed class HeadroomTools
         McpWriteGuard.PlannerId(http);
         return Done(await CompanyDaysOffWrites.DeleteAsync(db, id), "Company day off deleted.");
     }
+
+    [McpServerTool(Name = "get_end_date_impact", ReadOnly = true), Description("What an end date cuts for a Person: the Allocations, Time off and Contracts after that date, and whether each one is deleted or shortened. The Person id is in list_people. Needs an Access token of a Planner. Can change is not needed.")]
+    public static async Task<EndDateImpact> GetEndDateImpact(
+        [Description(PersonIdText)] Guid personId, [Description(LastWorkingDay)] DateOnly endDate,
+        HeadroomDbContext db, TimeProvider time, IHttpContextAccessor http)
+    {
+        McpReadGuard.RequirePlanner(http);
+        var (impact, refusal) = await EndDateWrites.ImpactAsync(db, personId, endDate, BrusselsTime.Today(time));
+        return impact ?? throw new McpException(refusal!.Detail);
+    }
+
+    [McpServerTool(Name = "set_end_date", Destructive = true), Description("Set the end date of a Person. The Person is Ended after that date. Allocations and Time off after it are deleted, those that run past it end on it, and later Contracts are deleted. Call get_end_date_impact first and show the result to the user. Set the end date only after the user confirms. The Person id is in list_people. Needs an Access token of a Planner with Can change.")]
+    public static async Task<string> SetEndDate(
+        [Description(PersonIdText)] Guid personId, [Description(LastWorkingDay)] DateOnly endDate,
+        HeadroomDbContext db, TimeProvider time, IHttpContextAccessor http) =>
+        Done((await EndDateWrites.SetAsync(db, McpWriteGuard.PlannerId(http), personId, endDate, BrusselsTime.Today(time))).Refusal, "End date set.");
+
+    [McpServerTool(Name = "remove_end_date", Destructive = true), Description("Remove the end date of a Person. Records that the end date cut are not restored. The Person id is in list_people. Needs an Access token of a Planner with Can change.")]
+    public static async Task<string> RemoveEndDate(
+        [Description(PersonIdText)] Guid personId, HeadroomDbContext db, TimeProvider time, IHttpContextAccessor http) =>
+        Done((await EndDateWrites.RemoveAsync(db, McpWriteGuard.PlannerId(http), personId, BrusselsTime.Today(time))).Refusal, "End date removed.");
 
     [McpServerTool(Name = "get_me", ReadOnly = true), Description("The Person that this Access token acts for: id, name and whether they are a Planner.")]
     public static async Task<MeResponse> GetMe(IHttpContextAccessor http, HeadroomDbContext db) =>
