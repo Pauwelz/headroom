@@ -7,6 +7,7 @@ using Headroom.People;
 using Microsoft.EntityFrameworkCore;
 using static Headroom.Endpoints.ApiProblem;
 using static Headroom.Endpoints.PeopleEndpoints;
+using static Headroom.People.PeopleWrites;
 
 namespace Headroom.Endpoints;
 

@@ -45,10 +45,11 @@ Headroom has an MCP server at `/mcp`. Claude uses it to answer questions about t
 It has five read tools: `get_schedule`, `get_utilisation`, `list_projects`, `find_headroom` and `get_me`.
 Every Access token can use them.
 `list_people` is a read tool for Planners. It gives every Person with status, Contracts, hours per week and end date, and the ids of the Persons and Contracts. A token without **Can change** can use it. A token of a Person who is not a Planner gets an error.
-It has six write tools: `create_allocation`, `change_allocation`, `delete_allocation`, `add_time_off`, `change_time_off` and `delete_time_off`.
+It has eleven write tools: `create_allocation`, `change_allocation`, `delete_allocation`, `add_time_off`, `change_time_off`, `delete_time_off`, `add_person`, `change_person`, `add_contract`, `change_contract` and `delete_contract`.
 Every write tool needs an Access token or Connection with **Can change**. A token without it gets an error.
 The three Time off tools work for every Person on their own Time off. A Planner can also change the Time off of every Person.
 The three Allocation tools need a Planner.
+The five People tools need a Planner. `add_person` adds a Person with a first Contract. `change_person` changes the name, email and Planner role. The Contract tools add, change and delete Contracts. Hours are one value per weekday, Monday to Sunday. Get the Person and Contract ids from `list_people`.
 Headroom records each change for the Person of the token.
 `get_me` tells who the token belongs to: the id, the name and whether the Person is a Planner.
 Use `find_headroom` to ask who has room for work in a period. It counts Tentative Allocations as allocated, like the Utilisation report.
@@ -145,8 +146,9 @@ Open the Headroom tool in the agent. Turn off **Allow all**, then turn on only t
 | `list_people` | On, for a Planner | On, for the token of a Planner |
 | `get_me` | On | Off: it gives the owner of the token, not the user |
 | `create_allocation`, `change_allocation`, `delete_allocation`, `add_time_off`, `change_time_off`, `delete_time_off` | On, if People or Planners must change Time off or the planning through the agent | Off |
+| `add_person`, `change_person`, `add_contract`, `change_contract`, `delete_contract` | On, if Planners must change People and Contracts through the agent | Off |
 
-Headroom also refuses a change without **Can change**. It refuses Allocation changes from a Person who is not a Planner. It refuses Time off changes for another Person from a Person who is not a Planner.
+Headroom also refuses a change without **Can change**. It refuses Allocation, Person and Contract changes from a Person who is not a Planner. It refuses Time off changes for another Person from a Person who is not a Planner.
 Turning off the tools keeps the agent from trying.
 
 To let the agent know who "me" is with an Access token, add a tool that reads the profile of the signed-in user, for example Work IQ with read access to People.

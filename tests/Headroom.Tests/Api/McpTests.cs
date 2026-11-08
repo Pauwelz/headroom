@@ -58,7 +58,16 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    // The tests that add People remove them again. The other tests expect only Ann, Bob and the erased Person.
+    public async ValueTask DisposeAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        var added = await db.People.Where(p => p.Name.StartsWith("Eva")).ToListAsync();
+        db.Contracts.RemoveRange(db.Contracts.Where(c => added.Select(p => p.Id).Contains(c.PersonId)));
+        db.People.RemoveRange(added);
+        await db.SaveChangesAsync();
+    }
 
     [Fact]
     public async Task TheServerSpeaksTheCurrentSpecAndListsTheTools()
@@ -69,7 +78,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var tools = await mcp.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_people", "list_projects"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_contract", "add_person", "add_time_off", "change_allocation", "change_contract", "change_person", "change_time_off", "create_allocation", "delete_allocation", "delete_contract", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_people", "list_projects"], tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -402,6 +411,102 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         Assert.Contains("Planner", create);
         Assert.Contains("Planner", change);
+    }
+
+    private static readonly object FullWeek = new Dictionary<string, object?> { ["monday"] = 8, ["tuesday"] = 8, ["wednesday"] = 8, ["thursday"] = 8, ["friday"] = 0, ["saturday"] = 0, ["sunday"] = 0 };
+
+    private static Dictionary<string, object?> NewPerson(string email, object? hours = null) =>
+        new() { ["name"] = "Eva", ["email"] = email, ["isPlanner"] = false, ["startDate"] = "2026-03-01", ["hours"] = hours ?? FullWeek };
+
+    private static async Task<JsonElement> PersonAsync(McpClient mcp, string email) =>
+        (await CallAsync(mcp, "list_people", [])).EnumerateArray().Single(x => x.TryGetProperty("email", out var e) && e.GetString() == email);
+
+    [Fact]
+    public async Task APlannerAddsAPersonWithAFirstContractAndTheEventsNameThePlanner()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+
+        await WriteAsync(mcp, "add_person", NewPerson("mcp-eva@example.com"));
+
+        var eva = await PersonAsync(mcp, "mcp-eva@example.com");
+        var contract = eva.GetProperty("contracts").EnumerateArray().Single();
+        Assert.Equal("2026-03-01", contract.GetProperty("startDate").GetString());
+        Assert.Equal(32m, contract.GetProperty("hoursPerWeek").GetDecimal());
+        var (ann, _) = await IdsAsync();
+        Assert.Equal(ann, eva.GetProperty("lastChangedBy").GetGuid());
+    }
+
+    [Fact]
+    public async Task AddPersonRefusesABadEmailADuplicateEmailAndBadHoursWithTheRestMessage()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+
+        Assert.Contains("Enter a valid email address.", await ErrorAsync(mcp, "add_person", NewPerson("nope")));
+        Assert.Contains("Another Person already has this email.", await ErrorAsync(mcp, "add_person", NewPerson("mcp-bob@example.com")));
+        var bad = new Dictionary<string, object?> { ["monday"] = 24.1, ["tuesday"] = 0, ["wednesday"] = 0, ["thursday"] = 0, ["friday"] = 0, ["saturday"] = 0, ["sunday"] = 0 };
+        Assert.Contains("Hours are 0 to 24 per day", await ErrorAsync(mcp, "add_person", NewPerson("mcp-bad@example.com", bad)));
+    }
+
+    [Fact]
+    public async Task ChangePersonChangesNameEmailAndRoleAndRefusesTheLastPlannerAndAnErasedPerson()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        await WriteAsync(mcp, "add_person", NewPerson("mcp-chg@example.com"));
+        var id = (await PersonAsync(mcp, "mcp-chg@example.com")).GetProperty("id").GetGuid();
+
+        await WriteAsync(mcp, "change_person", new() { ["id"] = id, ["name"] = "Eva Two", ["email"] = "mcp-chg2@example.com", ["isPlanner"] = true });
+        var changed = await PersonAsync(mcp, "mcp-chg2@example.com");
+
+        Assert.Equal("Eva Two", changed.GetProperty("name").GetString());
+        Assert.True(changed.GetProperty("isPlanner").GetBoolean());
+        // Eva is a second Planner now and can lose the flag again. Ann is the last Planner then.
+        await WriteAsync(mcp, "change_person", new() { ["id"] = id, ["name"] = "Eva Two", ["email"] = "mcp-chg2@example.com", ["isPlanner"] = false });
+        var (ann, _) = await IdsAsync();
+        Assert.Contains("last Planner", await ErrorAsync(mcp, "change_person", new() { ["id"] = ann, ["name"] = "Ann Planner", ["email"] = "mcp-ann@example.com", ["isPlanner"] = false }));
+        var erased = (await CallAsync(mcp, "list_people", [])).EnumerateArray().Single(x => x.TryGetProperty("erasedNumber", out var n) && n.ValueKind == JsonValueKind.Number).GetProperty("id").GetGuid();
+        Assert.Contains("erased Person", await ErrorAsync(mcp, "change_person", new() { ["id"] = erased, ["name"] = "X", ["email"] = "x@example.com", ["isPlanner"] = false }));
+    }
+
+    [Fact]
+    public async Task ContractToolsAddChangeAndDeleteAndRefuseTheLastContractAndADuplicateStartDate()
+    {
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        await WriteAsync(mcp, "add_person", NewPerson("mcp-con@example.com"));
+        var eva = await PersonAsync(mcp, "mcp-con@example.com");
+        var person = eva.GetProperty("id").GetGuid();
+        var first = eva.GetProperty("contracts")[0].GetProperty("id").GetGuid();
+        Assert.Contains("at least one Contract", await ErrorAsync(mcp, "delete_contract", new() { ["personId"] = person, ["contractId"] = first }));
+
+        await WriteAsync(mcp, "add_contract", new() { ["personId"] = person, ["startDate"] = "2026-06-01", ["hours"] = FullWeek });
+        Assert.Contains("already has a Contract", await ErrorAsync(mcp, "add_contract", new() { ["personId"] = person, ["startDate"] = "2026-06-01", ["hours"] = FullWeek }));
+        var second = (await PersonAsync(mcp, "mcp-con@example.com")).GetProperty("contracts")[1].GetProperty("id").GetGuid();
+        await WriteAsync(mcp, "change_contract", new() { ["personId"] = person, ["contractId"] = second, ["startDate"] = "2026-07-01", ["hours"] = FullWeek });
+        Assert.Equal("2026-07-01", (await PersonAsync(mcp, "mcp-con@example.com")).GetProperty("contracts")[1].GetProperty("startDate").GetString());
+        await WriteAsync(mcp, "delete_contract", new() { ["personId"] = person, ["contractId"] = second });
+
+        Assert.Single((await PersonAsync(mcp, "mcp-con@example.com")).GetProperty("contracts").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task EveryPeopleWriteToolRefusesAReadOnlyPlannerTokenAndAPersonWhoIsNoPlanner()
+    {
+        var id = Guid.NewGuid();
+        var calls = new Dictionary<string, Dictionary<string, object?>>
+        {
+            ["add_person"] = NewPerson("mcp-no@example.com"),
+            ["change_person"] = new() { ["id"] = id, ["name"] = "X", ["email"] = "x@example.com", ["isPlanner"] = false },
+            ["add_contract"] = new() { ["personId"] = id, ["startDate"] = "2026-06-01", ["hours"] = FullWeek },
+            ["change_contract"] = new() { ["personId"] = id, ["contractId"] = id, ["startDate"] = "2026-06-01", ["hours"] = FullWeek },
+            ["delete_contract"] = new() { ["personId"] = id, ["contractId"] = id },
+        };
+        await using var readOnly = await ConnectAsync();
+        await using var worker = await ConnectAsync(secret: WorkerSecret);
+
+        foreach (var (tool, args) in calls)
+        {
+            Assert.Contains("read only", await ErrorAsync(readOnly, tool, args));
+            Assert.Contains("not a Planner", await ErrorAsync(worker, tool, args));
+        }
     }
 
     private Guid BobId()

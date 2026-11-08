@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using Headroom.Allocations;
+using Headroom.Auth;
 using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Endpoints;
+using Headroom.People;
 using Headroom.Utilisation;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol;
@@ -115,6 +117,45 @@ public sealed class HeadroomTools
     [McpServerTool(Name = "delete_time_off", Destructive = true), Description("Delete Time off. The Time off id is in get_schedule." + TimeOffRights)]
     public static async Task<string> DeleteTimeOff([Description("Id of the Time off")] Guid id, HeadroomDbContext db, IHttpContextAccessor http) =>
         Done(await TimeOffWrites.DeleteAsync(db, McpWriteGuard.RequireCanChange(http), id), "Time off deleted.");
+
+    private const string PlannerRights = " Needs an Access token of a Planner with Can change.";
+    private const string HoursText = "Hours per weekday, Monday to Sunday: each 0 to 24, in steps of 0.25";
+    private const string IdsInListPeople = " The Person and Contract ids are in list_people.";
+
+    [McpServerTool(Name = "add_person", Destructive = false), Description("Add a Person with their first Contract." + PlannerRights)]
+    public static async Task<string> AddPerson(
+        [Description("Name, 1 to 200 characters")] string name, [Description("Email address")] string email,
+        [Description("True when the Person is a Planner")] bool isPlanner,
+        [Description("Start date of the first Contract, yyyy-MM-dd")] DateOnly startDate,
+        [Description(HoursText)] WeekHours hours, HeadroomDbContext db, IHttpContextAccessor http) =>
+        Done((await PeopleWrites.AddPersonAsync(db, McpWriteGuard.PlannerId(http), new(name, email, isPlanner, startDate, hours))).Refusal, "Person added.");
+
+    [McpServerTool(Name = "change_person", Destructive = true), Description("Change the name, email and Planner role of a Person." + IdsInListPeople + PlannerRights)]
+    public static async Task<string> ChangePerson(
+        [Description(PersonIdText)] Guid id, [Description("Name, 1 to 200 characters")] string name, [Description("Email address")] string email,
+        [Description("True when the Person is a Planner")] bool isPlanner, HeadroomDbContext db, TimeProvider time, IHttpContextAccessor http) =>
+        Done((await PeopleWrites.EditPersonAsync(db, McpWriteGuard.PlannerId(http), id, new(name, email, isPlanner), BrusselsTime.Today(time))).Refusal, "Person changed.");
+
+    [McpServerTool(Name = "add_contract", Destructive = false), Description("Add a Contract to a Person from a start date. The hours count from that date." + IdsInListPeople + PlannerRights)]
+    public static async Task<string> AddContract(
+        [Description(PersonIdText)] Guid personId, [Description("Start date, yyyy-MM-dd")] DateOnly startDate,
+        [Description(HoursText)] WeekHours hours, HeadroomDbContext db, IHttpContextAccessor http) =>
+        Done((await PeopleWrites.AddContractAsync(db, McpWriteGuard.PlannerId(http), personId, new(startDate, hours))).Refusal, "Contract added.");
+
+    [McpServerTool(Name = "change_contract", Destructive = true), Description("Change the start date and hours of a Contract." + IdsInListPeople + PlannerRights)]
+    public static async Task<string> ChangeContract(
+        [Description(PersonIdText)] Guid personId, [Description("Id of the Contract")] Guid contractId,
+        [Description("Start date, yyyy-MM-dd")] DateOnly startDate, [Description(HoursText)] WeekHours hours,
+        HeadroomDbContext db, IHttpContextAccessor http) =>
+        Done((await PeopleWrites.EditContractAsync(db, McpWriteGuard.PlannerId(http), personId, contractId, new(startDate, hours))).Refusal, "Contract changed.");
+
+    [McpServerTool(Name = "delete_contract", Destructive = true), Description("Delete a Contract. A Person keeps at least one Contract." + IdsInListPeople + PlannerRights)]
+    public static async Task<string> DeleteContract(
+        [Description(PersonIdText)] Guid personId, [Description("Id of the Contract")] Guid contractId, HeadroomDbContext db, IHttpContextAccessor http)
+    {
+        McpWriteGuard.PlannerId(http);
+        return Done(await PeopleWrites.DeleteContractAsync(db, personId, contractId), "Contract deleted.");
+    }
 
     private static string Done((ScheduleTimeOff? TimeOff, Refusal? Refusal) result, string message) => Done(result.Refusal, message);
 
