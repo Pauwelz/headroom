@@ -1,4 +1,5 @@
 using Headroom.Client.Api;
+using Headroom.Client.Schedule;
 
 namespace Headroom.Client.Settings;
 
@@ -10,12 +11,10 @@ public static class DayOffNotes
     public static string? ForCompanyDay(DateOnly date, IEnumerable<DayOffResponse> shownDays)
     {
         if (shownDays.Any(d => d.Type == DayOffTypeName.PublicHoliday && d.Date == date)) return "Already a public holiday: no effect.";
-        return IsWeekend(date) ? "Weekend: affects only weekend Contract hours." : null;
+        return ScheduleRange.IsWeekend(date) ? "Weekend: affects only weekend Contract hours." : null;
     }
 
     /// <summary>A public holiday on a weekend offers a replacement day. Null otherwise.</summary>
     public static string? ForPublicHoliday(DateOnly date) =>
-        IsWeekend(date) ? $"On a {date.DayOfWeek}: add a replacement day?" : null;
-
-    private static bool IsWeekend(DateOnly date) => date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+        ScheduleRange.IsWeekend(date) ? $"On a {date.DayOfWeek}: add a replacement day?" : null;
 }

@@ -59,8 +59,8 @@ public class EndDateTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
         var kept = await Run(db => db.Allocations.Add(new Allocation { PersonId = zed, ProjectId = active, StartDate = new(2026, 10, 1), EndDate = new(2026, 10, 31), Percentage = 50 }).Entity.Id);
         var shortened = await Run(db => db.Allocations.Add(new Allocation { PersonId = zed, ProjectId = archived, StartDate = new(2026, 11, 9), EndDate = new(2026, 11, 27), Percentage = 50 }).Entity.Id);
         var deleted = await Run(db => db.Allocations.Add(new Allocation { PersonId = zed, ProjectId = active, StartDate = new(2026, 11, 16), EndDate = new(2026, 11, 20), Percentage = 50 }).Entity.Id);
-        var toShorten = await Run(db => db.TimeOff.Add(new TimeOff { PersonId = zed, StartDate = new(2026, 11, 12), StartPart = DayPart.Morning, EndDate = new(2026, 11, 18), EndPart = DayPart.Morning }).Entity.Id);
-        var toDelete = await Run(db => db.TimeOff.Add(new TimeOff { PersonId = zed, StartDate = new(2026, 11, 16), StartPart = DayPart.Morning, EndDate = new(2026, 11, 17), EndPart = DayPart.Afternoon }).Entity.Id);
+        var toShorten = await Run(db => db.TimeOff.Add(new Headroom.Data.TimeOff { PersonId = zed, StartDate = new(2026, 11, 12), StartPart = DayPart.Morning, EndDate = new(2026, 11, 18), EndPart = DayPart.Morning }).Entity.Id);
+        var toDelete = await Run(db => db.TimeOff.Add(new Headroom.Data.TimeOff { PersonId = zed, StartDate = new(2026, 11, 16), StartPart = DayPart.Morning, EndDate = new(2026, 11, 17), EndPart = DayPart.Afternoon }).Entity.Id);
         var laterContract = await Run(db => db.Contracts.Add(new Contract { PersonId = zed, StartDate = new(2026, 12, 1), HoursMonday = 8 }).Entity.Id);
 
         var response = await Send(HttpMethod.Put, $"/api/people/{zed}/end-date", JsonContent.Create(new SetEndDateRequest(End)));

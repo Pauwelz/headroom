@@ -38,6 +38,13 @@ h1:focus {
 }
 /* Headroom look. Fonts and amber are in brand.css. */
 
+/* Day shading of the Schedule and the Time off calendar. */
+:root {
+    --hr-shade-weekend: var(--mud-palette-action-disabled-background);
+    --hr-shade-ph: color-mix(in srgb, var(--mud-palette-warning) 22%, transparent);
+    --hr-shade-co: color-mix(in srgb, var(--mud-palette-tertiary) 28%, transparent);
+}
+
 /* Numbers line up in the grid, heatmap and tables. */
 body { font-variant-numeric: tabular-nums; }
 

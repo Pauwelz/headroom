@@ -24,6 +24,8 @@ public record ScheduleRange(DateOnly From, DateOnly To)
     /// <summary>6 weeks, from the Monday of this week.</summary>
     public static ScheduleRange Default(DateOnly today) => SixWeeks.Apply(MondayOf(today));
 
+    public static bool IsWeekend(DateOnly day) => day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+
     public static DateOnly MondayOf(DateOnly day) => day.AddDays(-(((int)day.DayOfWeek + 6) % 7));
 
     public static DateOnly TodayInBrussels(TimeProvider time) =>

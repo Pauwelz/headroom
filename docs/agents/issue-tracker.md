@@ -47,7 +47,9 @@ GitHub has native issue dependencies ("blocked by" and "blocking"). The REST end
 
 `{owner}` and `{repo}` expand from the current repo. `issue_id` is the numeric database id, not the issue number. Get it with `gh api repos/{owner}/{repo}/issues/<blocker> --jq .id`. Use `-F` (not `-f`) so the id is sent as an integer.
 
-Not confirmed: the repo has no issues yet, so no call ran against a real issue. The paths, `issue_id` body field and DELETE form come from the GitHub REST docs as recalled, not from a live call. Check them with a read-only call on the first issue.
+Confirmed on 2026-11-08 (#54 and #55): the list and add calls work as shown. The DELETE form has not run yet.
+
+Sub-issues: add one with `gh api -X POST repos/{owner}/{repo}/issues/<parent>/sub_issues -F sub_issue_id=<child id>`. List them with `gh api repos/{owner}/{repo}/issues/<parent>/sub_issues --jq '.[].number'`. The child id is the numeric database id, as above.
 
 ## Wayfinding operations
 

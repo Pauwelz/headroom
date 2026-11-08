@@ -6,6 +6,7 @@ public record NavItem(string Label, string Href, string Icon, bool PlannerOnly =
     private static readonly NavItem[] All =
     [
         new("Schedule", "/schedule", MudBlazor.Icons.Material.Filled.CalendarMonth),
+        new("Time off", "/time-off", MudBlazor.Icons.Material.Filled.EventBusy),
         new("Projects", "/projects", MudBlazor.Icons.Material.Filled.Folder),
         new("People", "/people", MudBlazor.Icons.Material.Filled.People, PlannerOnly: true),
         new("Utilisation", "/utilisation", MudBlazor.Icons.Material.Filled.BarChart),

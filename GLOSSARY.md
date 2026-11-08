@@ -57,12 +57,20 @@ The hours a Person works on each weekday, valid from a start date until the next
 _Avoid_: Work pattern, working hours, schedule
 
 **Time off**:
-A period in which a Person does not work. It has no type: leave, sickness and other absence are all the same Time off. It starts and ends on a morning or an afternoon, so only its first and last day can be a half day. A Person adds, changes and deletes their own Time off without approval, also for past dates. A Planner can do this for every Person.
+A period in which a Person does not work. It has no type: leave, sickness and other absence are all the same Time off. It starts and ends on a morning or an afternoon, so only its first and last day can be a half day. A bridge day that one Person takes is Time off. A Person adds, changes and deletes their own Time off without approval, also for past dates. A Planner can do this for every Person.
 _Avoid_: Absence, leave (as a general term)
 
 **Company day off**:
-A date on which no Person in the Instance works, set by a Planner. Examples: a replacement day for a public holiday, a bridge day, a closure, a mandatory training day. It reduces Capacity like a public holiday.
+A date on which no Person in the Instance works, set by a Planner. Examples: a replacement day for a public holiday, a bridge day for the whole company, a closure, a mandatory training day. It reduces Capacity like a public holiday.
 _Avoid_: Holiday (for these days), closure day
+
+**Time off calendar**:
+A read-only page that shows who is off when: the Time off of every Person, public holidays and Company days off. Every Person can see it. Time off is changed in the Schedule, not here.
+_Avoid_: Leave calendar, absence overview, calendar (alone)
+
+**Calendar feed**:
+A URL that a Person adds to their own calendar app to see Time off and days off there. Not built yet.
+_Avoid_: iCal link, subscription, Time off calendar
 
 **Archived**:
 The status of a Project whose work is finished. Its Allocations stay but are read-only: a Planner cannot add, change or delete them. Unarchive sets the Project to Confirmed.
