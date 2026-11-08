@@ -12,7 +12,11 @@
     <MudText Typo="Typo.h6">@DisplayDate.Month(_month, false)</MudText>
 </div>
 
-@if (_weeks is null)
+@if (_failed is not null)
+{
+    <MudAlert Severity="Severity.Warning">@_failed</MudAlert>
+}
+else if (_weeks is null)
 {
     <LoadingSkeleton />
 }
@@ -25,7 +29,7 @@ else
         }
         @foreach (var cell in _weeks.SelectMany(w => w))
         {
-            <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "") @DayOffClass(cell.DayOff)">
+            <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "") @cell.DayOff?.ShadeClass">
                 <div class="number">@cell.Date.Day</div>
                 @if (cell.DayOff is { } off)
                 {
@@ -43,9 +47,7 @@ else
 @code {
     private DateOnly _month;
     private IReadOnlyList<IReadOnlyList<CalendarCell>>? _weeks;
-
-    private static string DayOffClass(ScheduleDayOff? off) =>
-        off is null ? "" : off.Type == DayOffTypeName.PublicHoliday ? "ph" : "co";
+    private string? _failed;
 
     private DateOnly Today => ScheduleRange.TodayInBrussels(Time);
 
@@ -54,10 +56,19 @@ else
     private async Task ShowAsync(DateOnly month)
     {
         _month = new DateOnly(month.Year, month.Month, 1);
-        var (from, to) = TimeOffCalendar.Range(_month);
-        var month0 = _month;
-        var data = await Api.GetAsync(from, to);
-        // A slower earlier load must not replace a newer month.
-        if (month0 == _month) _weeks = TimeOffCalendar.Weeks(_month, data);
+        var (from, to) = TimeOffCalendar.VisibleRange(_month);
+        var requested = _month;
+        try
+        {
+            var data = await Api.GetAsync(from, to);
+            // A slower earlier load must not replace a newer month.
+            if (requested != _month) return;
+            _weeks = TimeOffCalendar.Weeks(_month, data);
+            _failed = null;
+        }
+        catch (HttpRequestException)
+        {
+            if (requested == _month) _failed = "The Time off calendar did not load. Try again.";
+        }
     }
 }

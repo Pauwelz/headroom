@@ -65,7 +65,7 @@ A date on which no Person in the Instance works, set by a Planner. Examples: a r
 _Avoid_: Holiday (for these days), closure day
 
 **Time off calendar**:
-A read-only page that shows who is off when: the Time off of every Person, public holidays and Company days off. Every Person can see it. Time off is changed in the schedule, not here.
+A read-only page that shows who is off when: the Time off of every Person, public holidays and Company days off. Every Person can see it. Time off is changed in the Schedule, not here.
 _Avoid_: Leave calendar, absence overview, calendar (alone)
 
 **Calendar feed**:

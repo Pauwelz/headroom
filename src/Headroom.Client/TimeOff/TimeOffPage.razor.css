@@ -4,8 +4,8 @@
 .day { min-height: 80px; overflow-wrap: anywhere; }
 .number { font-size: 0.75rem; color: var(--mud-palette-text-secondary); }
 .entry { font-size: 0.8125rem; }
-.weekend { background: var(--mud-palette-action-disabled-background); }
-.ph { background: color-mix(in srgb, var(--mud-palette-warning) 22%, transparent); }
-.co { background: color-mix(in srgb, var(--mud-palette-tertiary) 28%, transparent); }
+.weekend { background: var(--hr-shade-weekend); }
+.ph { background: var(--hr-shade-ph); }
+.co { background: var(--hr-shade-co); }
 .day-off { font-size: 0.75rem; font-weight: 500; }
 .outside { opacity: 0.5; }

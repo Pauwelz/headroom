@@ -136,7 +136,7 @@ public class RehireDeleteTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         var project = await Run(db => db.Projects.Add(new Project { ClientId = client.Id, Name = "Live", Status = ProjectStatus.Confirmed }).Entity.Id);
         await Run(db => db.Allocations.Add(new Allocation { PersonId = withAllocation, ProjectId = project, StartDate = Jan1, EndDate = Jan1, Percentage = 50 }));
         var withTimeOff = await SeedLeaver();
-        await Run(db => db.TimeOff.Add(new TimeOff { PersonId = withTimeOff, StartDate = Jan1, StartPart = DayPart.Morning, EndDate = Jan1, EndPart = DayPart.Afternoon }));
+        await Run(db => db.TimeOff.Add(new Headroom.Data.TimeOff { PersonId = withTimeOff, StartDate = Jan1, StartPart = DayPart.Morning, EndDate = Jan1, EndPart = DayPart.Afternoon }));
 
         foreach (var id in new[] { withAllocation, withTimeOff })
         {

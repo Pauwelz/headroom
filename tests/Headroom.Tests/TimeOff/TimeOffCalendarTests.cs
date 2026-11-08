@@ -1,7 +1,7 @@
 using Headroom.Client.Api;
 using Headroom.Client.TimeOff;
 
-namespace Headroom.Tests.Schedule;
+namespace Headroom.Tests.TimeOff;
 
 public class TimeOffCalendarTests
 {
@@ -24,7 +24,7 @@ public class TimeOffCalendarTests
     public void RangeOfAMonthThatStartsOnAMondayEndsOnTheSundayAfterTheLastDay()
     {
         // June 2026 starts on a Monday and ends on a Tuesday.
-        var (from, to) = TimeOffCalendar.Range(new(2026, 6, 1));
+        var (from, to) = TimeOffCalendar.VisibleRange(new(2026, 6, 1));
 
         Assert.Equal(new DateOnly(2026, 6, 1), from);
         Assert.Equal(new DateOnly(2026, 7, 5), to);
@@ -34,7 +34,7 @@ public class TimeOffCalendarTests
     public void RangeOfAMonthThatStartsOnASundayStartsOnTheMondayBefore()
     {
         // November 2026 starts on a Sunday and ends on a Monday.
-        var (from, to) = TimeOffCalendar.Range(new(2026, 11, 15));
+        var (from, to) = TimeOffCalendar.VisibleRange(new(2026, 11, 15));
 
         Assert.Equal(new DateOnly(2026, 10, 26), from);
         Assert.Equal(new DateOnly(2026, 12, 6), to);
@@ -55,6 +55,17 @@ public class TimeOffCalendarTests
         Assert.True(Cell(weeks, new(2026, 11, 7)).Weekend);
         Assert.True(Cell(weeks, new(2026, 11, 8)).Weekend);
         Assert.False(Cell(weeks, new(2026, 11, 9)).Weekend);
+    }
+
+    [Fact]
+    public void EntriesAreSortedByNameIgnoringCaseLikeTheSchedule()
+    {
+        var off = Off(new(2026, 11, 10), "morning", new(2026, 11, 10), "afternoon");
+        var data = Data(Person("bob", off), Person("Carl", off), Person("Ann", off));
+
+        var weeks = TimeOffCalendar.Weeks(new(2026, 11, 1), data);
+
+        Assert.Equal(["Ann", "bob", "Carl"], Cell(weeks, new(2026, 11, 10)).Entries.Select(e => e.Name));
     }
 
     [Fact]

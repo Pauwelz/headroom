@@ -177,7 +177,7 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, dayOff.StatusCode);
     }
 
-    private async Task<List<TimeOff>> TimeOffRows()
+    private async Task<List<Headroom.Data.TimeOff>> TimeOffRows()
     {
         using var scope = _factory.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().TimeOff.AsNoTracking().ToListAsync(TestContext.Current.CancellationToken);

@@ -4,7 +4,11 @@ namespace Headroom.Client.Api;
 // The server computes Capacity and Utilisation. The client only renders them.
 
 /// <summary>Type is a DayOffTypeName.</summary>
-public record ScheduleDayOff(string Type, DateOnly Date, string Name);
+public record ScheduleDayOff(string Type, DateOnly Date, string Name)
+{
+    /// <summary>The CSS class of the shading: "ph" or "co".</summary>
+    public string ShadeClass => Type == DayOffTypeName.PublicHoliday ? "ph" : "co";
+}
 
 /// <summary>Utilisation is Hours ÷ Capacity. It is null when Capacity is 0 (the grid shows a gap).</summary>
 public record ScheduleDay(DateOnly Date, decimal Capacity, decimal Hours, decimal? Utilisation)
