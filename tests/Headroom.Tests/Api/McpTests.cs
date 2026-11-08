@@ -58,7 +58,16 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    // The Leavers of the end date tests must not show in the other tests.
+    public async ValueTask DisposeAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        var ids = (await db.People.Select(p => new { p.Id, p.Email }).ToListAsync()).Where(p => p.Email?.StartsWith("mcp-leaver-") == true).Select(p => p.Id).ToList();
+        await db.Allocations.Where(a => ids.Contains(a.PersonId)).ExecuteDeleteAsync();
+        await db.Contracts.Where(c => ids.Contains(c.PersonId)).ExecuteDeleteAsync();
+        await db.People.Where(p => ids.Contains(p.Id)).ExecuteDeleteAsync();
+    }
 
     [Fact]
     public async Task TheServerSpeaksTheCurrentSpecAndListsTheTools()
@@ -69,7 +78,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var tools = await mcp.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_me", "get_schedule", "get_utilisation", "list_people", "list_projects"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_time_off", "change_allocation", "change_time_off", "create_allocation", "delete_allocation", "delete_time_off", "find_headroom", "get_end_date_impact", "get_me", "get_schedule", "get_utilisation", "list_people", "list_projects", "remove_end_date", "set_end_date"], tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -402,6 +411,98 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         Assert.Contains("Planner", create);
         Assert.Contains("Planner", change);
+    }
+
+    [Fact]
+    public async Task EndDateImpactListsWhatTheEndDateCutsForAReadOnlyPlannerToken()
+    {
+        var leaver = await SeedLeaverAsync("impact");
+        await using var mcp = await ConnectAsync();
+
+        var impact = await CallAsync(mcp, "get_end_date_impact", new() { ["personId"] = leaver, ["endDate"] = LeaveDate });
+
+        Assert.Equal(LeaveDate, impact.GetProperty("lastWorkingDay").GetString());
+        var records = impact.GetProperty("records").EnumerateArray().ToList();
+        Assert.Equal(2, records.Count(r => r.GetProperty("kind").GetString() == "Allocation"));
+        Assert.Single(records, r => r.GetProperty("deleted").GetBoolean() && r.GetProperty("kind").GetString() == "Allocation");
+    }
+
+    [Fact]
+    public async Task SetEndDateRemovesLaterAllocationsAndShortensCurrentOnes()
+    {
+        var leaver = await SeedLeaverAsync("cut");
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+
+        await WriteAsync(mcp, "set_end_date", new() { ["personId"] = leaver, ["endDate"] = LeaveDate });
+
+        var person = (await CallAsync(mcp, "list_people", [])).EnumerateArray().Single(x => x.GetProperty("id").GetGuid() == leaver);
+        Assert.Equal(LeaveDate, person.GetProperty("endDate").GetString());
+        using var scope = _factory.Services.CreateScope();
+        var allocations = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().Allocations.Where(a => a.PersonId == leaver).ToList();
+        Assert.Equal(DateOnly.Parse(LeaveDate), Assert.Single(allocations).EndDate);
+    }
+
+    [Fact]
+    public async Task EndDateToolsGiveTheMessageOfTheApiWhenARuleIsBroken()
+    {
+        var leaver = await SeedLeaverAsync("rules");
+        var (ann, _) = await IdsAsync();
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+
+        var beforeFirst = await ErrorAsync(mcp, "set_end_date", new() { ["personId"] = leaver, ["endDate"] = "2025-12-31" });
+        var lastPlanner = await ErrorAsync(mcp, "set_end_date", new() { ["personId"] = ann, ["endDate"] = LeaveDate });
+        var noEndDate = await ErrorAsync(mcp, "remove_end_date", new() { ["personId"] = leaver });
+
+        Assert.Contains("The end date is before the first Contract. Delete the Person instead.", beforeFirst);
+        Assert.Contains("Planner", lastPlanner);
+        Assert.Contains("This Person has no end date.", noEndDate);
+    }
+
+    [Fact]
+    public async Task RemoveEndDateRemovesTheEndDate()
+    {
+        var leaver = await SeedLeaverAsync("remove");
+        await using var mcp = await ConnectAsync(secret: WriterSecret);
+        await WriteAsync(mcp, "set_end_date", new() { ["personId"] = leaver, ["endDate"] = LeaveDate });
+
+        await WriteAsync(mcp, "remove_end_date", new() { ["personId"] = leaver });
+
+        var person = (await CallAsync(mcp, "list_people", [])).EnumerateArray().Single(x => x.GetProperty("id").GetGuid() == leaver);
+        Assert.False(person.TryGetProperty("endDate", out var end) && end.ValueKind != JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task EndDateWritesNeedAPlannerWithCanChange()
+    {
+        var leaver = await SeedLeaverAsync("rights");
+        await using var readOnly = await ConnectAsync();
+        await using var worker = await ConnectAsync(secret: WorkerSecret);
+        var set = new Dictionary<string, object?> { ["personId"] = leaver, ["endDate"] = LeaveDate };
+        var remove = new Dictionary<string, object?> { ["personId"] = leaver };
+
+        Assert.Contains("read only", await ErrorAsync(readOnly, "set_end_date", set));
+        Assert.Contains("read only", await ErrorAsync(readOnly, "remove_end_date", remove));
+        Assert.Contains("not a Planner", await ErrorAsync(worker, "set_end_date", set));
+        Assert.Contains("not a Planner", await ErrorAsync(worker, "remove_end_date", remove));
+        Assert.Contains("not a Planner", await ErrorAsync(worker, "get_end_date_impact", set));
+    }
+
+    private const string LeaveDate = "2027-06-30";
+
+    // A Person with a Contract and two Allocations: one that runs past the leave date and one that starts after it.
+    private async Task<Guid> SeedLeaverAsync(string name)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        var person = new Person { Name = $"Leaver {name}", Email = $"mcp-leaver-{name}@example.com" };
+        var project = db.Projects.Single(p => p.Name == "Rollout");
+        db.People.Add(person);
+        await db.SaveChangesAsync(); // The Events of the Allocations look up the Person in the database.
+        db.Contracts.Add(new Contract { PersonId = person.Id, StartDate = new(2026, 1, 1), HoursMonday = 8, HoursTuesday = 8 });
+        db.Allocations.Add(new Allocation { PersonId = person.Id, ProjectId = project.Id, StartDate = new(2027, 6, 21), EndDate = new(2027, 7, 10), Percentage = 50 });
+        db.Allocations.Add(new Allocation { PersonId = person.Id, ProjectId = project.Id, StartDate = new(2027, 7, 12), EndDate = new(2027, 7, 16), Percentage = 50 });
+        await db.SaveChangesAsync();
+        return person.Id;
     }
 
     private Guid BobId()

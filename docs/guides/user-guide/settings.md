@@ -46,6 +46,8 @@ It has five read tools: `get_schedule`, `get_utilisation`, `list_projects`, `fin
 Every Access token can use them.
 `list_people` is a read tool for Planners. It gives every Person with status, Contracts, hours per week and end date, and the ids of the Persons and Contracts. A token without **Can change** can use it. A token of a Person who is not a Planner gets an error.
 It has six write tools: `create_allocation`, `change_allocation`, `delete_allocation`, `add_time_off`, `change_time_off` and `delete_time_off`.
+`get_end_date_impact` is a read tool for Planners, like `list_people`. It shows the Allocations, Time off and Contracts that an end date cuts.
+`set_end_date` and `remove_end_date` are write tools for Planners. `set_end_date` tells the agent to call `get_end_date_impact` first and to show the result. After you confirm, the Person is Ended after that date. Allocations and Time off after it are deleted, and those that run past it end on it. `remove_end_date` removes the end date but does not restore the cut records.
 Every write tool needs an Access token or Connection with **Can change**. A token without it gets an error.
 The three Time off tools work for every Person on their own Time off. A Planner can also change the Time off of every Person.
 The three Allocation tools need a Planner.
@@ -142,7 +144,8 @@ Open the Headroom tool in the agent. Turn off **Allow all**, then turn on only t
 | Tool | Connected app | Access token |
 | --- | --- | --- |
 | `get_schedule`, `get_utilisation`, `find_headroom`, `list_projects` | On | On |
-| `list_people` | On, for a Planner | On, for the token of a Planner |
+| `list_people`, `get_end_date_impact` | On, for a Planner | On, for the token of a Planner |
+| `set_end_date`, `remove_end_date` | On, if a Planner must end employment through the agent | Off |
 | `get_me` | On | Off: it gives the owner of the token, not the user |
 | `create_allocation`, `change_allocation`, `delete_allocation`, `add_time_off`, `change_time_off`, `delete_time_off` | On, if People or Planners must change Time off or the planning through the agent | Off |
 
