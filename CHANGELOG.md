@@ -13,6 +13,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Log in with a Passkey: select **Log in with a Passkey** on the login page. The Login code keeps working.
 - Save and remove Passkeys on the new Account page.
 - After a Login code login, Headroom offers to save a Passkey.
+- The MCP tool `split_allocation` splits an Allocation on a date. A Planner token with **Can change** can use it.
 
 ### Changed
 
