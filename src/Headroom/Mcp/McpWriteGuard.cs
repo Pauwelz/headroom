@@ -14,13 +14,19 @@ public static class McpWriteGuard
         ? user
         : throw new McpException("This token is read only. Use a token or Connection with \"Can change\" to change data.");
 
+    // For writes that need no actor: checks, then gives the value back so a call can use it as an argument.
+    public static T AfterPlannerCheck<T>(IHttpContextAccessor http, T value)
+    {
+        PlannerId(http);
+        return value;
+    }
+
     public static Guid PlannerId(IHttpContextAccessor http) => PlannerId(http.HttpContext!.User);
 
     // The Planner check comes first. "Not a Planner" is the clearer message.
     public static Guid PlannerId(ClaimsPrincipal user)
     {
-        if (!user.IsInRole(PersonPrincipal.PlannerRole))
-            throw new McpException("Only a Planner can change data. The Person of this token is not a Planner.");
+        McpReadGuard.RequirePlanner(user, "change data");
         return RequireCanChange(user).PersonId()!.Value; // authentication fails without a Person
     }
 }
