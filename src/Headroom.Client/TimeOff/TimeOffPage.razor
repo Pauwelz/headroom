@@ -23,21 +23,30 @@ else if (_weeks is null)
 else
 {
     <div class="calendar">
-        @foreach (var name in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+        <div class="week">
+            @foreach (var name in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+            {
+                <div class="head">@name</div>
+            }
+        </div>
+        @foreach (var week in _weeks)
         {
-            <div class="head">@name</div>
-        }
-        @foreach (var cell in _weeks.SelectMany(w => w))
-        {
-            <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "") @cell.DayOff?.ShadeClass">
-                <div class="number">@cell.Date.Day</div>
-                @if (cell.DayOff is { } off)
+            <div class="week" style="grid-template-rows: 2.75rem repeat(@(week.Bars.Count == 0 ? 0 : week.Bars.Max(b => b.Lane) + 1), 1.5rem)">
+                @foreach (var cell in week.Cells)
                 {
-                    <div class="day-off">@off.Name</div>
+                    <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "") @cell.DayOff?.ShadeClass">
+                        <div class="number">@cell.Date.Day</div>
+                        @if (cell.DayOff is { } off)
+                        {
+                            <div class="day-off">@off.Name</div>
+                        }
+                    </div>
                 }
-                @foreach (var entry in cell.Entries)
+                @foreach (var bar in week.Bars)
                 {
-                    <div class="entry">@entry.Name@(entry.Part is null ? "" : $" ({entry.Part})")</div>
+                    <div class="bar @(bar.ContinuesBefore ? "continues-before" : "") @(bar.ContinuesAfter ? "continues-after" : "")"
+                         style="grid-column: @(bar.FirstColumn + 1) / @(bar.LastColumn + 2); grid-row: @(bar.Lane + 2); --span: @(bar.LastColumn - bar.FirstColumn + 1); --start: @(bar.StartsHalf ? 1 : 0); --end: @(bar.EndsHalf ? 1 : 0)"
+                         title="@bar.Name">@bar.Name</div>
                 }
             </div>
         }
@@ -46,7 +55,7 @@ else
 
 @code {
     private DateOnly _month;
-    private IReadOnlyList<IReadOnlyList<CalendarCell>>? _weeks;
+    private IReadOnlyList<CalendarWeek>? _weeks;
     private string? _failed;
 
     private DateOnly Today => ScheduleRange.TodayInBrussels(Time);

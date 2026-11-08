@@ -3,10 +3,12 @@ using Headroom.Client.Schedule;
 
 namespace Headroom.Client.TimeOff;
 
-/// <summary>Part is "morning" or "afternoon" on a half day. It is null on a full day.</summary>
-public record CalendarEntry(string Name, string? Part);
+public record CalendarCell(DateOnly Date, bool InMonth, bool Weekend, ScheduleDayOff? DayOff);
 
-public record CalendarCell(DateOnly Date, bool InMonth, bool Weekend, ScheduleDayOff? DayOff, IReadOnlyList<CalendarEntry> Entries);
+/// <summary>Columns count from 0 (Monday). A half edge is at the middle of its column.</summary>
+public record CalendarBar(string Name, int FirstColumn, int LastColumn, bool StartsHalf, bool EndsHalf, bool ContinuesBefore, bool ContinuesAfter, int Lane);
+
+public record CalendarWeek(IReadOnlyList<CalendarCell> Cells, IReadOnlyList<CalendarBar> Bars);
 
 // The logic of the Time off calendar page. The page only renders the weeks.
 public static class TimeOffCalendar
@@ -19,29 +21,56 @@ public static class TimeOffCalendar
         return (ScheduleRange.MondayOf(first), ScheduleRange.MondayOf(last).AddDays(6));
     }
 
-    public static IReadOnlyList<IReadOnlyList<CalendarCell>> Weeks(DateOnly month, ScheduleResponse data)
+    public static IReadOnlyList<CalendarWeek> Weeks(DateOnly month, ScheduleResponse data)
     {
         var (from, to) = VisibleRange(month);
-        var days = Enumerable.Range(0, to.DayNumber - from.DayNumber + 1).Select(i => from.AddDays(i));
-        return days.Select(d => Cell(d, month, data)).Chunk(7).Select(w => (IReadOnlyList<CalendarCell>)w).ToList();
+        return Enumerable.Range(0, (to.DayNumber - from.DayNumber + 1) / 7)
+            .Select(i => Week(from.AddDays(i * 7), month, data))
+            .ToList();
+    }
+
+    private static CalendarWeek Week(DateOnly monday, DateOnly month, ScheduleResponse data)
+    {
+        var cells = Enumerable.Range(0, 7).Select(i => Cell(monday.AddDays(i), month, data)).ToList();
+        return new CalendarWeek(cells, Bars(monday, data));
     }
 
     private static CalendarCell Cell(DateOnly date, DateOnly month, ScheduleResponse data) => new(
         date,
         date.Year == month.Year && date.Month == month.Month,
         ScheduleRange.IsWeekend(date),
-        data.DaysOff.FirstOrDefault(d => d.Date == date),
-        data.People
-            .SelectMany(p => p.TimeOff.Where(t => t.StartDate <= date && date <= t.EndDate).Select(t => new CalendarEntry(p.Name, PartOn(t, date))))
-            .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList());
+        data.DaysOff.FirstOrDefault(d => d.Date == date));
 
-    // A one-day Time off is a half day when both parts are the same.
-    private static string? PartOn(ScheduleTimeOff t, DateOnly date)
+    private static List<CalendarBar> Bars(DateOnly monday, ScheduleResponse data)
     {
-        if (t.StartDate == t.EndDate) return t.StartPart == t.EndPart ? t.StartPart : null;
-        if (date == t.StartDate && t.StartPart == DayPartName.Afternoon) return DayPartName.Afternoon;
-        if (date == t.EndDate && t.EndPart == DayPartName.Morning) return DayPartName.Morning;
-        return null;
+        var sunday = monday.AddDays(6);
+        var bars = data.People
+            .SelectMany(p => p.TimeOff.Where(t => t.StartDate <= sunday && t.EndDate >= monday).Select(t => Bar(p.Name, t, monday)))
+            .OrderBy(b => b.FirstColumn).ThenBy(b => b.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var laneEnds = new List<int>(); // last column used per lane
+        for (var i = 0; i < bars.Count; i++)
+        {
+            var lane = laneEnds.FindIndex(end => end < bars[i].FirstColumn);
+            if (lane < 0) { lane = laneEnds.Count; laneEnds.Add(0); }
+            laneEnds[lane] = bars[i].LastColumn;
+            bars[i] = bars[i] with { Lane = lane };
+        }
+        return bars;
+    }
+
+    private static CalendarBar Bar(string name, ScheduleTimeOff t, DateOnly monday)
+    {
+        var before = t.StartDate < monday;
+        var after = t.EndDate > monday.AddDays(6);
+        return new CalendarBar(
+            name,
+            before ? 0 : t.StartDate.DayNumber - monday.DayNumber,
+            after ? 6 : t.EndDate.DayNumber - monday.DayNumber,
+            !before && t.StartPart == DayPartName.Afternoon,
+            !after && t.EndPart == DayPartName.Morning,
+            before,
+            after,
+            0);
     }
 }
