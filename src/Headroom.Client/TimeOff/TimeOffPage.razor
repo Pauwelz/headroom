@@ -25,8 +25,12 @@ else
         }
         @foreach (var cell in _weeks.SelectMany(w => w))
         {
-            <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "")">
+            <div class="day @(cell.InMonth ? "" : "outside") @(cell.Weekend ? "weekend" : "") @DayOffClass(cell.DayOff)">
                 <div class="number">@cell.Date.Day</div>
+                @if (cell.DayOff is { } off)
+                {
+                    <div class="day-off">@off.Name</div>
+                }
                 @foreach (var entry in cell.Entries)
                 {
                     <div class="entry">@entry.Name@(entry.Part is null ? "" : $" ({entry.Part})")</div>
@@ -39,6 +43,9 @@ else
 @code {
     private DateOnly _month;
     private IReadOnlyList<IReadOnlyList<CalendarCell>>? _weeks;
+
+    private static string DayOffClass(ScheduleDayOff? off) =>
+        off is null ? "" : off.Type == DayOffTypeName.PublicHoliday ? "ph" : "co";
 
     private DateOnly Today => ScheduleRange.TodayInBrussels(Time);
 

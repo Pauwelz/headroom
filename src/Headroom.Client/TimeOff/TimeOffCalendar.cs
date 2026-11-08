@@ -5,7 +5,7 @@ namespace Headroom.Client.TimeOff;
 /// <summary>Part is "morning" or "afternoon" on a half day. It is null on a full day.</summary>
 public record CalendarEntry(string Name, string? Part);
 
-public record CalendarCell(DateOnly Date, bool InMonth, bool Weekend, IReadOnlyList<CalendarEntry> Entries);
+public record CalendarCell(DateOnly Date, bool InMonth, bool Weekend, ScheduleDayOff? DayOff, IReadOnlyList<CalendarEntry> Entries);
 
 // The logic of the Time off calendar page. The page only renders the weeks.
 public static class TimeOffCalendar
@@ -29,6 +29,7 @@ public static class TimeOffCalendar
         date,
         date.Year == month.Year && date.Month == month.Month,
         date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday,
+        data.DaysOff.FirstOrDefault(d => d.Date == date),
         data.People
             .SelectMany(p => p.TimeOff.Where(t => t.StartDate <= date && date <= t.EndDate).Select(t => new CalendarEntry(p.Name, PartOn(t, date))))
             .OrderBy(e => e.Name, StringComparer.Ordinal)

@@ -11,6 +11,9 @@ public class TimeOffCalendarTests
     private static SchedulePerson Person(string name, params ScheduleTimeOff[] off) =>
         new("Person", Guid.NewGuid(), name, "active", [], [], off);
 
+    private static ScheduleResponse WithDaysOff(ScheduleResponse data, params ScheduleDayOff[] daysOff) =>
+        data with { DaysOff = daysOff };
+
     private static ScheduleTimeOff Off(DateOnly start, string startPart, DateOnly end, string endPart) =>
         new(Guid.NewGuid(), start, startPart, end, endPart);
 
@@ -114,5 +117,26 @@ public class TimeOffCalendarTests
         var cell = Cell(TimeOffCalendar.Weeks(new(2026, 11, 1), data), day);
 
         Assert.Equal(["Ann", "Bob", "Carl"], cell.Entries.Select(e => e.Name));
+    }
+
+    [Fact]
+    public void APublicHolidayAndACompanyDayOffGiveTheirTypeAndNameAndStillListTimeOff()
+    {
+        var holiday = new DateOnly(2026, 4, 6);
+        var company = new DateOnly(2026, 5, 15);
+        var data = WithDaysOff(
+            Data(Person("Ann", Off(holiday, "morning", company, "afternoon"))),
+            new(DayOffTypeName.PublicHoliday, holiday, "Easter Monday"),
+            new(DayOffTypeName.CompanyDayOff, company, "Bridge day"));
+
+        var weeks = TimeOffCalendar.Weeks(new(2026, 4, 1), data);
+        var holidayCell = Cell(weeks, holiday);
+        var companyCell = Cell(TimeOffCalendar.Weeks(new(2026, 5, 1), data), company);
+
+        Assert.Equal(new ScheduleDayOff(DayOffTypeName.PublicHoliday, holiday, "Easter Monday"), holidayCell.DayOff);
+        Assert.Equal(["Ann"], holidayCell.Entries.Select(e => e.Name));
+        Assert.Equal(new ScheduleDayOff(DayOffTypeName.CompanyDayOff, company, "Bridge day"), companyCell.DayOff);
+        Assert.Equal(["Ann"], companyCell.Entries.Select(e => e.Name));
+        Assert.Null(Cell(weeks, new(2026, 4, 7)).DayOff);
     }
 }
