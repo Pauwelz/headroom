@@ -8,15 +8,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- MCP: the new tools `list_company_days_off`, `add_company_day_off`, `change_company_day_off` and `delete_company_day_off` let a Planner manage Company days off through an agent.
-- MCP: the new tool `list_people` gives every Person with Contracts and ids to a Planner. A token without Can change can use it.
-- MCP: the new tools `add_person`, `change_person`, `add_contract`, `change_contract` and `delete_contract` let a Planner add and change People and Contracts.
-- MCP: the new tools `get_end_date_impact`, `set_end_date` and `remove_end_date` let a Planner end the employment of a Person and undo it. The agent shows the impact first.
+- MCP: the new tools `list_company_days_off`, `add_company_day_off`, `change_company_day_off` and `delete_company_day_off` let a Planner manage Company days off.
+- MCP: the new tool `list_people` gives a Planner every Person with their Contracts and ids. It does not need Can change.
+- MCP: the new tools `add_person`, `change_person`, `add_contract`, `change_contract` and `delete_contract` let a Planner manage People and Contracts.
+- MCP: the new tools `get_end_date_impact`, `set_end_date` and `remove_end_date` let a Planner set and remove the end date of a Person. The agent shows the impact first.
 - Log in with a Passkey: select **Log in with a Passkey** on the login page. The Login code keeps working.
 - Save and remove Passkeys on the new Account page.
 - After a Login code login, Headroom offers to save a Passkey.
-- The MCP server has five new tools for Clients and Projects: `list_clients`, `create_client`, `rename_client`, `create_project` and `change_project`.
-- The MCP tool `split_allocation` splits an Allocation on a date. A Planner token with **Can change** can use it.
+- MCP: the new tools `list_clients`, `create_client`, `rename_client`, `create_project` and `change_project` let a Planner manage Clients and Projects.
+- MCP: the new tool `split_allocation` lets a Planner split an Allocation on a date. It needs **Can change**.
 
 ### Changed
 
