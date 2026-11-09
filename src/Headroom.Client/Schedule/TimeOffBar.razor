@@ -1,7 +1,7 @@
 @* One Time off bar of a Person. The grid owns the drag state and the writes.
    This component draws the bar and raises events. *@
 @* One segment per visible day, so a pointer-down knows its day. *@
-<div class="bar timeoff" style="@Style" title="@Tip" tabindex="@(CanEdit ? 0 : null)" role="@(CanEdit ? "group" : null)" aria-label="@(CanEdit ? Description : null)"
+<div @ref="_bar" class="bar timeoff" style="@Style" title="@Tip" tabindex="@(CanEdit ? 0 : null)" role="@(CanEdit ? "group" : null)" aria-label="@(CanEdit ? Description : null)"
      @oncontextmenu="OpenMenuAsync" @oncontextmenu:preventDefault="@CanEdit">
     @foreach (var day in Days)
     {
@@ -26,9 +26,8 @@
     }
     else
     {
-        @* No activator: a right-click, or the Menu key or Shift+F10 on the focused bar, opens the menu. *@
-        <MudMenu @ref="_menu" Dense="true" PositionAtCursor="true">
-            <ActivatorContent><span aria-hidden="true"></span></ActivatorContent>
+        @* No visible activator: a right-click, or the Menu key or Shift+F10 on the focused bar, opens the menu. *@
+        <MudMenu @ref="_menu" Dense="true" PositionAtCursor="true" Style="@Controls.StartStyle" OpenChanged="MenuOpenChangedAsync">
             <ChildContent>
                 <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
                 @if (TimeOffChanges.IsSingleDay(Bar))
@@ -65,12 +64,22 @@
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
 
+    /// <summary>Where the menu anchor goes, so it stays in the days that fit the width.</summary>
+    [Parameter] public BarControls Controls { get; set; }
+
     [Parameter] public EventCallback<(DragMode Mode, DateOnly Day)> OnPress { get; set; }
     [Parameter] public EventCallback<TimeOffRequest> OnChange { get; set; }
     [Parameter] public EventCallback OnEdit { get; set; }
     [Parameter] public EventCallback OnDelete { get; set; }
 
     private MudMenu? _menu;
+    private ElementReference _bar;
+
+    // True while a menu that the keyboard opened is open: when it closes, focus returns to the bar.
+    private bool _openedByKeyboard;
+
+    // MouseEventArgs.Button of a right-click. A contextmenu event from the keyboard has another value.
+    private const long RightButton = 2;
 
     private string Tip => $"{DisplayDate.Format(Bar.StartDate)} ({Bar.StartPart}) - {DisplayDate.Format(Bar.EndDate)} ({Bar.EndPart})";
 
@@ -80,6 +89,16 @@
     private Task PressAsync(DragMode mode, DateOnly day, PointerEventArgs e) =>
         e.Button == 0 ? OnPress.InvokeAsync((mode, day)) : Task.CompletedTask;
 
-    private Task OpenMenuAsync(MouseEventArgs e) =>
-        CanEdit && _menu is not null ? _menu.OpenMenuAsync(e) : Task.CompletedTask;
+    private Task OpenMenuAsync(MouseEventArgs e)
+    {
+        _openedByKeyboard = e.Button != RightButton;
+        return CanEdit && _menu is not null ? _menu.OpenMenuAsync(e) : Task.CompletedTask;
+    }
+
+    private async Task MenuOpenChangedAsync(bool open)
+    {
+        if (open || !_openedByKeyboard) return;
+        _openedByKeyboard = false;
+        await _bar.FocusAsync();
+    }
 }

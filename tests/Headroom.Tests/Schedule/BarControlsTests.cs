@@ -11,33 +11,33 @@ public class BarControlsTests
     private static BarControls Of(int first, int last) => BarControls.Of(Mon.AddDays(first), Mon.AddDays(last), Mon, Sun);
 
     [Fact]
-    public void ABarInsideTheVisibleDaysKeepsItsControlsAtItsEdges()
+    public void ABarInsideTheVisibleDaysKeepsItsPercentageAtItsStart()
     {
-        Assert.Equal(new BarControls(0, 0, 5), Of(2, 6));
+        Assert.Equal(new BarControls(0, 5), Of(2, 6));
     }
 
     [Fact]
     public void ABarThatStartsEarlierMovesItsPercentageToTheFirstVisibleDay()
     {
-        Assert.Equal(new BarControls(3, 0, 6), Of(-3, 5));
+        Assert.Equal(new BarControls(3, 6), Of(-3, 5));
     }
 
     [Fact]
-    public void ABarThatEndsLaterMovesItsMenuToTheLastVisibleDay()
+    public void ABarThatEndsLaterCountsOnlyItsVisibleDays()
     {
-        Assert.Equal(new BarControls(0, 4, 4), Of(10, 17));
+        Assert.Equal(new BarControls(0, 4), Of(10, 17));
     }
 
     [Fact]
-    public void ABarThatCoversTheVisibleDaysMovesBothControls()
+    public void ABarThatCoversTheVisibleDaysMovesItsPercentageAndCountsOnlyItsVisibleDays()
     {
-        Assert.Equal(new BarControls(21, 21, 14), Of(-21, 34));
+        Assert.Equal(new BarControls(21, 14), Of(-21, 34));
     }
 
     [Fact]
-    public void ABarOutsideTheVisibleDaysKeepsItsControlsOnItsOwnDays()
+    public void ABarOutsideTheVisibleDaysKeepsItsPercentageOnItsOwnDays()
     {
-        Assert.Equal(new BarControls(2, 0, 1), Of(-5, -3));
-        Assert.Equal(new BarControls(0, 2, 1), Of(20, 22));
+        Assert.Equal(new BarControls(2, 1), Of(-5, -3));
+        Assert.Equal(new BarControls(0, 1), Of(20, 22));
     }
 }

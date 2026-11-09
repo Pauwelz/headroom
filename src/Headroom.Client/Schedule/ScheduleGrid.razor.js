@@ -1,4 +1,5 @@
 // Horizontal scroll of the Schedule grid. The grid loads a window of days; .NET moves the window.
+const menuFocusFrames = 30; // frames to wait for the menu popover: .NET draws it after the event, and MudBlazor places it a little later
 const edge = 40; // px from the side where a drag scrolls the grid
 const speed = 600; // px per second: by time, so slow frames (the grid redraws) do not slow the scroll
 
@@ -55,14 +56,16 @@ export function init(el, dotnet) {
         frame = requestAnimationFrame(step);
     };
     el.addEventListener('pointerdown', () => { pressed = true; });
-    // The keyboard opens a bar menu (the event target is the bar itself): move focus into it, so arrow keys and Escape work.
+    // The keyboard opens a bar menu (the event target is the bar itself, not a segment): focus its first item,
+    // so the arrow keys and Escape work. MudMenu does not do this for a hidden activator.
     el.addEventListener('contextmenu', e => {
         if (!e.target.matches('.bar[tabindex]')) return;
-        let tries = 0;
+        let frames = 0;
         const focusItem = () => {
-            const item = document.querySelector('.mud-popover-open .mud-menu-item');
+            // Focus only a placed popover (it has a left): focus on an unplaced one can leave it at -9999.
+            const item = document.querySelector('.mud-popover-open[style*="left"] .mud-menu-item');
             if (item) item.focus();
-            else if (++tries < 30) requestAnimationFrame(focusItem);
+            else if (++frames < menuFocusFrames) requestAnimationFrame(focusItem);
         };
         requestAnimationFrame(focusItem);
     });

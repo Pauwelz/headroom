@@ -31,6 +31,8 @@
 .schedule ::deep .bar { grid-row: 1; z-index: 1; align-self: center; height: 24px; margin: 0 1px; padding: 0 6px; overflow: hidden; border-radius: 4px; font-size: 0.75rem; font-weight: 400; line-height: 24px; white-space: nowrap; }
 /* Text for screen readers only. */
 .schedule ::deep .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* The bar menu has no activator. MudBlazor places the popover only if this anchor is in view, so the style puts it on the first visible day. */
+.schedule ::deep .bar > .mud-menu-button-hidden { top: 0; }
 /* Focus shows inside the bar, which clips overflow. */
 .schedule ::deep .bar .mud-button-root:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
 /* The grid takes focus only to hear Escape. */
