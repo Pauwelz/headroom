@@ -3,7 +3,7 @@
 @if (!Editable)
 {
     <div class="bar @BarClass" style="@Style" title="@Tip">
-        <span class="pct" aria-hidden="true">@($"{Bar.Percentage}%")</span><span class="sr-only">@Description</span>
+        <span class="pct" style="@Controls.PercentStyle" aria-hidden="true">@($"{Bar.Percentage}%")</span><span class="sr-only">@Description</span>
     </div>
 }
 else
@@ -26,19 +26,19 @@ else
                 }
             </span>
         }
-        @* The percentage control: a menu of 5% steps. A short bar has only the bar menu. *@
-        @if (Last.DayNumber - First.DayNumber >= 2)
+        @* The percentage control: a menu of 5% steps. A bar with few visible days has only the bar menu. *@
+        @if (Controls.DaysInView >= MinDaysForPercentMenu)
         {
             <MudMenu Label="@($"{Bar.Percentage}%")" title="@($"{Tip}. Change the percentage.")" Dense="true" MaxHeight="320"
                      AriaLabel="@($"Change the percentage of {Description}")"
-                     Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit" Class="pct">
+                     Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit" Class="pct" Style="@Controls.PercentStyle">
                 @foreach (var step in Steps)
                 {
                     <MudMenuItem OnClick="@(() => OnPercentage.InvokeAsync((Bar, step)))">@step%</MudMenuItem>
                 }
             </MudMenu>
         }
-        <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more"
+        <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more" Style="@Controls.MenuStyle"
                  AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
             <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
             <MudMenuItem Disabled="@(AllocationChanges.SplitDay(Bar, null) is null)" OnClick="SplitAsync">Split here</MudMenuItem>
@@ -69,6 +69,9 @@ else
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
 
+    /// <summary>Where the percentage and the menu go, so they stay in the days that fit the width.</summary>
+    [Parameter] public BarControls Controls { get; set; }
+
     [Parameter] public EventCallback<(DragMode Mode, DateOnly Day, PointerEventArgs Args)> OnPress { get; set; }
     [Parameter] public EventCallback<DateOnly> OnRelease { get; set; }
     [Parameter] public EventCallback<(ScheduleAllocation Allocation, int Percentage)> OnPercentage { get; set; }
@@ -79,6 +82,9 @@ else
     // The day last pressed on the bar: "Split here" splits there.
     private DateOnly? _lastDay;
     private MudMenu? _menu;
+
+    // With fewer days in view, the % menu and the "⋯" menu overlap.
+    private const int MinDaysForPercentMenu = 3;
 
     private string BarClass => Status == ProjectStatusName.Tentative ? ProjectStatusName.Tentative : ProjectStatusName.Confirmed;
 

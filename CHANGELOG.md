@@ -6,6 +6,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Schedule: a bar that extends past the visible days shows its percentage and its "⋯" menu inside the visible days (#67). After a scroll, the grid stops on a whole day.
+
 ## [0.3.0] - 2026-11-08
 
 ### Added
