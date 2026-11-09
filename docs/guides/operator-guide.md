@@ -49,7 +49,7 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 
 | Setting | Value |
 | --- | --- |
-| `ConnectionStrings__Headroom` | The Npgsql connection string, for example `Host=<server>.postgres.database.azure.com;Database=<database>;Username=<user>;Password=<password>;SSL Mode=Require`. Use letters and digits only in the password: a `;` breaks the string |
+| `ConnectionStrings__Headroom` | The Npgsql connection string, for example `Host=<server>.postgres.database.azure.com;Database=<database>;Username=<user>;Password=<password>;SSL Mode=Require;Maximum Pool Size=20`. Keep `Maximum Pool Size` below the connection limit of the server: the Burstable B1ms tier allows 50, and Azure uses some of them. Use letters and digits only in the password: a `;` breaks the string |
 | `Smtp__Host` | Host name of your SMTP server |
 | `Smtp__Port` | Port, for example `587` |
 | `Smtp__Username` | SMTP user name |
