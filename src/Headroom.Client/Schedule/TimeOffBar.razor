@@ -1,11 +1,11 @@
 @* One Time off bar of a Person. The grid owns the drag state and the writes.
    This component draws the bar and raises events. *@
 @* One segment per visible day, so a pointer-down knows its day. *@
-<div class="bar timeoff" style="@Style" title="@Tip">
+<div class="bar timeoff" style="@Style" title="@Tip" tabindex="@(CanEdit ? 0 : null)" role="@(CanEdit ? "group" : null)" aria-label="@(CanEdit ? Description : null)"
+     @oncontextmenu="OpenMenuAsync" @oncontextmenu:preventDefault="@CanEdit">
     @foreach (var day in Days)
     {
-        <span class="seg @(CanEdit ? "editable" : null)" @onpointerdown='e => PressAsync(DragMode.Move, day, e)'
-              @oncontextmenu="OpenMenuAsync" @oncontextmenu:preventDefault="@CanEdit">
+        <span class="seg @(CanEdit ? "editable" : null)" @onpointerdown='e => PressAsync(DragMode.Move, day, e)'>
             @if (CanEdit && day == Bar.StartDate)
             {
                 <i class="edge l" @onpointerdown='e => PressAsync(DragMode.Start, day, e)' @onpointerdown:stopPropagation="true"></i>
@@ -17,7 +17,7 @@
         </span>
     }
     @* The row is the Time off row, so the bar shows only the half-day marks. *@
-    <span class="text @(CanEdit ? "editable" : null)" aria-hidden="true">
+    <span class="text" aria-hidden="true">
         <span>@(TimeOffChanges.FirstDayIsHalf(Bar) ? "½" : "")</span><span>@(TimeOffChanges.LastDayIsHalf(Bar) ? "½" : "")</span>
     </span>
     @if (!CanEdit)
@@ -26,25 +26,28 @@
     }
     else
     {
-        <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more"
-                 Style="@Controls.MenuStyle" AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
-            <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
-            @if (TimeOffChanges.IsSingleDay(Bar))
-            {
-                <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, DayPartName.Morning))'>Morning</MudMenuItem>
-                <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, DayPartName.Afternoon))'>Afternoon</MudMenuItem>
-                <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, "full"))'>Full day</MudMenuItem>
-            }
-            else
-            {
-                <MudMenuItem OnClick="() => OnChange.InvokeAsync(TimeOffChanges.FirstDay(Bar, !TimeOffChanges.FirstDayIsHalf(Bar)))">
-                    First day: @(TimeOffChanges.FirstDayIsHalf(Bar) ? "Full day" : "Half day")
-                </MudMenuItem>
-                <MudMenuItem OnClick="() => OnChange.InvokeAsync(TimeOffChanges.LastDay(Bar, !TimeOffChanges.LastDayIsHalf(Bar)))">
-                    Last day: @(TimeOffChanges.LastDayIsHalf(Bar) ? "Full day" : "Half day")
-                </MudMenuItem>
-            }
-            <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+        @* No activator: a right-click, or the Menu key or Shift+F10 on the focused bar, opens the menu. *@
+        <MudMenu @ref="_menu" Dense="true" PositionAtCursor="true">
+            <ActivatorContent><span aria-hidden="true"></span></ActivatorContent>
+            <ChildContent>
+                <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
+                @if (TimeOffChanges.IsSingleDay(Bar))
+                {
+                    <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, DayPartName.Morning))'>Morning</MudMenuItem>
+                    <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, DayPartName.Afternoon))'>Afternoon</MudMenuItem>
+                    <MudMenuItem OnClick='() => OnChange.InvokeAsync(TimeOffChanges.SingleDay(Bar, "full"))'>Full day</MudMenuItem>
+                }
+                else
+                {
+                    <MudMenuItem OnClick="() => OnChange.InvokeAsync(TimeOffChanges.FirstDay(Bar, !TimeOffChanges.FirstDayIsHalf(Bar)))">
+                        First day: @(TimeOffChanges.FirstDayIsHalf(Bar) ? "Full day" : "Half day")
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="() => OnChange.InvokeAsync(TimeOffChanges.LastDay(Bar, !TimeOffChanges.LastDayIsHalf(Bar)))">
+                        Last day: @(TimeOffChanges.LastDayIsHalf(Bar) ? "Full day" : "Half day")
+                    </MudMenuItem>
+                }
+                <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+            </ChildContent>
         </MudMenu>
     }
 </div>
@@ -61,9 +64,6 @@
     /// <summary>The visible days of the bar, also while a drag runs. The grid column style places the bar.</summary>
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
-
-    /// <summary>Where the menu goes, so it stays in the days that fit the width.</summary>
-    [Parameter] public BarControls Controls { get; set; }
 
     [Parameter] public EventCallback<(DragMode Mode, DateOnly Day)> OnPress { get; set; }
     [Parameter] public EventCallback<TimeOffRequest> OnChange { get; set; }

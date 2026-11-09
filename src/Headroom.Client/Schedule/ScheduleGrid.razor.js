@@ -55,6 +55,17 @@ export function init(el, dotnet) {
         frame = requestAnimationFrame(step);
     };
     el.addEventListener('pointerdown', () => { pressed = true; });
+    // The keyboard opens a bar menu (the event target is the bar itself): move focus into it, so arrow keys and Escape work.
+    el.addEventListener('contextmenu', e => {
+        if (!e.target.matches('.bar[tabindex]')) return;
+        let tries = 0;
+        const focusItem = () => {
+            const item = document.querySelector('.mud-popover-open .mud-menu-item');
+            if (item) item.focus();
+            else if (++tries < 30) requestAnimationFrame(focusItem);
+        };
+        requestAnimationFrame(focusItem);
+    });
     const move = e => {
         const box = el.getBoundingClientRect();
         const picking = el.querySelector('.bar.preview') && e.clientY >= box.top && e.clientY <= box.bottom;

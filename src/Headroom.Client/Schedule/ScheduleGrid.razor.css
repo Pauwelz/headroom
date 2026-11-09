@@ -31,8 +31,7 @@
 .schedule ::deep .bar { grid-row: 1; z-index: 1; align-self: center; height: 24px; margin: 0 1px; padding: 0 6px; overflow: hidden; border-radius: 4px; font-size: 0.75rem; font-weight: 400; line-height: 24px; white-space: nowrap; }
 /* Text for screen readers only. */
 .schedule ::deep .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-/* Bar buttons take the bar's text colour, so the ⋯ icon has the same contrast as the text. Focus shows inside the bar, which clips overflow. */
-.schedule ::deep .bar .mud-icon-button { color: inherit; }
+/* Focus shows inside the bar, which clips overflow. */
 .schedule ::deep .bar .mud-button-root:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
 /* The grid takes focus only to hear Escape. */
 .schedule:focus { outline: none; }
@@ -52,31 +51,30 @@
 .schedule ::deep .bar:not(.alloc) { position: relative; }
 .schedule ::deep .bar > span.pct { position: absolute; top: 0; }
 .schedule ::deep .bar.timeoff { background: var(--mud-palette-secondary); color: var(--mud-palette-secondary-text); }
+/* After the bar colours: they set an outline too. */
+.schedule ::deep .bar:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
 
 /* Time off. */
 .cell.editable { cursor: pointer; }
 .schedule ::deep .bar.preview.timeoff { background: color-mix(in srgb, var(--mud-palette-secondary) 35%, transparent); outline: 1px dashed var(--mud-palette-secondary); }
-.timeoff-row.dragging ::deep .bar.timeoff .seg, .timeoff-row.dragging ::deep .bar.timeoff .more { pointer-events: none; }
+.timeoff-row.dragging ::deep .bar.timeoff .seg { pointer-events: none; }
 .timeoff-row.dragging .cell { cursor: grabbing; }
 .schedule ::deep .bar.timeoff { position: relative; display: flex; padding: 0; user-select: none; }
 .schedule ::deep .bar.timeoff .seg { position: relative; flex: 1; pointer-events: auto; }
 .schedule ::deep .bar.timeoff .seg.editable { cursor: grab; }
 .schedule ::deep .bar.timeoff .text { position: absolute; inset: 0; display: flex; justify-content: space-between; padding: 0 6px; overflow: hidden; pointer-events: none; }
-.schedule ::deep .bar.timeoff .text.editable { padding-right: 34px; }
 .schedule ::deep .bar.timeoff .edge { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .schedule ::deep .bar.timeoff .edge.l { left: 0; }
 .schedule ::deep .bar.timeoff .edge.r { right: 0; }
-.schedule ::deep .bar.timeoff .more { position: absolute; top: 0; height: 24px; color: inherit; pointer-events: auto; }
 
 /* Allocation bars. Same layout as the Time off bar. Segments and handles take the pointer; the rest lets clicks through. */
 .schedule ::deep .bar.alloc { position: relative; display: flex; padding: 0; user-select: none; }
 .schedule ::deep .bar.alloc .seg { position: relative; flex: 1; pointer-events: auto; cursor: grab; }
-.sub.dragging ::deep .bar.alloc .seg, .sub.dragging ::deep .bar.alloc .pct, .sub.dragging ::deep .bar.alloc .more { pointer-events: none; }
+.sub.dragging ::deep .bar.alloc .seg, .sub.dragging ::deep .bar.alloc .pct { pointer-events: none; }
 .schedule ::deep .bar.alloc .edge { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .schedule ::deep .bar.alloc .edge.l { left: 0; }
 .schedule ::deep .bar.alloc .edge.r { right: 0; }
 .schedule ::deep .bar.alloc .pct { position: absolute; top: 0; }
-.schedule ::deep .bar.alloc .more { position: absolute; top: 0; height: 24px; color: inherit; pointer-events: auto; }
 
 /* Label and cells stay on grid row 1, so a bar placed there does not push them onto a second line. */
 .sub .label { grid-row: 1; grid-column: 1; }

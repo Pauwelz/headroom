@@ -137,7 +137,6 @@
                 {
                     var (first, last) = Preview(t);
                     <TimeOffBar @key="t.Id" Bar="t" PersonName="@person.Name" CanEdit="edit.TimeOff" Style="@Span(first, last)" Days="@VisibleDays(first, last)"
-                                Controls="@ControlsFor(first, last)"
                                 OnPress="@(p => StartDrag(person.Id, edit.TimeOff, t, p.Mode, p.Day))"
                                 OnChange="request => ChangeAsync(t, request)" OnEdit="() => EditAsync(t)" OnDelete="() => DeleteAsync(t)" />
                 }

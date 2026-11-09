@@ -9,13 +9,14 @@
 else
 {
     @* One segment per visible day, so a pointer-down knows its day. *@
-    <div class="bar alloc @BarClass" style="@Style" title="@Tip">
+    <div class="bar alloc @BarClass" style="@Style" title="@Tip" tabindex="0" role="group" aria-label="@Description"
+         @oncontextmenu="OpenMenuAtBarAsync" @oncontextmenu:preventDefault="true">
         @foreach (var day in Days)
         {
             <span class="seg"
                   @onpointerdown='e => PressAsync(DragMode.Move, day, e)'
                   @onpointerup="() => OnRelease.InvokeAsync(day)" @onpointerup:stopPropagation="true"
-                  @oncontextmenu="e => OpenMenuAsync(day, e)" @oncontextmenu:preventDefault="true">
+                  @oncontextmenu="e => OpenMenuAsync(day, e)" @oncontextmenu:preventDefault="true" @oncontextmenu:stopPropagation="true">
                 @if (day == First)
                 {
                     <i class="edge l" @onpointerdown='e => PressAsync(DragMode.Start, day, e)' @onpointerdown:stopPropagation="true"></i>
@@ -38,11 +39,14 @@ else
                 }
             </MudMenu>
         }
-        <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more" Style="@Controls.MenuStyle"
-                 AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
-            <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
-            <MudMenuItem Disabled="@(AllocationChanges.SplitDay(Bar, null) is null)" OnClick="SplitAsync">Split here</MudMenuItem>
-            <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+        @* No activator: a right-click, or the Menu key or Shift+F10 on the focused bar, opens the menu. *@
+        <MudMenu @ref="_menu" Dense="true" PositionAtCursor="true">
+            <ActivatorContent><span aria-hidden="true"></span></ActivatorContent>
+            <ChildContent>
+                <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
+                <MudMenuItem Disabled="@(AllocationChanges.SplitDay(Bar, null) is null)" OnClick="SplitAsync">Split here</MudMenuItem>
+                <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+            </ChildContent>
         </MudMenu>
     </div>
 }
@@ -69,7 +73,7 @@ else
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
 
-    /// <summary>Where the percentage and the menu go, so they stay in the days that fit the width.</summary>
+    /// <summary>Where the percentage goes, so it stays in the days that fit the width.</summary>
     [Parameter] public BarControls Controls { get; set; }
 
     [Parameter] public EventCallback<(DragMode Mode, DateOnly Day, PointerEventArgs Args)> OnPress { get; set; }
@@ -83,7 +87,7 @@ else
     private DateOnly? _lastDay;
     private MudMenu? _menu;
 
-    // With fewer days in view, the % menu and the "⋯" menu overlap.
+    // A shorter bar has no room for the % label.
     private const int MinDaysForPercentMenu = 3;
 
     private string BarClass => Status == ProjectStatusName.Tentative ? ProjectStatusName.Tentative : ProjectStatusName.Confirmed;
@@ -101,6 +105,13 @@ else
     private Task OpenMenuAsync(DateOnly day, MouseEventArgs e)
     {
         _lastDay = day;
+        return _menu is null ? Task.CompletedTask : _menu.OpenMenuAsync(e);
+    }
+
+    // A contextmenu event that no segment caught comes from the keyboard: no day.
+    private Task OpenMenuAtBarAsync(MouseEventArgs e)
+    {
+        _lastDay = null;
         return _menu is null ? Task.CompletedTask : _menu.OpenMenuAsync(e);
     }
 
