@@ -6,6 +6,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The browser tab shows the Headroom icon.
+
 ### Changed
 
 - Schedule: the bars no longer have a "⋯" button. Right-click a bar, or focus it and press the Menu key or Shift+F10.
