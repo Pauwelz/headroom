@@ -65,7 +65,7 @@ This does not work over the names.
 - Drag the bar to move it. Drag an edge to make it longer or shorter.
   Hold the pointer near the left or right side of the grid to scroll while you drag.
   The grid scrolls at a fixed speed per second.
-- Open the bar menu (**⋯** or right-click):
+- Open the bar menu: right-click the bar, or focus it with Tab and press the Menu key or Shift+F10:
   - **Edit** opens a form: period, percentage, Project and Person.
   - **Split here** splits the Allocation into two.
   - **Delete** deletes it.
@@ -83,7 +83,7 @@ A Planner changes the Time off of every Person. Other People change only their o
 
 - Drag and resize a Time off bar like an Allocation.
 - A **½** at the start or end of a Time off bar marks a half day.
-- Open the bar menu (**⋯** or right-click). It has **Edit** and **Delete**.
+- Open the bar menu: right-click the bar, or focus it with Tab and press the Menu key or Shift+F10. It has **Edit** and **Delete**.
   **Edit** has one **Period** field. To pick a single day, select the same date twice.
   **From part** and **To part** each have the choices **Morning** and **Afternoon**.
 - The menu also lets you set the first day and the last day to half day or full day.

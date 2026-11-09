@@ -3,19 +3,20 @@
 @if (!Editable)
 {
     <div class="bar @BarClass" style="@Style" title="@Tip">
-        <span class="pct" style="@Controls.PercentStyle" aria-hidden="true">@($"{Bar.Percentage}%")</span><span class="sr-only">@Description</span>
+        <span class="pct" style="@Controls.StartStyle" aria-hidden="true">@($"{Bar.Percentage}%")</span><span class="sr-only">@Description</span>
     </div>
 }
 else
 {
     @* One segment per visible day, so a pointer-down knows its day. *@
-    <div class="bar alloc @BarClass" style="@Style" title="@Tip">
+    <div @ref="_bar" class="bar alloc @BarClass" style="@Style" title="@Tip" tabindex="0" role="group" aria-label="@Description"
+         @oncontextmenu="OpenMenuAtBarAsync" @oncontextmenu:preventDefault="true">
         @foreach (var day in Days)
         {
             <span class="seg"
                   @onpointerdown='e => PressAsync(DragMode.Move, day, e)'
                   @onpointerup="() => OnRelease.InvokeAsync(day)" @onpointerup:stopPropagation="true"
-                  @oncontextmenu="e => OpenMenuAsync(day, e)" @oncontextmenu:preventDefault="true">
+                  @oncontextmenu="e => OpenMenuAsync(day, e)" @oncontextmenu:preventDefault="true" @oncontextmenu:stopPropagation="true">
                 @if (day == First)
                 {
                     <i class="edge l" @onpointerdown='e => PressAsync(DragMode.Start, day, e)' @onpointerdown:stopPropagation="true"></i>
@@ -27,22 +28,24 @@ else
             </span>
         }
         @* The percentage control: a menu of 5% steps. A bar with few visible days has only the bar menu. *@
-        @if (Controls.DaysInView >= MinDaysForPercentMenu)
+        @if (Controls.DaysInView >= MinDaysForPercentLabel)
         {
             <MudMenu Label="@($"{Bar.Percentage}%")" title="@($"{Tip}. Change the percentage.")" Dense="true" MaxHeight="320"
                      AriaLabel="@($"Change the percentage of {Description}")"
-                     Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit" Class="pct" Style="@Controls.PercentStyle">
+                     Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit" Class="pct" Style="@Controls.StartStyle">
                 @foreach (var step in Steps)
                 {
                     <MudMenuItem OnClick="@(() => OnPercentage.InvokeAsync((Bar, step)))">@step%</MudMenuItem>
                 }
             </MudMenu>
         }
-        <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more" Style="@Controls.MenuStyle"
-                 AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
-            <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
-            <MudMenuItem Disabled="@(AllocationChanges.SplitDay(Bar, null) is null)" OnClick="SplitAsync">Split here</MudMenuItem>
-            <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+        @* No visible activator: a right-click, or the Menu key or Shift+F10 on the focused bar, opens the menu. *@
+        <MudMenu @ref="_menu" Dense="true" PositionAtCursor="true" Style="@Controls.StartStyle" OpenChanged="MenuOpenChangedAsync">
+            <ChildContent>
+                <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
+                <MudMenuItem Disabled="@(AllocationChanges.SplitDay(Bar, null) is null)" OnClick="SplitAsync">Split here</MudMenuItem>
+                <MudMenuItem OnClick="() => OnDelete.InvokeAsync()">Delete</MudMenuItem>
+            </ChildContent>
         </MudMenu>
     </div>
 }
@@ -69,7 +72,7 @@ else
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
 
-    /// <summary>Where the percentage and the menu go, so they stay in the days that fit the width.</summary>
+    /// <summary>Where the percentage and the menu anchor go, so they stay in the days that fit the width.</summary>
     [Parameter] public BarControls Controls { get; set; }
 
     [Parameter] public EventCallback<(DragMode Mode, DateOnly Day, PointerEventArgs Args)> OnPress { get; set; }
@@ -82,9 +85,16 @@ else
     // The day last pressed on the bar: "Split here" splits there.
     private DateOnly? _lastDay;
     private MudMenu? _menu;
+    private ElementReference _bar;
 
-    // With fewer days in view, the % menu and the "⋯" menu overlap.
-    private const int MinDaysForPercentMenu = 3;
+    // True while a menu that the keyboard opened is open: when it closes, focus returns to the bar.
+    private bool _openedByKeyboard;
+
+    // A shorter bar has no room for the % label.
+    private const int MinDaysForPercentLabel = 3;
+
+    // MouseEventArgs.Button of a right-click. A contextmenu event from the keyboard has another value.
+    private const long RightButton = 2;
 
     private string BarClass => Status == ProjectStatusName.Tentative ? ProjectStatusName.Tentative : ProjectStatusName.Confirmed;
 
@@ -101,7 +111,25 @@ else
     private Task OpenMenuAsync(DateOnly day, MouseEventArgs e)
     {
         _lastDay = day;
+        _openedByKeyboard = false;
         return _menu is null ? Task.CompletedTask : _menu.OpenMenuAsync(e);
+    }
+
+    // A contextmenu event that no segment caught is from the keyboard: no day.
+    // A right-click (Button 2) here is on the % label: it does nothing.
+    private Task OpenMenuAtBarAsync(MouseEventArgs e)
+    {
+        if (e.Button == RightButton) return Task.CompletedTask;
+        _lastDay = null;
+        _openedByKeyboard = true;
+        return _menu is null ? Task.CompletedTask : _menu.OpenMenuAsync(e);
+    }
+
+    private async Task MenuOpenChangedAsync(bool open)
+    {
+        if (open || !_openedByKeyboard) return;
+        _openedByKeyboard = false;
+        await _bar.FocusAsync();
     }
 
     private Task SplitAsync() =>
