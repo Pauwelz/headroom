@@ -27,7 +27,7 @@
     else
     {
         <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more"
-                 AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
+                 Style="@($"right:calc(var(--day) * {Controls.After} + 6px)")" AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
             <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
             @if (TimeOffChanges.IsSingleDay(Bar))
             {
@@ -61,6 +61,9 @@
     /// <summary>The visible days of the bar, also while a drag runs. The grid column style places the bar.</summary>
     [Parameter] public IEnumerable<DateOnly> Days { get; set; } = [];
     [Parameter] public string Style { get; set; } = "";
+
+    /// <summary>Where the menu goes, so it stays in the days that fit the width.</summary>
+    [Parameter] public BarControls Controls { get; set; }
 
     [Parameter] public EventCallback<(DragMode Mode, DateOnly Day)> OnPress { get; set; }
     [Parameter] public EventCallback<TimeOffRequest> OnChange { get; set; }

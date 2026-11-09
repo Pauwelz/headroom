@@ -13,7 +13,12 @@ export function init(el, dotnet) {
     let timer = 0;
     el.addEventListener('scroll', () => {
         clearTimeout(timer);
-        timer = setTimeout(() => dotnet.invokeMethodAsync('Scrolled', Math.round(el.scrollLeft / dayWidth(el))), 150);
+        timer = setTimeout(() => {
+            const index = Math.round(el.scrollLeft / dayWidth(el));
+            // Snap to whole days: a part-visible day would clip the bar controls.
+            if (el.scrollLeft !== index * dayWidth(el)) el.scrollLeft = index * dayWidth(el);
+            dotnet.invokeMethodAsync('Scrolled', index);
+        }, 150);
     });
 
     // While a press that started in the grid is held near or past a side, scroll that way.
