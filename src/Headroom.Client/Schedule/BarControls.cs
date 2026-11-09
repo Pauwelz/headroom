@@ -3,10 +3,16 @@ namespace Headroom.Client.Schedule;
 /// <summary>
 /// Where a bar puts its controls, so they stay in the visible days when the bar extends past them.
 /// The percentage moves in by <see cref="Before"/> days, the menu by <see cref="After"/> days.
-/// <see cref="Visible"/> is the number of days between them, the bar's own days included.
+/// <see cref="DaysInView"/> is the number of days between them, the bar's own days included.
 /// </summary>
-public readonly record struct BarControls(int Before, int After, int Visible)
+public readonly record struct BarControls(int Before, int After, int DaysInView)
 {
+    private const int Inset = 6;
+
+    public string PercentStyle => $"left:calc(var(--day) * {Before} + {Inset}px)";
+
+    public string MenuStyle => $"right:calc(var(--day) * {After} + {Inset}px)";
+
     /// <param name="first">The first drawn day of the bar.</param>
     /// <param name="last">The last drawn day of the bar.</param>
     public static BarControls Of(DateOnly first, DateOnly last, DateOnly visibleFirst, DateOnly visibleLast)

@@ -94,7 +94,7 @@
                     {
                         var (first, last) = Preview(a);
                         <AllocationBar @key="a.Id" Bar="a" Status="@project.Status" RowName="@($"{person.Name}, {project.ProjectName}")" Editable="editable" First="first" Last="last"
-                                       Style="@Span(first, last)" Days="@VisibleDays(first, last)" Controls="@Controls(first, last)"
+                                       Style="@Span(first, last)" Days="@VisibleDays(first, last)" Controls="@ControlsFor(first, last)"
                                        OnPress="@(p => StartDrag(person.Id, edit.Allocations, project.ProjectId, a, p.Mode, p.Day, p.Args))"
                                        OnRelease="@(day => DropAsync(person.Id, project.ProjectId, day))"
                                        OnPercentage="OnPercentage" OnEdit="() => EditAsync(person, project, a)"
@@ -137,7 +137,7 @@
                 {
                     var (first, last) = Preview(t);
                     <TimeOffBar @key="t.Id" Bar="t" PersonName="@person.Name" CanEdit="edit.TimeOff" Style="@Span(first, last)" Days="@VisibleDays(first, last)"
-                                Controls="@Controls(first, last)"
+                                Controls="@ControlsFor(first, last)"
                                 OnPress="@(p => StartDrag(person.Id, edit.TimeOff, t, p.Mode, p.Day))"
                                 OnChange="request => ChangeAsync(t, request)" OnEdit="() => EditAsync(t)" OnDelete="() => DeleteAsync(t)" />
                 }
@@ -362,7 +362,7 @@
 
     // The bar is drawn on the loaded days only (see Span). Its controls stay on the days that fit the width.
     // shortcut: at the 8 px minimum day width fewer than ShownDays fit, so the menu can end up off screen; measure the width in JS if that matters.
-    private BarControls Controls(DateOnly first, DateOnly last) =>
+    private BarControls ControlsFor(DateOnly first, DateOnly last) =>
         BarControls.Of(Later(first, Data.StartDate), Earlier(last, Data.EndDate), FirstDay, FirstDay.AddDays(ShownDays - 1));
 
     // Grid line 1 is the label. Day i starts at line i + 2. The end line is exclusive.

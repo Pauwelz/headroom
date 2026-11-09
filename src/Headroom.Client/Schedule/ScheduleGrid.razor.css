@@ -49,6 +49,8 @@
 /* The % sits on a solid chip, so it stays readable on the stripes. */
 .schedule ::deep .bar.tentative .pct { background: var(--mud-palette-primary); border-radius: 3px; }
 .schedule ::deep .bar.tentative span.pct { padding: 0 4px; }
+.schedule ::deep .bar:not(.alloc) { position: relative; }
+.schedule ::deep .bar > span.pct { position: absolute; top: 0; }
 .schedule ::deep .bar.timeoff { background: var(--mud-palette-secondary); color: var(--mud-palette-secondary-text); }
 
 /* Time off. */
@@ -64,7 +66,7 @@
 .schedule ::deep .bar.timeoff .edge { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .schedule ::deep .bar.timeoff .edge.l { left: 0; }
 .schedule ::deep .bar.timeoff .edge.r { right: 0; }
-.schedule ::deep .bar.timeoff .more { position: absolute; top: 0; right: 6px; height: 24px; color: inherit; pointer-events: auto; }
+.schedule ::deep .bar.timeoff .more { position: absolute; top: 0; height: 24px; color: inherit; pointer-events: auto; }
 
 /* Allocation bars. Same layout as the Time off bar. Segments and handles take the pointer; the rest lets clicks through. */
 .schedule ::deep .bar.alloc { position: relative; display: flex; padding: 0; user-select: none; }
@@ -73,8 +75,8 @@
 .schedule ::deep .bar.alloc .edge { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .schedule ::deep .bar.alloc .edge.l { left: 0; }
 .schedule ::deep .bar.alloc .edge.r { right: 0; }
-.schedule ::deep .bar.alloc .pct { position: absolute; top: 0; left: 6px; }
-.schedule ::deep .bar.alloc .more { position: absolute; top: 0; right: 6px; height: 24px; color: inherit; pointer-events: auto; }
+.schedule ::deep .bar.alloc .pct { position: absolute; top: 0; }
+.schedule ::deep .bar.alloc .more { position: absolute; top: 0; height: 24px; color: inherit; pointer-events: auto; }
 
 /* Label and cells stay on grid row 1, so a bar placed there does not push them onto a second line. */
 .sub .label { grid-row: 1; grid-column: 1; }

@@ -27,7 +27,7 @@
     else
     {
         <MudMenu @ref="_menu" Icon="@Icons.Material.Filled.MoreHoriz" Size="Size.Small" Dense="true" Class="more"
-                 Style="@($"right:calc(var(--day) * {Controls.After} + 6px)")" AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
+                 Style="@Controls.MenuStyle" AriaLabel="@($"Menu for {Description}")" PositionAtCursor="true">
             <MudMenuItem OnClick="() => OnEdit.InvokeAsync()">Edit</MudMenuItem>
             @if (TimeOffChanges.IsSingleDay(Bar))
             {

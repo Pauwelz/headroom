@@ -14,9 +14,10 @@ export function init(el, dotnet) {
     el.addEventListener('scroll', () => {
         clearTimeout(timer);
         timer = setTimeout(() => {
-            const index = Math.round(el.scrollLeft / dayWidth(el));
+            const width = dayWidth(el);
+            const index = Math.round(el.scrollLeft / width);
             // Snap to whole days: a part-visible day would clip the bar controls.
-            if (el.scrollLeft !== index * dayWidth(el)) el.scrollLeft = index * dayWidth(el);
+            if (el.scrollLeft !== index * width) el.scrollLeft = index * width;
             dotnet.invokeMethodAsync('Scrolled', index);
         }, 150);
     });
