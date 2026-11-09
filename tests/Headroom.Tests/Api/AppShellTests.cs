@@ -66,6 +66,38 @@ public class AppShellTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(("Instance", "Acme"), (instance?.Type, instance?.Name));
     }
 
+    // One page load fetches about 60 framework files in parallel. A session lookup per file used up the database connections.
+    [Fact]
+    public async Task AStaticAssetDoesNotReadTheSession()
+    {
+        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var options = _factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(CookieAuthenticationDefaults.AuthenticationScheme);
+        var store = options.SessionStore!;
+        var counting = new CountingTicketStore(store);
+        options.SessionStore = counting;
+        try
+        {
+            var asset = await client.GetAsync("/_framework/dotnet.js", TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, asset.StatusCode);
+            Assert.Equal(0, counting.Retrieved);
+        }
+        finally
+        {
+            options.SessionStore = store;
+        }
+    }
+
+    private sealed class CountingTicketStore(ITicketStore inner) : ITicketStore
+    {
+        public int Retrieved;
+        public Task<string> StoreAsync(AuthenticationTicket ticket) => inner.StoreAsync(ticket);
+        public Task RenewAsync(string key, AuthenticationTicket ticket) => inner.RenewAsync(key, ticket);
+        public Task<AuthenticationTicket?> RetrieveAsync(string key) { Interlocked.Increment(ref Retrieved); return inner.RetrieveAsync(key); }
+        public Task RemoveAsync(string key) => inner.RemoveAsync(key);
+    }
+
     [Fact]
     public async Task OnlyAPlannerPassesThePlannerPolicy()
     {
