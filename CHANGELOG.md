@@ -6,6 +6,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The browser tab shows the Headroom icon.
+
 ### Changed
 
 - Schedule: the bars no longer have a "⋯" button. Right-click a bar, or focus it and press the Menu key or Shift+F10.
@@ -13,6 +17,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Schedule: a bar that extends past the visible days shows its percentage and its "⋯" menu inside the visible days (#67). After a scroll, the grid stops on a whole day.
+- The app no longer shows a blank screen after login. Each framework file read the session from the database, and one page load used up all database connections.
 
 ## [0.3.0] - 2026-11-08
 

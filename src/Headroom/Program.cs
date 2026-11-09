@@ -77,7 +77,8 @@ app.UseAuthorization();
 app.UseApiAntiforgery();
 app.UseAntiforgery();
 
-app.MapStaticAssets();
+// The assets are public. Skipping auth keeps a page load from opening one database connection per file.
+app.MapStaticAssets().ShortCircuit();
 app.MapHealthChecks("/health");
 app.MapApi();
 app.MapHeadroomMcp();
