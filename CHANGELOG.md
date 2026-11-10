@@ -12,6 +12,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Telemetry: each MCP call exports a span with the tool name.
 - Telemetry: each request carries the client IP address as `client.address`. Azure Monitor shows it as `client_IP`.
 
+### Changed
+
+- Logs: OpenIddict logs at `Warning` by default. It no longer logs each OAuth request. Set `Logging__LogLevel__OpenIddict` to change it.
+
 ## [0.4.0] - 2026-11-09
 
 ### Added

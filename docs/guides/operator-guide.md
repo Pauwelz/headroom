@@ -59,6 +59,7 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | `true`. TLS ends in front of the app, so it must trust `X-Forwarded-Proto` |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional. Sends telemetry to Azure Monitor |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional (also `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`). Sends telemetry to an OTLP backend or collector. Headroom reads the other standard `OTEL_EXPORTER_OTLP_*` variables too, such as `OTEL_EXPORTER_OTLP_HEADERS` and `OTEL_EXPORTER_OTLP_PROTOCOL` |
+| `Logging__LogLevel__OpenIddict` | Optional. Default `Warning`. At `Information`, OpenIddict logs each OAuth request, including one-time values such as `code_verifier` |
 | `Seed__PlannerEmail` | Test Instances only. Never set it in production: it seeds demo data into an empty database |
 
 The Instance uses one URL. A custom domain is your choice, as long as `BaseUri` matches it.
