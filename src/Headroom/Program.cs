@@ -74,7 +74,7 @@ app.UseApiResourceMetadata();
 app.UseApiChallenge();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseClientTags();
+app.UseClientTags(app.Configuration);
 app.UseApiAntiforgery();
 app.UseAntiforgery();
 

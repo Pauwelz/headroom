@@ -11,6 +11,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Telemetry: each request of a logged-in Person carries the Person id as `enduser.id`. Azure Monitor shows it as `user_AuthenticatedId`. See ADR 0016.
 - Telemetry: each MCP call exports a span with the tool name.
 - Telemetry: each request carries the client IP address as `client.address`. Azure Monitor shows it as `client_IP`.
+- Telemetry: set `Telemetry__EndUserId` or `Telemetry__ClientAddress` to `false` to keep the Person id or the client IP address out of telemetry.
 
 ### Changed
 

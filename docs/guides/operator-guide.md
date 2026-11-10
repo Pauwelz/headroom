@@ -60,6 +60,8 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional. Sends telemetry to Azure Monitor |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional (also `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`). Sends telemetry to an OTLP backend or collector. Headroom reads the other standard `OTEL_EXPORTER_OTLP_*` variables too, such as `OTEL_EXPORTER_OTLP_HEADERS` and `OTEL_EXPORTER_OTLP_PROTOCOL` |
 | `Logging__LogLevel__OpenIddict` | Optional. Default `Warning`. At `Information`, OpenIddict logs each OAuth request, including one-time values such as `code_verifier` |
+| `Telemetry__EndUserId` | Optional. `false` keeps the Person id out of telemetry. The default is `true` |
+| `Telemetry__ClientAddress` | Optional. `false` keeps the client IP address out of telemetry. The default is `true` |
 | `Seed__PlannerEmail` | Test Instances only. Never set it in production: it seeds demo data into an empty database |
 
 The Instance uses one URL. A custom domain is your choice, as long as `BaseUri` matches it.
@@ -233,6 +235,7 @@ The telemetry holds two personal values:
 - The client IP address, as `client.address` on each request. Azure Monitor shows it as `client_IP`. It is the real client only when `ASPNETCORE_FORWARDEDHEADERS_ENABLED` is `true`.
 
 Every target that you set receives both. Set the retention of each target for personal data.
+Both are on by default. To switch one off, set `Telemetry__EndUserId` or `Telemetry__ClientAddress` to `false`.
 The telemetry holds no other personal data:
 - Requests show the route template, such as `/api/people/{id}`. They show no path with ids and no query string.
 - Database calls show no statement text.

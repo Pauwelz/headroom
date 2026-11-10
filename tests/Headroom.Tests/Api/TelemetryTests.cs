@@ -43,12 +43,13 @@ public class TelemetryTests : IAsyncLifetime
     private const string AzureMonitor = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=http://localhost:1/";
     private const string Otlp = "http://localhost:1";
 
-    private WebApplicationFactory<Program> StartFactory(string? connectionString = AzureMonitor, string? otlpKey = null) =>
+    private WebApplicationFactory<Program> StartFactory(string? connectionString = AzureMonitor, string? otlpKey = null, bool endUserId = true) =>
         _app.Factory.WithWebHostBuilder(builder =>
         {
             // UseSetting, not ConfigureAppConfiguration: Program reads the keys before the host builds.
             if (connectionString is not null) builder.UseSetting(HeadroomTelemetry.ConnectionStringKey, connectionString);
             if (otlpKey is not null) builder.UseSetting(otlpKey, Otlp);
+            if (!endUserId) builder.UseSetting(HeadroomTelemetry.EndUserIdKey, "false");
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton<IEmailSender>(_mail);
@@ -91,11 +92,14 @@ public class TelemetryTests : IAsyncLifetime
         AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", code, QueryValue);
     }
 
-    [Fact]
-    public async Task AnMcpToolCallExportsTheToolNameAndThePersonId()
+    // Telemetry:EndUserId=false keeps the Person id out of telemetry.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnMcpToolCallExportsTheToolNameAndThePersonIdWhenSwitchedOn(bool endUserId)
     {
         const string secret = "hr_telemetry-mcp-secret";
-        var factory = StartFactory();
+        var factory = StartFactory(endUserId: endUserId);
         var person = new Person { Name = Name, Email = Email, IsPlanner = true };
         using (var scope = factory.Services.CreateScope())
         {
@@ -125,8 +129,8 @@ public class TelemetryTests : IAsyncLifetime
         var spans = _spans.Snapshot();
         // The in-process test client emits client spans on the same source, so only server spans count.
         Assert.Contains(spans, s => s.Kind == ActivityKind.Server && s.GetTagItem("gen_ai.tool.name") as string == "get_me");
-        Assert.Contains(spans, s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == person.Id.ToString());
-        AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", secret);
+        Assert.Equal(endUserId, spans.Any(s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == person.Id.ToString()));
+        AssertNothingLeaks(true, [Email, "Zebulon", "Quillfeather", secret, .. endUserId ? Array.Empty<string>() : [person.Id.ToString()]]);
     }
 
     // The first-run form takes a company, a name and an email, and the first Planner is created from them.

@@ -13,6 +13,7 @@ Request spans also carry the client IP address as `client.address`. Azure Monito
 ## Consequences
 
 - The Person id and the client IP address are personal data. Telemetry stays in the company's subscription (ADR 0012), and its retention applies to both.
+- An Operator can switch off each value with `Telemetry__EndUserId=false` or `Telemetry__ClientAddress=false`.
 - Names, emails, Login codes, paths with ids, query strings and SQL text stay out. The integration test still asserts this.
 - Erasure removes the name and email from the database. After that, the Person id in telemetry no longer links to a Person.
 - MCP calls export the spans of the MCP SDK, with the tool name. They carry no tool arguments.
