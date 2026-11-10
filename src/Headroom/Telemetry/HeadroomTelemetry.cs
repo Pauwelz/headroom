@@ -55,11 +55,15 @@ public static class HeadroomTelemetry
     }
 
     // Runs after authorization, which sets the user of the access token and MCP schemes too.
-    // Azure Monitor maps enduser.id to user_AuthenticatedId. The Person id is the only personal value in telemetry (ADR 0016).
-    public static IApplicationBuilder UseEndUserId(this IApplicationBuilder app) =>
+    // Azure Monitor maps enduser.id to user_AuthenticatedId and client.address to client_IP.
+    // The Person id and the client IP address are the only personal values in telemetry (ADR 0016).
+    public static IApplicationBuilder UseClientTags(this IApplicationBuilder app) =>
         app.Use((http, next) =>
         {
-            if (http.User.PersonId() is { } id) Activity.Current?.SetTag("enduser.id", id.ToString());
+            var activity = Activity.Current;
+            if (http.User.PersonId() is { } id) activity?.SetTag("enduser.id", id.ToString());
+            // The forwarded headers middleware sets RemoteIpAddress to the real client behind the proxy.
+            activity?.SetTag("client.address", http.Connection.RemoteIpAddress?.ToString());
             return next(http);
         });
 

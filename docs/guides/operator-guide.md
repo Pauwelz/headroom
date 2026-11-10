@@ -227,9 +227,11 @@ The filter for personal data (below) runs before every exporter.
 Database spans exist with Azure Monitor only.
 Each MCP call gets its own span with the tool name, such as `get_schedule`.
 
-The telemetry holds one personal value: the Person id, as `enduser.id` on each request of a logged-in Person.
-Azure Monitor shows it as `user_AuthenticatedId`. Only your database links it to a name or an email.
-Every target that you set receives it. Set the retention of each target for personal data.
+The telemetry holds two personal values:
+- The Person id, as `enduser.id` on each request of a logged-in Person. Azure Monitor shows it as `user_AuthenticatedId`. Only your database links it to a name or an email.
+- The client IP address, as `client.address` on each request. Azure Monitor shows it as `client_IP`. It is the real client only when `ASPNETCORE_FORWARDEDHEADERS_ENABLED` is `true`.
+
+Every target that you set receives both. Set the retention of each target for personal data.
 The telemetry holds no other personal data:
 - Requests show the route template, such as `/api/people/{id}`. They show no path with ids and no query string.
 - Database calls show no statement text.
