@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Email;
@@ -8,6 +10,7 @@ using Headroom.Telemetry;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Client;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -83,7 +86,38 @@ public class TelemetryTests : IAsyncLifetime
         await client.GetAsync($"/api/schedule?from=2026-03-01&to=2026-03-31&secret={QueryValue}", TestContext.Current.CancellationToken);
 
         await FlushAndStopAsync(factory);
-        AssertNothingLeaks(true, me.Id.ToString(), Email, "Zebulon", "Quillfeather", code, QueryValue);
+        // The Person id is the one personal value that telemetry holds (ADR 0016), as enduser.id on the request span.
+        Assert.Contains(_spans.Snapshot(), s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == me.Id.ToString());
+        AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", code, QueryValue);
+    }
+
+    [Fact]
+    public async Task AnMcpToolCallExportsTheToolNameAndThePersonId()
+    {
+        const string secret = "hr_telemetry-mcp-secret";
+        var factory = StartFactory();
+        var person = new Person { Name = Name, Email = Email, IsPlanner = true };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = person.Id });
+            db.People.Add(person);
+            db.AccessTokens.Add(new AccessToken { Name = "Claude", PersonId = person.Id, TokenHash = AccessTokenAuth.Hash(secret), LastChangedBy = person.Id });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var http = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+        var transport = new HttpClientTransport(new HttpClientTransportOptions { Endpoint = new Uri("https://localhost/mcp") }, http, ownsHttpClient: true);
+        await using (var mcp = await McpClient.CreateAsync(transport, McpTests.ClientOptions(), cancellationToken: TestContext.Current.CancellationToken))
+            await mcp.CallToolAsync("get_me", cancellationToken: TestContext.Current.CancellationToken);
+
+        await FlushAndStopAsync(factory);
+        var spans = _spans.Snapshot();
+        // The in-process test client emits client spans on the same source, so only server spans count.
+        Assert.Contains(spans, s => s.Kind == ActivityKind.Server && s.GetTagItem("gen_ai.tool.name") as string == "get_me");
+        Assert.Contains(spans, s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == person.Id.ToString());
+        AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", secret);
     }
 
     // The first-run form takes a company, a name and an email, and the first Planner is created from them.

@@ -15,3 +15,5 @@ Each Instance sends its telemetry with OpenTelemetry to an Application Insights 
 - Both exports can be on at the same time. With neither set, Headroom exports nothing and runs as before.
 - Personal data stays out because we do not collect it, not because a processor redacts it. An integration test asserts that no email, name or Login code reaches an exported span or log.
 - Sampling is off, so every error is kept. If volume grows, tail-based sampling in an OpenTelemetry Collector can keep all errors.
+
+Superseded in part by [ADR 0016](0016-telemetry-holds-the-person-id.md): request spans hold the Person id.

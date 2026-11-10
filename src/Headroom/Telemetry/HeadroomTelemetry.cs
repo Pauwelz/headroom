@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Headroom.Auth;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -12,6 +13,9 @@ public static class HeadroomTelemetry
     public const string Name = "Headroom";
 
     public const string ConnectionStringKey = "APPLICATIONINSIGHTS_CONNECTION_STRING";
+    // The MCP SDK's own source: one span per MCP call, with the tool name. Checked against ModelContextProtocol.Core 2.3.1.
+    internal const string McpSourceName = "Experimental.ModelContextProtocol";
+
     public const string OtlpEndpointKey = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
     // OTLP is on when the general endpoint or the endpoint of one signal is set.
@@ -32,7 +36,7 @@ public static class HeadroomTelemetry
         if (!azureMonitor && !otlp) return services;
 
         // Registered before the exporters, so the processor runs before they see the span.
-        services.ConfigureOpenTelemetryTracerProvider(tracing => tracing.AddSource(Name).AddSource("Npgsql").AddProcessor(new StripPersonalData()));
+        services.ConfigureOpenTelemetryTracerProvider(tracing => tracing.AddSource(Name).AddSource("Npgsql").AddSource(McpSourceName).AddProcessor(new StripPersonalData()));
         services.ConfigureOpenTelemetryMeterProvider(metrics => metrics.AddMeter(Name));
         var builder = services.AddOpenTelemetry();
         if (azureMonitor)
@@ -49,6 +53,15 @@ public static class HeadroomTelemetry
         if (otlp) builder.UseOtlpExporter(); // reads the standard OTEL_EXPORTER_OTLP_* variables
         return services;
     }
+
+    // Runs after authorization, which sets the user of the access token and MCP schemes too.
+    // Azure Monitor maps enduser.id to user_AuthenticatedId. The Person id is the only personal value in telemetry (ADR 0016).
+    public static IApplicationBuilder UseEndUserId(this IApplicationBuilder app) =>
+        app.Use((http, next) =>
+        {
+            if (http.User.PersonId() is { } id) Activity.Current?.SetTag("enduser.id", id.ToString());
+            return next(http);
+        });
 
     private sealed class StripPersonalData : BaseProcessor<Activity>
     {

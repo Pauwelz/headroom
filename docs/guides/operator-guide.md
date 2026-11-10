@@ -225,11 +225,14 @@ Headroom can send traces, metrics and logs with OpenTelemetry. You choose the ta
 Without either setting, Headroom sends nothing. The data goes only to the targets that you set. Headroom sends it nowhere else.
 The filter for personal data (below) runs before every exporter.
 Database spans exist with Azure Monitor only.
+Each MCP call gets its own span with the tool name, such as `get_schedule`.
 
-The telemetry holds no personal data:
+The telemetry holds one personal value: the Person id, as `enduser.id` on each request of a logged-in Person.
+Azure Monitor shows it as `user_AuthenticatedId`. Only your database links it to a name or an email.
+Set the retention of your telemetry with this in mind. It holds no other personal data:
 - Requests show the route template, such as `/api/people/{id}`. They show no path with ids and no query string.
 - Database calls show no statement text.
-- Headroom adds no Person id, name or email to spans, logs or log scopes.
+- Headroom adds no name or email to spans, logs or log scopes.
 - Headroom does not log Login codes or email addresses.
 
 Headroom exports every trace. It does not sample. If the volume grows, add tail-based sampling in an OpenTelemetry Collector.
