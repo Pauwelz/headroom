@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Headroom.Auth;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -13,6 +14,11 @@ public static class HeadroomTelemetry
 
     public const string ConnectionStringKey = "APPLICATIONINSIGHTS_CONNECTION_STRING";
     public const string OtlpEndpointKey = "OTEL_EXPORTER_OTLP_ENDPOINT";
+    public const string EndUserIdKey = "Telemetry:EndUserId";
+    public const string ClientAddressKey = "Telemetry:ClientAddress";
+
+    // The MCP SDK's own source: one span per MCP call, with the tool name. TelemetryTests fails if the SDK renames it.
+    internal const string McpSourceName = "Experimental.ModelContextProtocol";
 
     // OTLP is on when the general endpoint or the endpoint of one signal is set.
     internal static readonly string[] OtlpEndpointKeys =
@@ -32,7 +38,7 @@ public static class HeadroomTelemetry
         if (!azureMonitor && !otlp) return services;
 
         // Registered before the exporters, so the processor runs before they see the span.
-        services.ConfigureOpenTelemetryTracerProvider(tracing => tracing.AddSource(Name).AddSource("Npgsql").AddProcessor(new StripPersonalData()));
+        services.ConfigureOpenTelemetryTracerProvider(tracing => tracing.AddSource(Name).AddSource("Npgsql").AddSource(McpSourceName).AddProcessor(new StripPersonalData()));
         services.ConfigureOpenTelemetryMeterProvider(metrics => metrics.AddMeter(Name));
         var builder = services.AddOpenTelemetry();
         if (azureMonitor)
@@ -48,6 +54,24 @@ public static class HeadroomTelemetry
                 .WithMetrics(m => m.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation());
         if (otlp) builder.UseOtlpExporter(); // reads the standard OTEL_EXPORTER_OTLP_* variables
         return services;
+    }
+
+    // Runs after authorization, which sets the user of the access token and MCP schemes too.
+    // Azure Monitor maps enduser.id to user_AuthenticatedId and client.address to client_IP.
+    // The Person id and the client IP address are the only personal values in telemetry (ADR 0016).
+    // Each tag is on by default. An Operator switches one off with Telemetry__EndUserId=false or Telemetry__ClientAddress=false.
+    public static IApplicationBuilder UseClientTags(this IApplicationBuilder app, IConfiguration configuration)
+    {
+        var endUserId = configuration.GetValue(EndUserIdKey, true);
+        var clientAddress = configuration.GetValue(ClientAddressKey, true);
+        return app.Use((http, next) =>
+        {
+            var activity = Activity.Current;
+            if (endUserId && http.User.PersonId() is { } id) activity?.SetTag("enduser.id", id.ToString());
+            // The forwarded headers middleware sets RemoteIpAddress to the real client behind the proxy.
+            if (clientAddress) activity?.SetTag("client.address", http.Connection.RemoteIpAddress?.ToString());
+            return next(http);
+        });
     }
 
     private sealed class StripPersonalData : BaseProcessor<Activity>

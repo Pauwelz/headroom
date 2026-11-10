@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Email;
@@ -8,6 +10,7 @@ using Headroom.Telemetry;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Client;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -40,12 +43,13 @@ public class TelemetryTests : IAsyncLifetime
     private const string AzureMonitor = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=http://localhost:1/";
     private const string Otlp = "http://localhost:1";
 
-    private WebApplicationFactory<Program> StartFactory(string? connectionString = AzureMonitor, string? otlpKey = null) =>
+    private WebApplicationFactory<Program> StartFactory(string? connectionString = AzureMonitor, string? otlpKey = null, bool endUserId = true) =>
         _app.Factory.WithWebHostBuilder(builder =>
         {
             // UseSetting, not ConfigureAppConfiguration: Program reads the keys before the host builds.
             if (connectionString is not null) builder.UseSetting(HeadroomTelemetry.ConnectionStringKey, connectionString);
             if (otlpKey is not null) builder.UseSetting(otlpKey, Otlp);
+            if (!endUserId) builder.UseSetting(HeadroomTelemetry.EndUserIdKey, "false");
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton<IEmailSender>(_mail);
@@ -83,7 +87,50 @@ public class TelemetryTests : IAsyncLifetime
         await client.GetAsync($"/api/schedule?from=2026-03-01&to=2026-03-31&secret={QueryValue}", TestContext.Current.CancellationToken);
 
         await FlushAndStopAsync(factory);
-        AssertNothingLeaks(true, me.Id.ToString(), Email, "Zebulon", "Quillfeather", code, QueryValue);
+        // The Person id is the one personal value that telemetry holds (ADR 0016), as enduser.id on the request span.
+        Assert.Contains(_spans.Snapshot(), s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == me.Id.ToString());
+        AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", code, QueryValue);
+    }
+
+    // Telemetry:EndUserId=false keeps the Person id out of telemetry.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnMcpToolCallExportsTheToolNameAndThePersonIdWhenSwitchedOn(bool endUserId)
+    {
+        const string secret = "hr_telemetry-mcp-secret";
+        var factory = StartFactory(endUserId: endUserId);
+        var person = new Person { Name = Name, Email = Email, IsPlanner = true };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = person.Id });
+            db.People.Add(person);
+            db.AccessTokens.Add(new AccessToken { Name = "Claude", PersonId = person.Id, CanChange = true, TokenHash = AccessTokenAuth.Hash(secret), LastChangedBy = person.Id });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var http = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+        var transport = new HttpClientTransport(new HttpClientTransportOptions { Endpoint = new Uri("https://localhost/mcp") }, http, ownsHttpClient: true);
+        await using (var mcp = await McpClient.CreateAsync(transport, McpTests.ClientOptions(), cancellationToken: TestContext.Current.CancellationToken))
+        {
+            await mcp.CallToolAsync("get_me", cancellationToken: TestContext.Current.CancellationToken);
+            // A refused call sends a name and an email as arguments. Neither may reach a span, also on the error path.
+            var refused = await mcp.CallToolAsync("add_person", new Dictionary<string, object?>
+            {
+                ["name"] = Name, ["email"] = Email, ["isPlanner"] = false, ["startDate"] = "2026-03-01",
+                ["hours"] = new Dictionary<string, object?> { ["monday"] = 8 },
+            }, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.True(refused.IsError);
+        }
+
+        await FlushAndStopAsync(factory);
+        var spans = _spans.Snapshot();
+        // The in-process test client emits client spans on the same source, so only server spans count.
+        Assert.Contains(spans, s => s.Kind == ActivityKind.Server && s.GetTagItem("gen_ai.tool.name") as string == "get_me");
+        Assert.Equal(endUserId, spans.Any(s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == person.Id.ToString()));
+        AssertNothingLeaks(true, [Email, "Zebulon", "Quillfeather", secret, .. endUserId ? Array.Empty<string>() : [person.Id.ToString()]]);
     }
 
     // The first-run form takes a company, a name and an email, and the first Planner is created from them.

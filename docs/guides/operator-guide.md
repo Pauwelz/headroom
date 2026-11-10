@@ -59,6 +59,9 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | `true`. TLS ends in front of the app, so it must trust `X-Forwarded-Proto` |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional. Sends telemetry to Azure Monitor |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional (also `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`). Sends telemetry to an OTLP backend or collector. Headroom reads the other standard `OTEL_EXPORTER_OTLP_*` variables too, such as `OTEL_EXPORTER_OTLP_HEADERS` and `OTEL_EXPORTER_OTLP_PROTOCOL` |
+| `Logging__LogLevel__OpenIddict` | Optional. Default `Warning`. At `Information`, OpenIddict logs each OAuth request, including one-time values such as `code_verifier` |
+| `Telemetry__EndUserId` | Optional. `false` keeps the Person id out of telemetry. The default is `true` |
+| `Telemetry__ClientAddress` | Optional. `false` keeps the client IP address out of telemetry. The default is `true` |
 | `Seed__PlannerEmail` | Test Instances only. Never set it in production: it seeds demo data into an empty database |
 
 The Instance uses one URL. A custom domain is your choice, as long as `BaseUri` matches it.
@@ -225,11 +228,18 @@ Headroom can send traces, metrics and logs with OpenTelemetry. You choose the ta
 Without either setting, Headroom sends nothing. The data goes only to the targets that you set. Headroom sends it nowhere else.
 The filter for personal data (below) runs before every exporter.
 Database spans exist with Azure Monitor only.
+Each MCP call gets its own span with the tool name, such as `get_schedule`.
 
-The telemetry holds no personal data:
+The telemetry holds two personal values:
+- The Person id, as `enduser.id` on each request of a logged-in Person. Azure Monitor shows it as `user_AuthenticatedId`. Only your database links it to a name or an email.
+- The client IP address, as `client.address` on each request. Azure Monitor shows it as `client_IP`. It is the real client only when `ASPNETCORE_FORWARDEDHEADERS_ENABLED` is `true`.
+
+Every target that you set receives both. Set the retention of each target for personal data.
+Both are on by default. To switch one off, set `Telemetry__EndUserId` or `Telemetry__ClientAddress` to `false`.
+The telemetry holds no other personal data:
 - Requests show the route template, such as `/api/people/{id}`. They show no path with ids and no query string.
 - Database calls show no statement text.
-- Headroom adds no Person id, name or email to spans, logs or log scopes.
+- Headroom adds no name or email to spans, logs or log scopes.
 - Headroom does not log Login codes or email addresses.
 
 Headroom exports every trace. It does not sample. If the volume grows, add tail-based sampling in an OpenTelemetry Collector.
