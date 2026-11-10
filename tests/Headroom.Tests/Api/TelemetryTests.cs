@@ -102,7 +102,7 @@ public class TelemetryTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
             db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = person.Id });
             db.People.Add(person);
-            db.AccessTokens.Add(new AccessToken { Name = "Claude", PersonId = person.Id, TokenHash = AccessTokenAuth.Hash(secret), LastChangedBy = person.Id });
+            db.AccessTokens.Add(new AccessToken { Name = "Claude", PersonId = person.Id, CanChange = true, TokenHash = AccessTokenAuth.Hash(secret), LastChangedBy = person.Id });
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -110,7 +110,16 @@ public class TelemetryTests : IAsyncLifetime
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secret);
         var transport = new HttpClientTransport(new HttpClientTransportOptions { Endpoint = new Uri("https://localhost/mcp") }, http, ownsHttpClient: true);
         await using (var mcp = await McpClient.CreateAsync(transport, McpTests.ClientOptions(), cancellationToken: TestContext.Current.CancellationToken))
+        {
             await mcp.CallToolAsync("get_me", cancellationToken: TestContext.Current.CancellationToken);
+            // A refused call sends a name and an email as arguments. Neither may reach a span, also on the error path.
+            var refused = await mcp.CallToolAsync("add_person", new Dictionary<string, object?>
+            {
+                ["name"] = Name, ["email"] = Email, ["isPlanner"] = false, ["startDate"] = "2026-03-01",
+                ["hours"] = new Dictionary<string, object?> { ["monday"] = 8 },
+            }, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.True(refused.IsError);
+        }
 
         await FlushAndStopAsync(factory);
         var spans = _spans.Snapshot();

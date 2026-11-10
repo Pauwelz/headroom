@@ -13,10 +13,10 @@ public static class HeadroomTelemetry
     public const string Name = "Headroom";
 
     public const string ConnectionStringKey = "APPLICATIONINSIGHTS_CONNECTION_STRING";
-    // The MCP SDK's own source: one span per MCP call, with the tool name. Checked against ModelContextProtocol.Core 2.3.1.
-    internal const string McpSourceName = "Experimental.ModelContextProtocol";
-
     public const string OtlpEndpointKey = "OTEL_EXPORTER_OTLP_ENDPOINT";
+
+    // The MCP SDK's own source: one span per MCP call, with the tool name. TelemetryTests fails if the SDK renames it.
+    internal const string McpSourceName = "Experimental.ModelContextProtocol";
 
     // OTLP is on when the general endpoint or the endpoint of one signal is set.
     internal static readonly string[] OtlpEndpointKeys =
