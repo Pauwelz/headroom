@@ -80,5 +80,5 @@ For example, a Power Automate flow can post to Teams.
   After 24 hours Headroom stops retrying.
   Settings lists the newest 50 failed Events per Webhook, with the last error.
 - An Event can arrive more than once. Receivers must use `webhook-id` to ignore repeats.
-- Events that Headroom sent before **Erase personal details** keep the name at the receiver.
+- Events that Headroom sent before a **Delete** keep the name at the receiver.
   Headroom cannot recall them.

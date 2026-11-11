@@ -15,12 +15,17 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Delete replaces Erase personal details. A Planner can delete a Person at any time. Delete removes the Person with their Contracts, Allocations, Time off, Passkeys, Access tokens and Connections. Headroom sends a deleted Event for each Allocation and Time off, with no name and no email. The dialog shows what goes. Past Utilisation and Project hours drop. "Last changed by" keeps the id and shows "a deleted Person". The daily check deletes a Person 12 months after the end date. See ADR 0019.
 - The user guide and the in-app Help have new screenshots. They now describe the Passkey offer after login and the Time off item in the side drawer.
 
 ### Deprecated
 
 - `Telemetry__EndUserId` and `Telemetry__ClientAddress` are now a fallback for the Settings section. A later release removes them.
 - The `Smtp__*` variables are now a fallback for the Settings section. A later release removes them.
+
+### Removed
+
+- Erase personal details: the erase endpoint, the dialog, the "Former Person N" name, the Erased status and the erase counter. The columns `People.ErasedNumber` and `InstanceSettings.ErasedCount` stay unused. A later release drops them.
 
 ## [0.5.0] - 2026-11-10
 

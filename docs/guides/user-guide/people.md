@@ -9,8 +9,7 @@ The detail panel for the selected Person is on the right.
 
 - Search finds a name or email.
 - The filter **Current** (the default) shows Active, Starts later and Leaving.
-  **Left** shows Left and Erased. **All** shows everyone.
-- Erased People show as "Former Person N".
+  **Left** shows Left. **All** shows everyone.
 
 Status values:
 
@@ -20,7 +19,6 @@ Status values:
 | Starts later | The first Contract starts after today |
 | Leaving | The end date is today or later |
 | Left | The end date is before today |
-| Erased | Personal details are removed |
 
 ## Add a Person
 
@@ -35,7 +33,7 @@ Status values:
 
 - **Edit name or email** changes the name or email.
 - The Planner checkbox gives or removes the Planner right. Any Planner can do this, also for themselves.
-- The last Planner who can log in cannot lose the flag, get an end date, be erased or be deleted. Make another Person a Planner first.
+- The last Planner who can log in cannot lose the flag, get an end date, or be deleted. Make another Person a Planner first.
 - The card shows the hours that apply now.
 
 ## Contracts card
@@ -62,18 +60,15 @@ The card explains the status in a sentence. It shows the last change and who mad
   ![The Set end date dialog with the records that Headroom cuts](images/people-end-date.png)
 
 - **Remove end date.** Possible while the end date is today or later. After that, use Rehire.
-- **Rehire.** For a Person who has left and is not erased. The dialog asks for a return date and Contract hours.
+- **Rehire.** For a Person who has left. The dialog asks for a return date and Contract hours.
   Headroom adds a Contract with 0 hours for the gap, adds the new Contract from the return date,
   and clears the end date. This works for employees and freelancers.
   A freelancer between engagements has an end date, so they cannot log in. Capacity is 0 in the gap.
-- **Erase personal details.** Removes the name and email. It also deletes the Connections of the Person.
-  Contracts, Time off and Allocations stay, under the name "Former Person N".
+- **Delete.** Removes the Person at any time, also before the end date.
+  The dialog shows what goes, for example "3 Contracts, 41 Allocations and 12 Time off".
+  Delete also removes the Passkeys, Access tokens and Connections of the Person.
+  Headroom sends a deleted Event for each removed Allocation and Time off, with no name and no email.
   It also blanks the name and email inside stored Webhook Events.
-  The result is not anonymous: colleagues can still tell who it was. You cannot undo it.
-  The Person loses the Planner flag and cannot be rehired. A return creates a new Person.
-  Headroom also does this by itself 12 months after the end date.
-  A Planner can do it earlier when the end date is today or earlier.
-  Tick "I understand" in the dialog.
-- **Delete.** Possible only when no Allocation, no Time off and no "last changed by" refers to the Person.
-  In all other cases, set an end date.
-
+  Past Utilisation and Project hours drop. You cannot undo a Delete.
+  Other records keep the id in "Last changed by". The Employment card then shows "a deleted Person".
+  Headroom also deletes a Person by itself 12 months after the end date.

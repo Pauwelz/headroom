@@ -36,9 +36,8 @@ gh attestation verify oci://ghcr.io/pauwelz/headroom:<version> --owner Pauwelz
 
 ### One replica
 
-Run exactly one replica. Each replica runs the daily erase (`ErasureCheck.cs`).
-The erase counter has no concurrency check (`PersonEraser.cs`).
-Two replicas that erase at the same time can give two Persons the same "Former Person N".
+Run exactly one replica. Each replica runs the daily delete (`DailyDeleteCheck.cs`).
+Two replicas that delete the same Person at the same time can make one of the two requests fail.
 The app may scale to zero when idle: the first request after that is slow (see ADR 0004).
 Sending Webhook Events is safe with more replicas, because a replica claims an Event before it sends.
 OAuth tokens and login cookies use the Data Protection key ring in the database, so they work on every replica.
@@ -174,8 +173,8 @@ Headroom has no export feature. The Operator makes a dump with `pg_dump`.
 The file holds personal data. Store it with care.
 
 A Planner answers an access request for one Person by hand.
-A request for full erasure, including Time off, is also handled by hand.
-Headroom erases personal details automatically 12 months after the end date.
+A Planner answers a request for erasure with Delete. Delete removes the Person with their Contracts, Allocations and Time off.
+Headroom also deletes a Person automatically 12 months after the end date.
 Your database host sets how long backups keep data.
 
 ## Delete the Instance
@@ -191,7 +190,6 @@ After those dates, nobody can log in and nobody can change the Instance.
 Then the Operator sets the Planner flag and clears the end date in the database.
 
 The columns `IsPlanner` and `EndDate` are in the table `People`.
-An erased Person has no email and cannot log in. Choose a Person who is not erased.
 
 1. Allow your IP address to connect to the PostgreSQL server.
 2. Connect to the database `<database>` with an account that can write to it.
