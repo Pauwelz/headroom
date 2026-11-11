@@ -13,10 +13,28 @@ public class FakeEmailSender : IEmailSender
 {
     public List<(string To, string Company, string Code)> Sent { get; } = [];
 
-    public Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct)
+    // The server a login code went through, by address. Null: the registered server.
+    public Dictionary<string, SmtpOptions?> CodeServers { get; } = [];
+    public bool CodeFails { get; set; }
+    public bool CodeHangs { get; set; }
+
+    public async Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct, SmtpOptions? server = null)
     {
+        if (CodeHangs) await Task.Delay(Timeout.Infinite, ct);
+        if (CodeFails) throw new InvalidOperationException("refused for secret@example.com");
+        CodeServers[toAddress] = server;
         Sent.Add((toAddress, companyName, code));
-        return Task.CompletedTask;
+    }
+
+    public List<(SmtpOptions Server, string To)> TestSent { get; } = [];
+    public bool TestFails { get; set; }
+    public bool TestHangs { get; set; }
+
+    public async Task SendTestAsync(SmtpOptions server, string toAddress, string companyName, CancellationToken ct)
+    {
+        if (TestHangs) await Task.Delay(Timeout.Infinite, ct);
+        if (TestFails) throw new InvalidOperationException("refused for secret@example.com");
+        TestSent.Add((server, toAddress));
     }
 }
 

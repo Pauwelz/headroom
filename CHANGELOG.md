@@ -9,6 +9,12 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Settings: a Planner can change the company name. See ADR 0017.
+- A Planner sets the email server in Settings (Instance, Email server). Headroom encrypts the password and saves new settings only after a test email to the Planner succeeds.
+- The first-run screen asks for the email server before it sends the login code. Headroom skips this step when `Smtp__Host` is set, and in Development.
+
+### Deprecated
+
+- The `Smtp__*` variables are now a fallback for the Settings section. A later release removes them.
 
 ## [0.5.0] - 2026-11-10
 

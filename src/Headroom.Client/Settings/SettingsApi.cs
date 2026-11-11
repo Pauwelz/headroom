@@ -84,6 +84,15 @@ public class SettingsApi(HttpClient http)
 
     public async Task<string?> DeleteConnectedAppAsync(string id) => await ErrorOf(await http.DeleteAsync($"{ConnectedAppPath}/{id}"));
 
+    private const string EmailServerPath = "api/settings/email-server";
+
+    public async Task<EmailServerResponse> GetEmailServerAsync() =>
+        (await http.GetFromJsonAsync<EmailServerResponse>(EmailServerPath))!;
+
+    // Returns null on success, or the server's error text. The server sends a test email first.
+    public async Task<string?> SaveEmailServerAsync(EmailServerRequest request) =>
+        await ApiCall.SendAsync(http.PutAsJsonAsync(EmailServerPath, request));
+
     private static async Task<(CreatedConnectedAppResponse?, string?)> ReadCreatedAsync(HttpResponseMessage response) =>
         response.IsSuccessStatusCode
             ? (await response.Content.ReadFromJsonAsync<CreatedConnectedAppResponse>(), null)

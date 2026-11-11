@@ -15,6 +15,8 @@
         <MudText Typo="Typo.subtitle2">Company</MudText>
         <a href="settings#company-name">Company name</a>
         <a href="settings#days-off">Company days off</a>
+        <MudText Typo="Typo.subtitle2" Class="mt-3">Instance</MudText>
+        <a href="settings#email-server">Email server</a>
         <MudText Typo="Typo.subtitle2" Class="mt-3">Access and integrations</MudText>
         <a href="settings#tokens">Access tokens @Badge(_expiringSoon, SettingsSummary.TokensExpiringSoonLabel(_expiringSoon))</a>
         <a href="settings#apps">Connected apps</a>
@@ -28,6 +30,10 @@
         <CompanyNameSection />
 
         <CompanyDaysOffSection />
+
+        <MudText Typo="Typo.h5" Class="mb-2 mt-6">Instance</MudText>
+
+        <EmailServerSection />
 
         <MudText Typo="Typo.h5" Class="mb-2 mt-6">Access and integrations</MudText>
 
