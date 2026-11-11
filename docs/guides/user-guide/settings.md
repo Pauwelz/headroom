@@ -10,7 +10,8 @@ The page has two groups: **Company** and **Access and integrations**.
 - **Company name** and **Connected apps** start collapsed. Click the arrow to show them.
   Connected apps stays open while it shows a new secret, an error or an Edit row.
 
-- **Company name.** You cannot change it. The first-run screen set it.
+- **Company name.** The first-run screen sets it. Enter a new name and click **Save**.
+  The login page, the app bar and the sender of the login email show the new name.
 - **Company days off.** A Company day off is a day on which nobody works.
   It reduces Capacity like a public holiday.
   Use the arrows to change the year.
