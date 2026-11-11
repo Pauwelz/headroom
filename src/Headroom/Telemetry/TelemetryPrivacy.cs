@@ -26,8 +26,8 @@ public class TelemetryPrivacy(IMemoryCache cache, IConfiguration configuration)
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {
-            // Telemetry must not fail a request. Without the database, use Telemetry__* or on, and cache nothing.
-            return From(null, null);
+            // Telemetry must not fail a request. Without the database, a stored switch-off is unknown, so send neither value. Cache nothing.
+            return (false, false);
         }
     }
 
