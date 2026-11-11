@@ -8,8 +8,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 
 namespace Headroom.Endpoints;
@@ -177,7 +175,7 @@ public static class FirstRunEndpoints
         AddFirstPlanner(db, person, settings, BrusselsTime.Today(time));
         await db.SaveChangesAsync(ct);
 
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        await LoginEndpoints.SignInAsync(http, person);
         LoginEndpoints.MarkPasskeyOffer(http);
         return Results.Redirect("/");
     }

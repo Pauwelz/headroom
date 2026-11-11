@@ -72,7 +72,7 @@ public static class CompanyLoginCallback
         var providerChanged = row.CompanyLoginKind != pending.Kind || row.CompanyLoginIssuer != pending.Issuer;
         if (providerChanged)
         {
-            if (identity.Email != planner.Email) return ReturnUrl(pending, CompanyLoginOutcome.NotYou);
+            if (!string.Equals(identity.Email, planner.Email, StringComparison.OrdinalIgnoreCase)) return ReturnUrl(pending, CompanyLoginOutcome.NotYou);
             (planner.CompanyLoginIssuer, planner.CompanyLoginSubject) = (identity.Issuer, identity.Subject);
             await db.People.Where(p => p.Id != planner.Id)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.CompanyLoginIssuer, (string?)null).SetProperty(x => x.CompanyLoginSubject, (string?)null));
