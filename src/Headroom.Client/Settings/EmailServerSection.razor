@@ -1,0 +1,58 @@
+@inject SettingsApi Api
+
+<SettingsSection Id="email-server" Title="Email server" Summary="@Summary">
+    <MudText Typo="Typo.body2" Class="mb-2">
+        Headroom sends Login codes through this server. Before it saves a change, Headroom sends a test email to you.
+        If the test fails, Headroom keeps the old settings.
+    </MudText>
+
+    @if (_error is not null)
+    {
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
+    }
+    @if (_saved)
+    {
+        <SettingsAlert Severity="Severity.Success" OnClose="() => _saved = false">Saved. Check your inbox for the test email.</SettingsAlert>
+    }
+
+    <MudTextField @bind-Value="_host" Label="Host" MaxLength="253" Immediate="true" Required="true" Class="mb-2" />
+    <MudNumericField @bind-Value="_port" Label="Port" Min="1" Max="65535" Class="mb-2" />
+    <MudTextField @bind-Value="_username" Label="User name" MaxLength="254" Immediate="true" Class="mb-2" />
+    <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" MaxLength="1000" Immediate="true"
+                  HelperText="@(_hasPassword ? "Stored. Leave empty to keep it." : null)" Class="mb-2" />
+    <MudTextField @bind-Value="_from" Label="From address" MaxLength="254" Immediate="true" Required="true" Class="mb-2" />
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync"
+               Disabled="@(_busy || string.IsNullOrWhiteSpace(_host) || string.IsNullOrWhiteSpace(_from))">
+        @(_busy ? "Sending a test email…" : "Save")
+    </MudButton>
+</SettingsSection>
+
+@code {
+    private string _host = "", _username = "", _password = "", _from = "";
+    private int _port = 587;
+    private bool _hasPassword, _usesEnvironment, _busy, _saved;
+    private string? _error;
+    private string? _storedHost;
+
+    private string Summary => _storedHost ?? (_usesEnvironment ? "The Operator's server" : "Not set");
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var server = await Api.GetEmailServerAsync();
+        (_storedHost, _host, _port, _username, _from) = (server.Host, server.Host ?? "", server.Port, server.Username ?? "", server.FromAddress ?? "");
+        (_hasPassword, _usesEnvironment, _password) = (server.HasPassword, server.UsesEnvironment, "");
+    }
+
+    private async Task SaveAsync()
+    {
+        (_busy, _error, _saved) = (true, null, false);
+        _error = await Api.SaveEmailServerAsync(new EmailServerRequest(_host, _port, _username, _password, _from));
+        _busy = false;
+        if (_error is not null) return;
+        _saved = true;
+        await LoadAsync();
+    }
+}
