@@ -9,7 +9,7 @@ One installation of the tool with its own data, used by one company.
 _Avoid_: Tenant, workspace
 
 **Operator**:
-Whoever installs, upgrades and restores an Instance in the company's own cloud subscription. It can be the company's IT, a partner or us. An Operator is not a Planner and does not need to be a Person in the Instance.
+Whoever installs, upgrades and restores an Instance in the company's own cloud subscription. It can be the company's IT, a partner or us. An Operator is not a Planner and does not need to be a Person in the Instance. The Operator sets what the Instance needs to start, such as the database and the public URL. Planners set everything else in Settings.
 _Avoid_: Admin, installer, host
 
 **Test Instance**:
@@ -25,7 +25,7 @@ Someone who works for the company, as an employee or a freelancer, and can be sc
 _Avoid_: Resource, employee, user
 
 **Planner**:
-A Person who can create and change Allocations, and the Time off of every Person. Usually a managing partner. Other People view the schedule and manage only their own Time off.
+A Person who can create and change Allocations, the Time off of every Person, and the Settings of the Instance, such as the email server. Usually a managing partner. Other People view the schedule and manage only their own Time off.
 _Avoid_: Resource manager, scheduler, admin
 
 **Client**:
