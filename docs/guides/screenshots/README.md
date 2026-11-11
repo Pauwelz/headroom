@@ -20,4 +20,4 @@ They use the demo data of `--seed`, a fixed 1280×800 viewport and the light the
 The app allows 3 codes for each email in 15 minutes.
 `pages.mjs` takes one screenshot when you give its name, for example `node pages.mjs projects`.
 Set `CHROMIUM` when Chromium is not at `/usr/bin/chromium`, and `MAILPIT` when Mailpit is not at `http://localhost:8025`.
-`consent.png`, `account-connections.png`, `settings-connected-apps.png` and `settings-connections.png` need a Connected app and a Connection. The scripts do not take them.
+`account-connections.png`, `settings-connected-apps.png` and `settings-connections.png` need a Connected app and a Connection. The scripts do not take them.
