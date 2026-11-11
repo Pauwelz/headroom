@@ -30,4 +30,8 @@ public class InstanceSettings : Record
 
     // Data Protection ciphertext, never plain text.
     public string? CompanyLoginClientSecret { get; set; }
+
+    // While the switch is on, Company login is the only login for an email in one of the domains. Lower case, exact match.
+    public bool CompanyLoginOnly { get; set; }
+    public string[] CompanyDomains { get; set; } = [];
 }

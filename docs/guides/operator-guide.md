@@ -160,6 +160,17 @@ The key ring that decrypts the password is in the same database.
 If you restore the database without its key ring, Headroom cannot decrypt the password. Then all Login codes fail.
 Run the SQL statement above to clear the settings, and set them again in Settings.
 
+## Company login only
+
+A Planner can make Company login the only login for company email domains. If the provider breaks, nobody in those domains can log in.
+To turn the switch off, run this SQL statement:
+
+```sql
+UPDATE "InstanceSettings" SET "CompanyLoginOnly" = false;
+```
+
+Login codes work again for every email. No restart is needed. Headroom does not bring back the Passkeys that it deleted.
+
 ## Export
 
 Headroom has no export feature. The Operator makes a dump with `pg_dump`.

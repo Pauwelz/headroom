@@ -27,6 +27,7 @@ public static class PasskeyEndpoints
     private static async Task<IResult> Options(HttpContext http, HeadroomDbContext db, PasskeyCeremony ceremony)
     {
         var person = await MeEndpoints.OfCallerAsync(http, db);
+        if (await CompanyLoginOnlyRefusal(db, person) is { } refusal) return refusal;
         var existing = await db.Passkeys.AsNoTracking().Where(p => p.PersonId == person.Id).ToListAsync();
         return Results.Content(ceremony.BeginRegistration(http, person, existing, Path), "application/json");
     }
@@ -35,6 +36,7 @@ public static class PasskeyEndpoints
     private static async Task<IResult> Save(HttpContext http, HeadroomDbContext db, PasskeyCeremony ceremony, TimeProvider time)
     {
         var person = await MeEndpoints.OfCallerAsync(http, db);
+        if (await CompanyLoginOnlyRefusal(db, person) is { } refusal) return refusal;
         using var reader = new StreamReader(http.Request.Body);
         var credential = await ceremony.CompleteRegistrationAsync(http, person, await reader.ReadToEndAsync(), Path, db);
         if (credential is null) return ApiProblem.Problem(400, "Headroom could not save this Passkey. Try again.");
@@ -53,6 +55,11 @@ public static class PasskeyEndpoints
         await db.SaveChangesAsync();
         return Results.NoContent();
     }
+
+    private static async Task<IResult?> CompanyLoginOnlyRefusal(HeadroomDbContext db, Person person) =>
+        await CompanyLoginOnly.MatchAsync(db, person.Email) is { } domain
+            ? ApiProblem.Problem(403, $"Use Company login for @{domain}. A Passkey is not allowed for this email.")
+            : null;
 
     private static async Task<IResult> Remove(Guid id, HttpContext http, HeadroomDbContext db) =>
         await db.Passkeys.Where(p => p.Id == id && p.PersonId == http.User.PersonId()).ExecuteDeleteAsync() == 0

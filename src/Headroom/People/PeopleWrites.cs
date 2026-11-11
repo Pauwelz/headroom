@@ -1,3 +1,4 @@
+using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Endpoints;
@@ -48,6 +49,7 @@ public static class PeopleWrites
         person.IsPlanner = request.IsPlanner;
         person.LastChangedBy = by;
         await db.SaveChangesAsync();
+        await CompanyLoginOnly.DeletePasskeysAsync(db, person.Id); // the new email may be in a company domain
         return (person, null);
     }
 

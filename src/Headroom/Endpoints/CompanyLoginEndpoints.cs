@@ -20,6 +20,9 @@ public static class CompanyLoginEndpoints
         group.MapGet("/", Get);
         group.MapPut("/", Save);
         group.MapDelete("/", Remove);
+        var only = api.MapGroup("/settings/company-login-only").RequireAuthorization(AccessTokenAuth.NoTokenPolicy, PlannerPolicy.Name);
+        only.MapGet("/", GetOnly);
+        only.MapPut("/", SaveOnly);
     }
 
     public static void MapCompanyLoginEndpoints(this IEndpointRouteBuilder app)
@@ -67,9 +70,36 @@ public static class CompanyLoginEndpoints
     {
         var row = await db.InstanceSettings.FirstAsync();
         (row.CompanyLoginKind, row.CompanyLoginIssuer, row.CompanyLoginClientId, row.CompanyLoginClientSecret) = (null, null, null, null);
+        row.CompanyLoginOnly = false; // without a Company login, nobody could log in
         row.LastChangedBy = http.User.PersonId();
         await db.People.ExecuteUpdateAsync(p => p.SetProperty(x => x.CompanyLoginIssuer, (string?)null).SetProperty(x => x.CompanyLoginSubject, (string?)null));
         await db.SaveChangesAsync();
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> GetOnly(HeadroomDbContext db)
+    {
+        var row = await db.InstanceSettings.AsNoTracking().FirstAsync();
+        return Results.Ok(new CompanyLoginOnlyResponse(row.CompanyLoginOnly, [.. row.CompanyDomains]));
+    }
+
+    // Turning the switch on, or adding a domain, deletes the Passkeys that the rule now covers. There is no confirmation step.
+    private static async Task<IResult> SaveOnly(CompanyLoginOnlyRequest request, HttpContext http, HeadroomDbContext db)
+    {
+        var domains = request.Domains.Select(CompanyLoginOnly.CleanDomain).ToList();
+        if (domains.Contains(null)) return Problem(400, "Enter each domain as a name such as example.com, without @ or *.");
+
+        var row = await db.InstanceSettings.FirstAsync();
+        if (request.On)
+        {
+            if (row.CompanyLoginKind is null) return Problem(409, "Set up Company login first.");
+            // The guard against a lockout: no Planner is exempt, so this Planner must be able to log in with Company login.
+            var planner = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Id == http.User.PersonId());
+            if (planner?.CompanyLoginSubject is null) return Problem(409, "Log in with Company login once before you turn this on. Until then, you could lock yourself out.");
+        }
+        (row.CompanyLoginOnly, row.CompanyDomains, row.LastChangedBy) = (request.On, [.. domains.Distinct().Select(d => d!)], http.User.PersonId());
+        await db.SaveChangesAsync();
+        await CompanyLoginOnly.DeletePasskeysAsync(db);
         return Results.NoContent();
     }
 

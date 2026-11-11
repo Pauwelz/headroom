@@ -1,0 +1,42 @@
+@using Headroom.Client.Api
+@inject SettingsApi Api
+
+<SettingsSection Id="company-login-only" Title="Company login only" Summary="@(_on ? "On" : "Off")">
+    <MudText Typo="Typo.body2" Class="mb-2">
+        When this is on, people with an email in these domains log in with Company login only.
+        Headroom sends them no Login code, refuses their Passkeys and deletes the Passkeys they have.
+    </MudText>
+
+    @if (_message is not null)
+    {
+        <SettingsAlert Severity="@(_saved ? Severity.Success : Severity.Error)" OnClose="() => _message = null">@_message</SettingsAlert>
+    }
+
+    <MudTextField @bind-Value="_domains" Label="Domains" Lines="3" Immediate="true" Class="mb-2"
+                  HelperText="Add every domain people use to log in, including aliases." />
+    <MudSwitch T="bool" @bind-Value="_on" Label="Company login only" Color="Color.Primary" />
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Save</MudButton>
+</SettingsSection>
+
+@code {
+    private bool _on, _busy, _saved;
+    private string _domains = "";
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await Api.GetCompanyLoginOnlyAsync();
+        (_on, _domains) = (settings.On, string.Join("\n", settings.Domains));
+    }
+
+    private async Task SaveAsync()
+    {
+        (_busy, _message, _saved) = (true, null, false);
+        var domains = _domains.Split(['\n', ',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        _message = await Api.SaveCompanyLoginOnlyAsync(new CompanyLoginOnlyRequest(_on, [.. domains]));
+        _busy = false;
+        _saved = _message is null;
+        if (_saved) _message = "Saved.";
+    }
+}
