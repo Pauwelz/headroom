@@ -7,8 +7,14 @@ public static class LoginPages
 {
     private static readonly string[] Steps = ["Email", "Code from email"];
 
-    public static string Email(string token, string company, string? error, string email, string returnUrl) =>
+    public static string Email(string token, string company, string? error, string email, string returnUrl, bool companyLogin = false) =>
         FirstRunPages.Layout("Log in", error, Steps, 0, company, $$"""
+            {{(companyLogin ? $"""
+            <form method="get" action="{CompanyLogin.StartPath}">
+              {FirstRunPages.Hidden("returnUrl", returnUrl)}
+              <button>Company login</button>
+            </form>
+            """ : "")}}
             <form method="post" action="/login">
               {{FirstRunPages.Hidden("__RequestVerificationToken", token)}}{{FirstRunPages.Hidden("ReturnUrl", returnUrl)}}
               <label>Email <input name="email" type="email" value="{{FirstRunPages.E(email)}}" maxlength="254" autocomplete="username webauthn" required autofocus></label>

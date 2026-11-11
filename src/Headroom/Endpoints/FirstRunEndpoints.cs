@@ -24,10 +24,48 @@ public static class FirstRunEndpoints
         group.MapPost("/", SendCode);
         group.MapPost("/server", SendServerCode);
         group.MapPost("/verify", VerifyCode);
+        group.MapPost("/company-login", ShowCompanyLogin);
+        group.MapPost("/company-login/test", StartCompanyLogin);
     }
 
     private static async Task<IResult> ShowForm(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, IOptions<SmtpOptions> smtp, IHostEnvironment env) =>
-        await IsClosed(db) ? Results.NotFound() : FirstRunPages.Page(FirstRunPages.Form(Token(http, antiforgery), null, "", "", "", AsksForServer(env, smtp)));
+        await IsClosed(db) ? Results.NotFound() : FirstRunPages.Page(FirstRunPages.Form(Token(http, antiforgery), OutcomeError(http), "", "", "", AsksForServer(env, smtp)));
+
+    // A test login with the Company login sends the browser back here with its outcome.
+    private static string? OutcomeError(HttpContext http) =>
+        http.Request.Query["companyLogin"].ToString() is { Length: > 0 } outcome ? CompanyLoginOutcome.Message(outcome) : null;
+
+    private static string RedirectUri(HttpContext http) => $"{http.Request.Scheme}://{http.Request.Host}{CompanyLogin.CallbackPath}";
+
+    private static readonly FirstRunPages.CompanyLoginForm DefaultCompanyLoginForm = new("Entra", "", "");
+
+    // The test login creates the first Planner from the token. It needs only the company name.
+    private static async Task<IResult> ShowCompanyLogin(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, IFormCollection form)
+    {
+        if (await IsClosed(db)) return Results.NotFound();
+        var company = form["company"].ToString().Trim();
+        var token = Token(http, antiforgery);
+        return company.Length is 0 or > 200
+            ? FirstRunPages.Page(FirstRunPages.Form(token, "Enter a company name of 1 to 200 characters.", company, "", ""), 400)
+            : FirstRunPages.Page(FirstRunPages.CompanyLogin(token, null, company, DefaultCompanyLoginForm, RedirectUri(http)));
+    }
+
+    // Headroom stores nothing until the test login succeeds. The values wait in a cookie.
+    private static async Task<IResult> StartCompanyLogin(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, IFormCollection form)
+    {
+        if (await IsClosed(db)) return Results.NotFound();
+        var company = form["company"].ToString().Trim();
+        if (company.Length is 0 or > 200) return Results.Redirect("/first-run");
+        var request = new CompanyLoginRequest(
+            Enum.TryParse<CompanyLoginKind>(form["kind"], out var kind) ? kind : (CompanyLoginKind)(-1),
+            form["issuer"].ToString().Trim(), form["clientId"].ToString().Trim(), form["clientSecret"].ToString());
+        var invalid = CompanyLoginEndpoints.Validate(request) ?? (request.ClientSecret!.Length == 0 ? "Enter the client secret." : null);
+        if (invalid is not null)
+            return FirstRunPages.Page(FirstRunPages.CompanyLogin(Token(http, antiforgery), invalid, company,
+                new(request.Kind.ToString(), request.Issuer, request.ClientId), RedirectUri(http)), 400);
+        new CompanyLogin.Pending(request.Kind, request.Issuer, request.ClientId, request.ClientSecret!, null, company).Write(http);
+        return Results.Redirect(CompanyLogin.TestPath);
+    }
 
     // Development logs the code. Smtp__Host is a fallback. Neither needs the Email server step.
     private static bool AsksForServer(IHostEnvironment env, IOptions<SmtpOptions> smtp) =>

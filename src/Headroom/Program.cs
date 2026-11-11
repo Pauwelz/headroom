@@ -88,6 +88,7 @@ app.MapApi();
 app.MapHeadroomMcp();
 app.MapFirstRunEndpoints();
 app.MapLoginEndpoints();
+app.MapCompanyLoginEndpoints();
 app.MapOAuthEndpoints();
 // The server redirects a logged-out visitor to /login before it sends the app shell.
 app.MapRazorComponents<App>()

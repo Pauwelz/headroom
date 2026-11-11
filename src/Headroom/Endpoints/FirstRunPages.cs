@@ -12,6 +12,7 @@ namespace Headroom.Endpoints;
 public static class FirstRunPages
 {
     private static readonly string[] Steps = ["Company and first Planner", "Code from email"];
+    private static readonly string[] StepsCompanyLogin = ["Company", "Company login", "Test login"];
     private static readonly string[] StepsWithServer = ["Company and first Planner", "Email server", "Code from email"];
 
     // The values that the Email server step shows again. The password is never in it.
@@ -27,8 +28,31 @@ public static class FirstRunPages
               <label>Name of the first Planner <input name="name" value="{{E(name)}}" maxlength="200" required></label>
               <label>Email of the first Planner <input name="email" type="email" value="{{E(email)}}" maxlength="254" required></label>
               <button>{{(withServer ? "Next" : "Send code")}}</button>
+              <button formaction="/first-run/company-login" formnovalidate>Set up Company login instead</button>
             </form>
             """);
+
+    // The values that the Company login step shows again. The client secret is never in it.
+    public record CompanyLoginForm(string Kind, string Issuer, string ClientId);
+
+    public static string CompanyLogin(string token, string? error, string company, CompanyLoginForm form, string redirectUri) =>
+        Layout("Set up Company login", error, StepsCompanyLogin, 1, null, $$"""
+            <p class="hint">People log in with your identity provider. Headroom tests it with a login of the first Planner. Register this redirect URI at the provider: <strong>{{E(redirectUri)}}</strong></p>
+            <form method="post" action="/first-run/company-login/test">
+              {{Hidden("__RequestVerificationToken", token)}}{{Hidden("company", company)}}
+              <label>Kind
+                <select name="kind">
+                  <option value="Entra"{{Selected(form.Kind == "Entra")}}>Microsoft Entra ID</option>
+                  <option value="Other"{{Selected(form.Kind == "Other")}}>Other OpenID Connect</option>
+                </select></label>
+              <label>Issuer URL <input name="issuer" value="{{E(form.Issuer)}}" maxlength="500" required autofocus></label>
+              <label>Client ID <input name="clientId" value="{{E(form.ClientId)}}" maxlength="200" required></label>
+              <label>Client secret <input name="clientSecret" type="password" maxlength="1000" autocomplete="off" required></label>
+              <button>Test login</button>
+            </form>
+            """);
+
+    private static string Selected(bool selected) => selected ? " selected" : "";
 
     public static string Server(string token, string? error, string company, string name, string email, ServerForm server) =>
         Layout("Set the email server", error, StepsWithServer, 1, null, $$"""
