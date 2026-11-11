@@ -37,7 +37,7 @@ public static class ConnectionEndpoints
             var owner = owners.GetValueOrDefault(r.Subject ?? "");
             // Scopes is a JSON array; a scope never holds a quote, so a quoted match is exact.
             var canChange = r.Scopes?.Contains($"\"{OAuthAuth.ChangeScope}\"") == true;
-            return new ConnectionResponse(r.Id!, r.App!, owner?.DisplayName ?? "", Utc(r.CreationDate), r.LastUsed is { } used ? Utc(used) : null, canChange);
+            return new ConnectionResponse(r.Id!, r.App!, owner?.Name ?? "", Utc(r.CreationDate), r.LastUsed is { } used ? Utc(used) : null, canChange);
         }));
     }
 

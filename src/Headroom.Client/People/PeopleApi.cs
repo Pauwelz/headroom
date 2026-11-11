@@ -40,14 +40,11 @@ public class PeopleApi(HttpClient http)
     public async Task RehireAsync(Guid personId, RehireRequest request) =>
         await Read<PersonResponse>(await http.PostAsJsonAsync($"api/people/{personId}/rehire", request));
 
-    public async Task<string?> DeleteReasonAsync(Guid personId) =>
-        (await Read<DeleteCheck>(await http.GetAsync($"api/people/{personId}/delete-check")))!.Reason;
+    public async Task<DeleteCheck> DeleteCheckAsync(Guid personId) =>
+        (await Read<DeleteCheck>(await http.GetAsync($"api/people/{personId}/delete-check")))!;
 
     public async Task DeleteAsync(Guid personId) =>
         await Read<object>(await http.DeleteAsync($"api/people/{personId}"));
-
-    public async Task EraseAsync(Guid personId) =>
-        await Read<PersonResponse>(await http.PostAsync($"api/people/{personId}/erase", null));
 
     private static async Task<T?> Read<T>(HttpResponseMessage response)
     {

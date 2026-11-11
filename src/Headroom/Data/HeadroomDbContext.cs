@@ -38,7 +38,6 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
             person.Property(p => p.Id).ValueGeneratedNever();
             person.Property(p => p.Name).HasMaxLength(200);
             person.Property(p => p.Email).HasMaxLength(254).UseCollation("case_insensitive");
-            // A unique index allows many nulls, so erased Persons (null email) do not clash.
             person.HasIndex(p => p.Email).IsUnique();
         });
         modelBuilder.Entity<Contract>(contract =>

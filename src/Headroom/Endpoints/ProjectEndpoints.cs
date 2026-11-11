@@ -55,7 +55,7 @@ public static class ProjectEndpoints
         var rows = await db.Allocations.AsNoTracking().Where(a => a.ProjectId == id)
             .Join(db.People, a => a.PersonId, p => p.Id, (a, p) => new { a, Person = p }).ToListAsync();
         return Results.Ok(rows.GroupBy(r => r.a.PersonId)
-            .Select(g => new ProjectPersonResponse("ProjectPerson", g.Key, g.First().Person.DisplayName,
+            .Select(g => new ProjectPersonResponse("ProjectPerson", g.Key, g.First().Person.Name,
                 g.OrderBy(r => r.a.StartDate).Select(r => new ScheduleAllocation(r.a.Id, r.a.StartDate, r.a.EndDate, r.a.Percentage)).ToList()))
             .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList());

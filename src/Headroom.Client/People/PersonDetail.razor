@@ -8,8 +8,7 @@
         <MudStack Row="true" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.h6">Details</MudText>
             <MudSpacer />
-            <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@(Person.Status == PersonStatus.Erased)"
-                       OnClick="EditAsync">Edit name or email</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="EditAsync">Edit name or email</MudButton>
         </MudStack>
         <MudText Typo="Typo.body1" Class="mt-2">@Person.Name</MudText>
         <MudText Typo="Typo.body2">@(Person.Email ?? "No email")</MudText>

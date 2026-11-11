@@ -169,7 +169,7 @@ public class PasskeyTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task ErasingPersonalDetailsDeletesThePasskeys()
+    public async Task DeletingAPersonDeletesThePasskeys()
     {
         var (client, xsrf) = await SignInAsync("pk-gus@example.com");
         using var authenticator = new TestAuthenticator();
@@ -178,7 +178,7 @@ public class PasskeyTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
         var gus = await db.People.SingleAsync(p => p.Email == "pk-gus@example.com", Ct);
-        await PersonEraser.EraseAsync(db, gus, null);
+        await PersonDeleter.DeleteAsync(db, gus);
 
         Assert.False(await db.Passkeys.AnyAsync(p => p.PersonId == gus.Id, Ct));
     }

@@ -10,8 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Headroom.Tests.Api;
 
-// Erase scrubs the Person from stored Events. The sweep deletes old finished Events.
-public class EraseEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
+// Delete blanks the Person in stored Events and records deleted Events. The sweep deletes old finished Events.
+public class DeleteEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private readonly FakeEmailSender _mail;
     private readonly TestClock _time;
@@ -20,7 +20,7 @@ public class EraseEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetim
     private HttpClient _planner = null!;
     private Guid _projectId;
 
-    public EraseEventsTests(ClockedHeadroomApp app)
+    public DeleteEventsTests(ClockedHeadroomApp app)
     {
         _factory = app.Factory;
         _mail = app.Mail;
@@ -51,22 +51,33 @@ public class EraseEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetim
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task EraseBlanksTheNameAndEmailInAllocationAndTimeOffEvents()
+    public async Task DeleteBlanksStoredEventsAndRecordsADeletedEventForEachRemovedRecord()
     {
         var (zed, name, email) = await PersonWithEvents();
         var before = await Payloads();
         Assert.Contains(before, p => p.Contains("headroom.Allocation") && p.Contains(name) && p.Contains(email));
         Assert.Contains(before, p => p.Contains("headroom.TimeOff") && p.Contains(name) && p.Contains(email));
 
-        await Run(db => db.People.Where(p => p.Id == zed).ExecuteUpdate(s => s.SetProperty(p => p.EndDate, new DateOnly(2026, 11, 1))));
-        var response = await _planner.PostAsync($"/api/people/{zed}/erase", null, TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var response = await _planner.DeleteAsync($"/api/people/{zed}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        AssertScrubbed(before.Count, await Payloads(), zed, name, email);
+        var after = await Payloads();
+        // The Allocation and the Time off each add one deleted Event.
+        Assert.Equal(before.Count + 2, after.Count);
+        Assert.Single(after, p => p.Contains("headroom.Allocation.deleted"));
+        Assert.Single(after, p => p.Contains("headroom.TimeOff.deleted"));
+        Assert.All(after, p =>
+        {
+            Assert.DoesNotContain(name, p);
+            Assert.DoesNotContain(email, p);
+            Assert.Contains($"\"personId\":\"{zed}\"", p);
+            Assert.Contains("\"personName\":\"\"", p);
+            Assert.Contains("\"personEmail\":null", p);
+        });
     }
 
     [Fact]
-    public async Task TheAutomaticEraseAlsoBlanksTheEvents()
+    public async Task TheDailyCheckAlsoRecordsAndBlanksTheEvents()
     {
         // The check runs once per day in each host, so this test starts its own.
         await using var host = _factory.WithWebHostBuilder(_ => { });
@@ -78,21 +89,10 @@ public class EraseEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetim
 
         await planner.GetAsync("/api/me", TestContext.Current.CancellationToken);
 
-        Assert.NotNull(await Run(db => db.People.Single(p => p.Id == zed).ErasedNumber));
-        AssertScrubbed(count, await Payloads(), zed, name, email);
-    }
-
-    [Fact]
-    public async Task DeleteBlanksTheNameAndEmailInTheEventsOfRemovedRecords()
-    {
-        var (zed, name, email) = await PersonWithEvents();
-        await Run(db => { db.Allocations.RemoveRange(db.Allocations.Where(a => a.PersonId == zed)); db.TimeOff.RemoveRange(db.TimeOff.Where(t => t.PersonId == zed)); });
-        var count = (await Payloads()).Count;
-
-        var response = await _planner.DeleteAsync($"/api/people/{zed}", TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
-        AssertScrubbed(count, await Payloads(), zed, name, email, placeholder: "\"personName\":\"\"");
+        Assert.Equal(0, await Run(db => db.People.Count(p => p.Id == zed)));
+        var after = await Payloads();
+        Assert.Equal(count + 2, after.Count);
+        Assert.All(after, p => { Assert.DoesNotContain(name, p); Assert.DoesNotContain(email, p); });
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class EraseEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetim
     }
 
     [Fact]
-    public async Task TheErasureCheckRunsTheSweep()
+    public async Task TheDailyCheckRunsTheSweep()
     {
         var now = _time.GetUtcNow();
         var hook = (await Run(db => db.Webhooks.Add(new Webhook { Name = "Flow", Url = "https://receiver.example.com/hook", Secret = EventSender.NewSecret() }).Entity.Id));
@@ -146,19 +146,6 @@ public class EraseEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetim
         await _planner.PostAsJsonAsync("/api/allocations", new CreateAllocationRequest(zed, _projectId, new(2026, 5, 4), new(2026, 5, 4), 50), TestContext.Current.CancellationToken);
         await _planner.PostAsJsonAsync($"/api/people/{zed}/time-off", new TimeOffRequest(new(2026, 4, 6), "morning", new(2026, 4, 7), "afternoon"), TestContext.Current.CancellationToken);
         return (zed, name, email);
-    }
-
-    // The Events still exist and still carry the personId: the details are blanked, not deleted.
-    private static void AssertScrubbed(int count, List<string> payloads, Guid personId, string name, string email, string placeholder = "Former Person")
-    {
-        Assert.Equal(count, payloads.Count);
-        Assert.All(payloads, p =>
-        {
-            Assert.DoesNotContain(name, p);
-            Assert.DoesNotContain(email, p);
-            Assert.Contains($"\"personId\":\"{personId}\"", p);
-            Assert.Contains(placeholder, p);
-        });
     }
 
     private Task<List<string>> Payloads() => Run(db => db.Events.AsNoTracking().Select(e => e.Payload).ToList());

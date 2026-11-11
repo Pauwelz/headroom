@@ -38,7 +38,7 @@ public static class TimeOffWrites
     {
         if (!MayWrite(actor, personId)) return (null, NotYours);
         var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Id == personId);
-        if (person is null || person.ErasedNumber is not null) return (null, NotFound);
+        if (person is null) return (null, NotFound);
         if (!TryParse(request, out var requested) || !TimeOffRules.IsValid(requested))
             return (null, new Refusal(400, "Time off must end after it starts."));
 

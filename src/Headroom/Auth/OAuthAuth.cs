@@ -21,13 +21,13 @@ public static class OAuthAuth
     public static string SelectBearerScheme(HttpRequest request) =>
         AccessTokenAuth.HasAccessTokenSecret(request) ? AccessTokenAuth.Scheme : Scheme;
 
-    // The Person of an OAuth subject, or null when the Person is unknown, erased or past their end date.
+    // The Person of an OAuth subject, or null when the Person is unknown or past their end date.
     // The token ticket (authorize, code exchange) and every call use this one rule, like AccessTokenAuth.Handler.
     public static async Task<Person?> ActivePersonAsync(HeadroomDbContext db, TimeProvider time, string? subject)
     {
         if (!Guid.TryParse(subject, out var id)) return null;
         var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
-        return person is null || person.ErasedNumber is not null || !person.CanLogIn(BrusselsTime.Today(time)) ? null : person;
+        return person is null || !person.CanLogIn(BrusselsTime.Today(time)) ? null : person;
     }
 
     // Validates the OAuth access token, then builds the same kind of principal as an Access token: the Person's id and role,

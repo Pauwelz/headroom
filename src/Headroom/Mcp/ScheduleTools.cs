@@ -43,15 +43,14 @@ public sealed class ScheduleTools
         return report ?? throw new McpException(error!);
     }
 
-    [McpServerTool(Name = "find_headroom", ReadOnly = true), Description("The People with free hours in a period: Capacity minus allocated hours, more than 'hours' (default above zero). Tentative Allocations count as allocated. The range is at most 190 days. Erased People are left out.")]
+    [McpServerTool(Name = "find_headroom", ReadOnly = true), Description("The People with free hours in a period: Capacity minus allocated hours, more than 'hours' (default above zero). Tentative Allocations count as allocated. The range is at most 190 days.")]
     public static async Task<List<PersonHeadroom>> FindHeadroom(
         [Description(FirstDay)] DateOnly from, [Description(LastDay)] DateOnly to,
         HeadroomDbContext db, IPublicHolidays holidays, TimeProvider time,
         [Description("Minimum free hours, exclusive")] decimal hours = 0)
     {
         var (report, error) = await UtilisationEndpoints.QueryAsync(from, to, UtilisationBuilder.Month, db, holidays, time);
-        var erased = (await db.People.AsNoTracking().Where(p => p.ErasedNumber != null).Select(p => p.Id).ToListAsync()).ToHashSet();
-        return HeadroomFinder.Find(report ?? throw new McpException(error!), hours, erased);
+        return HeadroomFinder.Find(report ?? throw new McpException(error!), hours);
     }
 
     [McpServerTool(Name = "get_me", ReadOnly = true), Description("The Person that this Access token acts for: id, name and whether they are a Planner.")]

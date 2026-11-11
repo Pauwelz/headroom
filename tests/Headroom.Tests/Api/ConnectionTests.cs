@@ -11,7 +11,7 @@ using OpenIddict.EntityFrameworkCore.Models;
 
 namespace Headroom.Tests.Api;
 
-// See and revoke Connections, erase and delete a Person.
+// See and revoke Connections, delete a Person.
 public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     private const string Ann = "conn-ann@example.com";
@@ -129,19 +129,6 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, (await bearer.GetAsync("/api/me/connections", Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await bearer.GetAsync("/api/settings/connections", Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await bearer.DeleteAsync("/api/me/connections/x", Ct)).StatusCode);
-    }
-
-    [Fact]
-    public async Task ErasingAPersonDeletesTheirConnections()
-    {
-        var id = await AddPersonAsync("conn-erase@example.com");
-        await _flow.TokenAsync(await _flow.AddAppAsync("Erased"), "conn-erase@example.com");
-        await Run(db => db.People.Where(p => p.Id == id).ExecuteUpdateAsync(s => s.SetProperty(p => p.EndDate, new DateOnly(2020, 1, 1)), Ct));
-        var ann = await TestLogin.SignInAsync(_factory, _mail, Ann);
-
-        Assert.Equal(HttpStatusCode.OK, (await SendAsync(ann, HttpMethod.Post, $"/api/people/{id}/erase")).StatusCode);
-
-        Assert.Equal(0, await CountAsync(id));
     }
 
     [Fact]

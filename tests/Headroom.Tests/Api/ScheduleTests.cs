@@ -32,10 +32,9 @@ public class ScheduleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
             var ann = new Person { Name = "Ann Planner", Email = "sched-ann@example.com", IsPlanner = true };
             var zed = new Person { Name = "Zed Worker", Email = "sched-zed@example.com" };
             var bob = new Person { Name = "Bob Worker", Email = "sched-bob@example.com" };
-            var gone = new Person { Name = "", Email = null, ErasedNumber = 1 };
             db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = ann.Id });
-            db.People.AddRange(ann, zed, bob, gone);
-            foreach (var p in new[] { ann, zed, bob, gone })
+            db.People.AddRange(ann, zed, bob);
+            foreach (var p in new[] { ann, zed, bob })
                 db.Contracts.Add(new Contract
                 {
                     PersonId = p.Id, StartDate = start,
@@ -58,7 +57,7 @@ public class ScheduleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task AnyLoggedInPersonSeesPeopleSortedByNameAndErasedPeopleAreHidden()
+    public async Task AnyLoggedInPersonSeesPeopleSortedByName()
     {
         var zed = await TestLogin.SignInAsync(_factory, _mail, "sched-zed@example.com");
 

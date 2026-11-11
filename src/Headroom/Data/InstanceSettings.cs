@@ -5,7 +5,7 @@ public class InstanceSettings : Record
     // Set on first run.
     public string? CompanyName { get; set; }
 
-    // The last erased number given out. The next erase takes one more.
+    // Unused since Delete replaced Erase. A later release drops the column.
     public int ErasedCount { get; set; }
 
     // The email server a Planner sets. A null host means nothing is stored, and Smtp__* applies.

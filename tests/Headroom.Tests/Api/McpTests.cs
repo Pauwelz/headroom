@@ -42,11 +42,10 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var client = new Headroom.Data.Client { Name = "Globex" };
         var project = new Project { ClientId = client.Id, Name = "Rollout", Status = ProjectStatus.Confirmed };
         db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = ann.Id });
-        var former = new Person { Name = "Former Person 1", Email = null, ErasedNumber = 1 };
-        db.People.AddRange(ann, bob, former);
+        db.People.AddRange(ann, bob);
         db.Clients.Add(client);
         db.Projects.Add(project);
-        foreach (var p in new[] { ann, bob, former })
+        foreach (var p in new[] { ann, bob })
             db.Contracts.Add(new Contract
             {
                 PersonId = p.Id, StartDate = new(2026, 1, 1),
@@ -60,10 +59,10 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         db.Webhooks.Add(new Webhook { Name = "Hook", Url = "https://hooks.example.com/a", Secret = "whsec_x", LastChangedBy = ann.Id });
         db.Webhooks.Add(new Webhook { Name = "Hook 2", Url = "https://hooks.example.com/b", Secret = "whsec_y", LastChangedBy = ann.Id });
         await db.SaveChangesAsync();
-        _seededPeople = [ann.Id, bob.Id, former.Id];
+        _seededPeople = [ann.Id, bob.Id];
     }
 
-    // The tests that add People remove them again. The other tests expect only Ann, Bob and the erased Person.
+    // The tests that add People remove them again. The other tests expect only Ann and Bob.
     // The Leavers of the end date tests must not show in the other tests either.
     private HashSet<Guid> _seededPeople = [];
 
@@ -142,7 +141,6 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         // Tuesday and Wednesday only: 16 h Capacity each. Bob has 50% on those days, so 8 h allocated.
         var found = await CallAsync(mcp, "find_headroom", new() { ["from"] = "2026-03-03", ["to"] = "2026-03-04" });
 
-        Assert.DoesNotContain(found.EnumerateArray(), x => x.GetProperty("name").GetString()!.StartsWith("Former Person"));
         var bob = found.EnumerateArray().Single(x => x.GetProperty("name").GetString() == "Bob Worker");
         Assert.Equal((16m, 8m, 8m), (bob.GetProperty("capacity").GetDecimal(), bob.GetProperty("allocatedHours").GetDecimal(), bob.GetProperty("freeHours").GetDecimal()));
     }
@@ -776,7 +774,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task ChangePersonChangesNameEmailAndRoleAndRefusesTheLastPlannerAndAnErasedPerson()
+    public async Task ChangePersonChangesNameEmailAndRoleAndRefusesTheLastPlanner()
     {
         await using var mcp = await ConnectAsync(secret: WriterSecret);
         await WriteAsync(mcp, "add_person", NewPerson("mcp-chg@example.com"));
@@ -791,8 +789,6 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         await WriteAsync(mcp, "change_person", new() { ["id"] = id, ["name"] = "Eva Two", ["email"] = "mcp-chg2@example.com", ["isPlanner"] = false });
         var (ann, _) = await IdsAsync();
         Assert.Contains("last Planner", await ErrorAsync(mcp, "change_person", new() { ["id"] = ann, ["name"] = "Ann Planner", ["email"] = "mcp-ann@example.com", ["isPlanner"] = false }));
-        var erased = (await CallAsync(mcp, "list_people", [])).EnumerateArray().Single(x => x.TryGetProperty("erasedNumber", out var n) && n.ValueKind == JsonValueKind.Number).GetProperty("id").GetGuid();
-        Assert.Contains("erased Person", await ErrorAsync(mcp, "change_person", new() { ["id"] = erased, ["name"] = "X", ["email"] = "x@example.com", ["isPlanner"] = false }));
     }
 
     [Fact]

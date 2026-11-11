@@ -196,28 +196,6 @@ public class ProjectsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, (await _viewer.DeleteAsync($"/api/projects/{project.Id}", TestContext.Current.CancellationToken)).StatusCode);
     }
 
-    [Fact]
-    public async Task TheProjectViewShowsAnErasedPersonAsFormerPersonN()
-    {
-        var client = await NewClient();
-        var project = await NewProject(client.Id);
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
-            var erased = new Person { Name = "", ErasedNumber = 42, EndDate = new DateOnly(2025, 1, 1) };
-            db.People.Add(erased);
-            db.Allocations.Add(new Allocation
-            {
-                PersonId = erased.Id, ProjectId = project.Id, StartDate = new DateOnly(2024, 1, 1), EndDate = new DateOnly(2024, 2, 1), Percentage = 50,
-            });
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
-
-        var people = (await _viewer.GetFromJsonAsync<List<ProjectPersonResponse>>($"/api/projects/{project.Id}/people", cancellationToken: TestContext.Current.CancellationToken))!;
-
-        Assert.Equal("Former Person 42", Assert.Single(people).Name);
-    }
-
     private async Task<ProjectResponse> Update(ProjectResponse project, string? name = null, Guid? clientId = null, string? status = null)
     {
         var response = await _planner.PutAsJsonAsync($"/api/projects/{project.Id}",

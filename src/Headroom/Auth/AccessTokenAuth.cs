@@ -54,7 +54,7 @@ public static class AccessTokenAuth
             if (token is null) return AuthenticateResult.Fail("Unknown or revoked Access token.");
             if (AccessTokenExpiry.IsExpired(token.ExpiresAt, time.GetUtcNow())) return AuthenticateResult.Fail("This Access token has expired.");
             var person = await db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Id == token.PersonId);
-            if (person is null || person.ErasedNumber is not null || !person.CanLogIn(BrusselsTime.Today(time)))
+            if (person is null || !person.CanLogIn(BrusselsTime.Today(time)))
                 return AuthenticateResult.Fail("The Person of this Access token has left.");
             var claims = new List<Claim> { new(TokenClaim, token.Id.ToString()) };
             // "Can change" only unlocks writes. What the token may change comes from the Person on each request.
