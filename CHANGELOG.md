@@ -6,6 +6,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A Planner sets the email server in Settings (Instance, Email server). Headroom encrypts the password and saves new settings only after a test email to the Planner succeeds.
+
+### Deprecated
+
+- The `Smtp__*` variables are now a fallback for the Settings section. A later release removes them.
+
 ## [0.5.0] - 2026-11-10
 
 ### Added

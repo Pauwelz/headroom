@@ -2,7 +2,7 @@
 
 ![The Settings page with the nav on the left, and the Company and Access and integrations groups on the right](images/settings.png)
 
-The page has two groups: **Company** and **Access and integrations**.
+The page has three groups: **Company**, **Instance** and **Access and integrations**.
 - The nav on the left lists each area. Click an area to jump to it. On a phone, the nav shows above the page.
 - A number in the nav shows that an area needs action:
   at **Access tokens**, the number of tokens that expire within 7 days, and at **Webhooks**, the number of failed Events.
@@ -21,6 +21,13 @@ The page has two groups: **Company** and **Access and integrations**.
     **Add** stays disabled until the date and the name are filled in.
   - Each date can have one Company day off.
     A note warns if the date is a public holiday (no effect) or a weekend.
+- **Email server.** This section sets the server that sends the Login codes.
+  - Fill in **Host**, **Port**, **User name**, **Password** and **From address**.
+  - Click **Save**. Headroom sends a test email to you first. It saves the settings only if the test succeeds.
+    If it fails, the page shows "Could not connect to the email server." and the old settings stay.
+  - Headroom never shows the password again. The field says "Stored. Leave empty to keep it." Leave it empty to keep the password.
+    If you change the host, the port or the user name, enter the password again.
+  - The line under the heading shows the host, "The Operator's server" when the Operator set the server in the environment, or "Not set".
 - **Access tokens.** This list shows the Access tokens of all People, with the owner of each token.
   It shows the expiry date and the **Can change** state of each token. It never shows a secret. **Revoke** stops one token at once. The other tokens keep working.
   Each Person creates their own tokens on the [Account page](account.md).

@@ -50,11 +50,11 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | Setting | Value |
 | --- | --- |
 | `ConnectionStrings__Headroom` | The Npgsql connection string, for example `Host=<server>.postgres.database.azure.com;Database=<database>;Username=<user>;Password=<password>;SSL Mode=Require;Maximum Pool Size=20`. Keep `Maximum Pool Size` below the connection limit of the server: the Burstable B1ms tier allows 50, and Azure uses some of them. Use letters and digits only in the password: a `;` breaks the string |
-| `Smtp__Host` | Host name of your SMTP server |
-| `Smtp__Port` | Port, for example `587` |
-| `Smtp__Username` | SMTP user name |
-| `Smtp__Password` | SMTP password. Keep it secret |
-| `Smtp__FromAddress` | The sender address. Your SMTP provider must allow it |
+| `Smtp__Host` | Fallback. Host name of your SMTP server. A Planner can set the email server in Settings instead (see [Email](#email)). A later release removes the `Smtp__*` variables |
+| `Smtp__Port` | Fallback. Port, for example `587` |
+| `Smtp__Username` | Fallback. SMTP user name |
+| `Smtp__Password` | Fallback. SMTP password. Keep it secret |
+| `Smtp__FromAddress` | Fallback. The sender address. Your SMTP provider must allow it |
 | `BaseUri` | The public URL of the Instance, with `https://` and without a path |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | `true`. TLS ends in front of the app, so it must trust `X-Forwarded-Proto` |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional. Sends telemetry to Azure Monitor |
@@ -124,13 +124,30 @@ Login codes go out through the SMTP account that you choose.
 That provider sees the email addresses and the codes. Check that its terms and location fit your company.
 
 - Headroom uses plain SMTP (MailKit). It uses no provider API.
-- The From address is `Smtp__FromAddress`. The From name is "<company name> Headroom".
+- The From address is the one in the settings. The From name is "<company name> Headroom".
 - The subject is "Your Headroom login code".
 - Headroom does not write email addresses or codes to the logs.
 - If the provider is down, nobody can log in.
 
-To change the SMTP settings, change the parameters.
-Then deploy again with the version that you run now.
+A Planner sets the email server in Settings, in the group **Instance**, section **Email server**.
+Headroom sends a test email to the Planner before it saves a change.
+Headroom encrypts the password with the Data Protection key ring. The key ring is in the same database.
+At each send, Headroom uses the first of these:
+
+1. The settings that a Planner saved in Settings.
+2. The `Smtp__*` parameters, if `Smtp__Host` is set. Existing Instances keep working with them.
+3. In Development only: the console log.
+
+If none applies, nobody can log in. A later release removes the `Smtp__*` parameters.
+
+To recover from broken settings, clear the stored settings in the database. Run this SQL statement:
+
+```sql
+UPDATE "InstanceSettings"
+SET "SmtpHost" = NULL, "SmtpPort" = NULL, "SmtpUsername" = NULL, "SmtpPassword" = NULL, "SmtpFromAddress" = NULL;
+```
+
+Headroom then uses the `Smtp__*` parameters again. No restart is needed.
 
 ## Export
 
