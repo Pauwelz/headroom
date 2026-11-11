@@ -56,7 +56,7 @@ The page has three groups: **Company**, **Instance** and **Access and integratio
   - A Company login session lasts 12 hours and does not extend. A person who is disabled at the provider can keep an open session for up to 12 hours.
     Set the end date of the Person to stop access at once.
   - Headroom never shows the client secret again. The field says "Stored. Leave empty to keep it." If you change the kind, the issuer or the client ID, enter the secret again.
-  - **Remove** deletes the Company login and the links of all People. To change to another provider, remove the Company login first.
+  - **Remove** deletes the Company login and the links of all People. To change to another provider, change the kind or the issuer and save. The test login must match your own email. After it, Headroom deletes the links of all other People. They link again at their next login.
   - **Microsoft Entra ID:** register Headroom in the Microsoft Entra admin center.
     1. Open **App registrations** and select **New registration**. Choose **Accounts in this organizational directory only** (single tenant).
     2. Under **Redirect URI**, choose the type **Web** and enter the redirect URI from Headroom.

@@ -13,12 +13,12 @@ public record CompanyIdentity(string Issuer, string Subject, string? Email, stri
     // The claim names follow the kind. Entra never uses the email claim: a user can set it.
     public static CompanyIdentity? FromClaims(CompanyLoginKind kind, Func<string, string?> claim)
     {
-        static string? Some(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-        var (issuer, subject) = kind == CompanyLoginKind.Entra ? (Some(claim("tid")), Some(claim("oid"))) : (Some(claim("iss")), Some(claim("sub")));
+        static string? NonBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        var (issuer, subject) = kind == CompanyLoginKind.Entra ? (NonBlank(claim("tid")), NonBlank(claim("oid"))) : (NonBlank(claim("iss")), NonBlank(claim("sub")));
         if (issuer is null || subject is null) return null;
-        var email = kind == CompanyLoginKind.Entra ? Some(claim("preferred_username"))
-            : string.Equals(claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase) ? Some(claim("email")) : null;
-        return new(issuer, subject, email, Some(claim("name")));
+        var email = kind == CompanyLoginKind.Entra ? NonBlank(claim("preferred_username"))
+            : string.Equals(claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase) ? NonBlank(claim("email")) : null;
+        return new(issuer, subject, email, NonBlank(claim("name")));
     }
 
     // The error text, or null when the issuer is fine. Entra needs one tenant. Plain http is only for a local provider.

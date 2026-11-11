@@ -337,6 +337,44 @@ public class CompanyLoginTests : IClassFixture<CompanyLoginApp>, IAsyncLifetime
     }
 
     [Fact]
+    public async Task AProviderChangeMatchesThePlannerOnTheEmailAndClearsTheOtherIdentifiers()
+    {
+        var email = NewEmail();
+        await AddPersonAsync(email);
+        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-20", email));
+        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-21", Planner)); // the Planner holds an old identifier
+        var (client, token) = await PlannerAsync();
+        var put = await PutAsync(client, token, new(CompanyLoginKind.Other, OtherIssuer, "new-client", "new-secret"));
+        var test = (await put.Content.ReadFromJsonAsync<CompanyLoginTestResponse>(TestContext.Current.CancellationToken))!;
+
+        var callback = await _app.Provider.LoginAsync(client, test.TestUrl, Claims(CompanyLoginKind.Other, "planner-new", Planner));
+
+        Assert.Equal("/settings?companyLogin=saved", callback.Headers.Location!.OriginalString);
+        Assert.Equal(CompanyLoginKind.Other, (await GetSettingsAsync(client)).Kind);
+        var planner = await ReloadAsync(Planner);
+        Assert.Equal((OtherIssuer, "planner-new"), (planner.CompanyLoginIssuer, planner.CompanyLoginSubject));
+        Assert.Null((await ReloadAsync(email)).CompanyLoginSubject);
+    }
+
+    [Fact]
+    public async Task AFailedTestLoginOfANewProviderKeepsTheOldSettingsAndIdentifiers()
+    {
+        var email = NewEmail();
+        await AddPersonAsync(email);
+        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-22", email));
+        var (client, token) = await PlannerAsync();
+        var put = await PutAsync(client, token, new(CompanyLoginKind.Other, OtherIssuer, "new-client", "new-secret"));
+        var test = (await put.Content.ReadFromJsonAsync<CompanyLoginTestResponse>(TestContext.Current.CancellationToken))!;
+
+        // The test login belongs to another Person.
+        var callback = await _app.Provider.LoginAsync(client, test.TestUrl, Claims(CompanyLoginKind.Other, "other-new", email));
+
+        Assert.Equal("/settings?companyLogin=not-you", callback.Headers.Location!.OriginalString);
+        Assert.Equal(CompanyLoginKind.Entra, (await GetSettingsAsync(client)).Kind);
+        Assert.Equal((Tenant, "id-22"), ((await ReloadAsync(email)).CompanyLoginIssuer, (await ReloadAsync(email)).CompanyLoginSubject));
+    }
+
+    [Fact]
     public async Task ARemovedCompanyLoginClearsTheSettingsAndTheIdentifiers()
     {
         var email = NewEmail();

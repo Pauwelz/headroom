@@ -112,7 +112,7 @@ public static class CompanyLoginEndpoints
 
     private static async Task<IResult> StartTest(HttpContext http, ILogger<Program> log) =>
         CompanyLogin.Pending.Read(http) is { } pending
-            ? await ChallengeAsync(http, log, "/", pending.PersonId is not null ? "/settings" : "/first-run")
+            ? await ChallengeAsync(http, log, "/", pending.ReturnPath)
             : Results.NotFound();
 
     // The handler loads the metadata of the provider here. A wrong issuer ends in the same outcome as a refusal.

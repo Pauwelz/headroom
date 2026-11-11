@@ -40,13 +40,13 @@ public static class CompanyLoginCallback
         context.HandleResponse();
         var pending = CompanyLogin.Pending.Read(context.HttpContext);
         CompanyLogin.Pending.Delete(context.HttpContext);
-        context.Response.Redirect(Back(pending, CompanyLoginOutcome.Provider));
+        context.Response.Redirect(ReturnUrl(pending, CompanyLoginOutcome.Provider));
         return Task.CompletedTask;
     }
 
     // Each case returns to the page it came from, with the outcome in the query.
-    private static string Back(CompanyLogin.Pending? pending, string outcome) =>
-        $"{(pending is null ? "/login" : pending.PersonId is not null ? "/settings" : "/first-run")}?companyLogin={outcome}";
+    private static string ReturnUrl(CompanyLogin.Pending? pending, string outcome) =>
+        $"{pending?.ReturnPath ?? "/login"}?companyLogin={outcome}";
 
     private static async Task<string> LoginAsync(HttpContext http, HeadroomDbContext db, string returnUrl, CompanyIdentity? identity, DateOnly today, TimeProvider time)
     {
@@ -55,22 +55,31 @@ public static class CompanyLoginCallback
         if (person is null || !person.CanLogIn(today))
         {
             HeadroomMetrics.Login(success: false);
-            return Back(null, CompanyLoginOutcome.Refused);
+            return ReturnUrl(null, CompanyLoginOutcome.Refused);
         }
         await db.SaveChangesAsync(); // keeps the identifier of a first login
-        await CompanyLogin.SignInAsync(http, person, time);
+        await LoginEndpoints.SignInAsync(http, person, CompanyLogin.SessionProperties(time));
         return returnUrl;
     }
 
     private static async Task<string> SaveSettingsAsync(HttpContext http, HeadroomDbContext db, CompanyLogin.Pending pending, Guid plannerId, CompanyIdentity? identity, DateOnly today)
     {
         var planner = await db.People.FirstOrDefaultAsync(p => p.Id == plannerId);
-        if (planner is not { IsPlanner: true } || !planner.CanLogIn(today)) return Back(pending, CompanyLoginOutcome.NotYou);
-        if (identity is null) return Back(pending, CompanyLoginOutcome.NoEmail);
-        // The test login must be the Planner who saves. Another Person, or nobody, keeps the old settings.
-        if (await identity.FindPersonAsync(db) is not { } person || person.Id != planner.Id) return Back(pending, CompanyLoginOutcome.NotYou);
-
+        if (planner is not { IsPlanner: true } || !planner.CanLogIn(today)) return ReturnUrl(pending, CompanyLoginOutcome.NotYou);
+        if (identity is null) return ReturnUrl(pending, CompanyLoginOutcome.NoEmail);
         var row = await db.InstanceSettings.FirstAsync();
+        // The stored identifiers belong to the old provider. A new provider matches the Planner on the verified email, as on a first login.
+        var providerChanged = row.CompanyLoginKind != pending.Kind || row.CompanyLoginIssuer != pending.Issuer;
+        if (providerChanged)
+        {
+            if (identity.Email != planner.Email) return ReturnUrl(pending, CompanyLoginOutcome.NotYou);
+            (planner.CompanyLoginIssuer, planner.CompanyLoginSubject) = (identity.Issuer, identity.Subject);
+            await db.People.Where(p => p.Id != planner.Id)
+                .ExecuteUpdateAsync(p => p.SetProperty(x => x.CompanyLoginIssuer, (string?)null).SetProperty(x => x.CompanyLoginSubject, (string?)null));
+        }
+        // The test login must be the Planner who saves. Another Person, or nobody, keeps the old settings.
+        else if (await identity.FindPersonAsync(db) is not { } person || person.Id != planner.Id) return ReturnUrl(pending, CompanyLoginOutcome.NotYou);
+
         var protection = http.RequestServices.GetRequiredService<IDataProtectionProvider>();
         (row.CompanyLoginKind, row.CompanyLoginIssuer, row.CompanyLoginClientId) = (pending.Kind, pending.Issuer, pending.ClientId);
         row.CompanyLoginClientSecret = CompanyLogin.ProtectSecret(pending.ClientSecret, protection);
@@ -82,7 +91,7 @@ public static class CompanyLoginCallback
     private static async Task<string> FirstRunAsync(HttpContext http, HeadroomDbContext db, CompanyLogin.Pending pending, string company, CompanyIdentity? identity, TimeProvider time)
     {
         if (await db.InstanceSettings.AnyAsync()) return "/login";
-        if (identity?.Email is not { } email || !FirstRunEndpoints.IsEmail(email)) return Back(pending, CompanyLoginOutcome.NoEmail);
+        if (identity?.Email is not { } email || !FirstRunEndpoints.IsEmail(email)) return ReturnUrl(pending, CompanyLoginOutcome.NoEmail);
 
         var name = identity.Name ?? email;
         var person = new Person
@@ -90,22 +99,15 @@ public static class CompanyLoginCallback
             Name = name.Length > 200 ? name[..200] : name, Email = email, IsPlanner = true,
             CompanyLoginIssuer = identity.Issuer, CompanyLoginSubject = identity.Subject,
         };
-        person.LastChangedBy = person.Id;
         var settings = new InstanceSettings
         {
-            CompanyName = company, LastChangedBy = person.Id,
+            CompanyName = company,
             CompanyLoginKind = pending.Kind, CompanyLoginIssuer = pending.Issuer, CompanyLoginClientId = pending.ClientId,
             CompanyLoginClientSecret = CompanyLogin.ProtectSecret(pending.ClientSecret, http.RequestServices.GetRequiredService<IDataProtectionProvider>()),
         };
-        db.InstanceSettings.Add(settings);
-        db.People.Add(person);
-        db.Contracts.Add(new Contract
-        {
-            PersonId = person.Id, StartDate = BrusselsTime.Today(time), LastChangedBy = person.Id,
-            HoursMonday = 8, HoursTuesday = 8, HoursWednesday = 8, HoursThursday = 8, HoursFriday = 8,
-        });
+        FirstRunEndpoints.AddFirstPlanner(db, person, settings, BrusselsTime.Today(time));
         await db.SaveChangesAsync();
-        await CompanyLogin.SignInAsync(http, person, time);
+        await LoginEndpoints.SignInAsync(http, person, CompanyLogin.SessionProperties(time));
         return "/";
     }
 }

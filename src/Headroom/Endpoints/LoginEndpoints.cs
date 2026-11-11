@@ -91,10 +91,10 @@ public static class LoginEndpoints
         return Results.Redirect(returnUrl);
     }
 
-    private static async Task SignInAsync(HttpContext http, Person person)
+    internal static async Task SignInAsync(HttpContext http, Person person, AuthenticationProperties? properties = null)
     {
         HeadroomMetrics.Login(success: true);
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person), properties);
     }
 
     // One-time marker: the app offers a Passkey once, then deletes the cookie.

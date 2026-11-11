@@ -31,7 +31,7 @@ public static class CompanyLogin
         auth.Services.AddHttpContextAccessor();
         auth.Services.AddSingleton<IConfigureOptions<OpenIdConnectOptions>, OptionsSetup>();
         // No cache: each request builds the options again from the database. The settings of a test login live in a cookie.
-        // shortcut: this runs on every request of the three Company login paths only, and builds an empty object on the others.
+        // shortcut: the provider's discovery document is fetched on each login, cache the options per settings version if logins get slow.
         auth.Services.AddSingleton<IOptionsMonitorCache<OpenIdConnectOptions>, NoCache>();
         return auth.AddOpenIdConnect(Scheme, o =>
         {
@@ -40,12 +40,8 @@ public static class CompanyLogin
         });
     }
 
-    public static async Task SignInAsync(HttpContext http, Person person, TimeProvider time)
-    {
-        HeadroomMetrics.Login(success: true);
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person),
-            new AuthenticationProperties { ExpiresUtc = time.GetUtcNow() + SessionLifetime, AllowRefresh = false });
-    }
+    public static AuthenticationProperties SessionProperties(TimeProvider time) =>
+        new() { ExpiresUtc = time.GetUtcNow() + SessionLifetime, AllowRefresh = false };
 
     public static string? ProtectSecret(string? secret, IDataProtectionProvider protection) =>
         string.IsNullOrEmpty(secret) ? null : protection.CreateProtector(SecretPurpose).Protect(secret);
@@ -57,6 +53,9 @@ public static class CompanyLogin
     // PersonId is the Planner who saves in Settings. CompanyName is set on the first-run screen.
     public record Pending(CompanyLoginKind Kind, string Issuer, string ClientId, string ClientSecret, Guid? PersonId, string? CompanyName)
     {
+        // The page that a test login returns to.
+        public string ReturnPath => PersonId is not null ? "/settings" : "/first-run";
+
         private const string CookieName = "headroom.companylogin";
         private static readonly TimeSpan Life = TimeSpan.FromMinutes(10);
 

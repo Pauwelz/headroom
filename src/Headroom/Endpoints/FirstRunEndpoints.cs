@@ -171,12 +171,22 @@ public static class FirstRunEndpoints
         if (!await codes.VerifyAsync(email, form["code"].ToString().Trim(), ct))
             return FirstRunPages.Page(FirstRunPages.Code(token, "The code is wrong or has expired.", company, name, email, protectedServer), 400);
 
-        var today = BrusselsTime.Today(time);
         var person = new Person { Name = name, Email = email, IsPlanner = true };
-        // The first Planner is the "last changed by" of every record of the first run.
-        person.LastChangedBy = person.Id;
-        var settings = new InstanceSettings { CompanyName = company, LastChangedBy = person.Id };
+        var settings = new InstanceSettings { CompanyName = company };
         if (server is not null) EmailServer.Store(settings, server, protection);
+        AddFirstPlanner(db, person, settings, BrusselsTime.Today(time));
+        await db.SaveChangesAsync(ct);
+
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        LoginEndpoints.MarkPasskeyOffer(http);
+        return Results.Redirect("/");
+    }
+
+    // Adds the first Planner, the Instance settings and the default Contract. The caller saves.
+    // The first Planner is the "last changed by" of every record of the first run.
+    internal static void AddFirstPlanner(HeadroomDbContext db, Person person, InstanceSettings settings, DateOnly today)
+    {
+        person.LastChangedBy = settings.LastChangedBy = person.Id;
         db.InstanceSettings.Add(settings);
         db.People.Add(person);
         db.Contracts.Add(new Contract
@@ -184,11 +194,6 @@ public static class FirstRunEndpoints
             PersonId = person.Id, StartDate = today, LastChangedBy = person.Id,
             HoursMonday = 8, HoursTuesday = 8, HoursWednesday = 8, HoursThursday = 8, HoursFriday = 8,
         });
-        await db.SaveChangesAsync(ct);
-
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
-        LoginEndpoints.MarkPasskeyOffer(http);
-        return Results.Redirect("/");
     }
 
     // shortcut: two Operators who finish at the same moment could create two Planners; the screen is for one Operator.

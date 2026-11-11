@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Headroom.Auth;
 
-// The one rule "is this email Company-login-only". The Login code, the Passkey login, the Passkey registration and the Passkey offer use it.
+// The one rule "is this email Company-login-only". The Login code, the Passkey login and the Passkey registration use it.
+// The Passkey offer needs no check: it appears only after a Login code login, which the rule already refuses.
 // A domain is the part after the last @. It matches exactly, without case. No subdomains, no wildcards.
 public static class CompanyLoginOnly
 {
