@@ -1,5 +1,4 @@
 @page "/settings"
-@inject SessionApi Session
 
 <PageTitle>Settings</PageTitle>
 
@@ -28,9 +27,7 @@
     <div class="settings-body">
         <MudText Typo="Typo.h5" Class="mb-2">Company</MudText>
 
-        <SettingsSection Id="company-name" Title="Company name" Summary="@(_company ?? "…")" @bind-Expanded="_companyOpen">
-            <MudText Typo="Typo.caption">You set the name on the first-run screen. It cannot change.</MudText>
-        </SettingsSection>
+        <CompanyNameSection />
 
         <CompanyDaysOffSection />
 
@@ -53,8 +50,6 @@
 @code {
     [CascadingParameter] public MeResponse Me { get; set; } = default!;
 
-    private bool _companyOpen;
-    private string? _company;
     private int _expiringSoon;
     private int _failedEventCount;
     private ConnectionsSection? _connections;
@@ -62,10 +57,4 @@
     // The nav badge shows the number. Screen readers hear the label instead.
     private static RenderFragment Badge(int count, string label) => count == 0 ? _ => { } :
         @<span><span class="badge" aria-hidden="true">@count</span><span class="sr-only">, @label</span></span>;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (!Me.IsPlanner) return;
-        _company = await Session.GetCompanyNameAsync();
-    }
 }

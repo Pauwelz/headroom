@@ -126,11 +126,43 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(8, CapacityRules.Day(day, new PersonRecords([contract], holidays, new HashSet<DateOnly>(), [])).Capacity);
     }
 
-    private static Task<HttpResponseMessage> Send(HttpClient client, string token, HttpMethod method, string url, DayOffRequest? body)
+    [Fact]
+    public async Task PlannerChangesTheCompanyName()
+    {
+        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-ann@example.com");
+        var token = await TestLogin.ApiTokenAsync(client);
+        var ct = TestContext.Current.CancellationToken;
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(client, token, HttpMethod.Put, CompanyNameUrl, new CompanyNameRequest("  "))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(client, token, HttpMethod.Put, CompanyNameUrl, new CompanyNameRequest(new string('a', 201)))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(client, token, HttpMethod.Put, CompanyNameUrl, new CompanyNameRequest(" Acme Group "))).StatusCode);
+
+        var instance = await client.GetFromJsonAsync<InstanceResponse>("/api/instance", ct);
+        Assert.Equal("Acme Group", instance!.Name);
+        var loginPage = await _factory.CreateClient().GetStringAsync("/login", ct);
+        Assert.Contains("Acme Group", loginPage);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        var settings = db.InstanceSettings.Single();
+        Assert.Equal(db.People.Single(p => p.Email == "settings-ann@example.com").Id, settings.LastChangedBy);
+    }
+
+    [Fact]
+    public async Task NonPlannerCannotChangeTheCompanyName()
+    {
+        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-flo@example.com");
+        var token = await TestLogin.ApiTokenAsync(client);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(client, token, HttpMethod.Put, CompanyNameUrl, new CompanyNameRequest("Evil Corp"))).StatusCode);
+    }
+
+    private const string CompanyNameUrl = "/" + SettingsApi.CompanyNamePath;
+
+    private static Task<HttpResponseMessage> Send(HttpClient client, string token, HttpMethod method, string url, object? body)
     {
         var request = new HttpRequestMessage(method, url);
         request.Headers.Add(Headroom.Client.Api.AntiforgeryToken.HeaderName, token);
-        if (body is not null) request.Content = JsonContent.Create(body);
+        if (body is not null) request.Content = JsonContent.Create(body, body.GetType());
         return client.SendAsync(request);
     }
 }

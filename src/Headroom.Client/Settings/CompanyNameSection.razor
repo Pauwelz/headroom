@@ -1,0 +1,36 @@
+@inject SessionApi Session
+@inject SettingsApi Api
+@inject NavigationManager Navigation
+
+<SettingsSection Id="company-name" Title="Company name" Summary="@(_company ?? "…")" @bind-Expanded="_open">
+    <MudText Typo="Typo.body2" Class="mb-2">The name shows on the login page, in the app bar and as the sender of the login email.</MudText>
+    @if (_error is not null)
+    {
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
+    }
+    <div class="d-flex align-center gap-2">
+        <MudTextField @bind-Value="_edit" Label="Company name" MaxLength="200" Immediate="true" />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync"
+                   Disabled="@(string.IsNullOrWhiteSpace(_edit) || _edit.Trim() == _company)">Save</MudButton>
+    </div>
+</SettingsSection>
+
+@code {
+    private bool _open;
+    private string? _company;
+    private string _edit = "";
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _company = await Session.GetCompanyNameAsync();
+        _edit = _company ?? "";
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = await Api.ChangeCompanyNameAsync(_edit);
+        // Reload, so the app bar shows the new name too.
+        if (_error is null) Navigation.Refresh(forceReload: true);
+    }
+}
