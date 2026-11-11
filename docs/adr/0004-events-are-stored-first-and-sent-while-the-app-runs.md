@@ -14,3 +14,7 @@ Each Instance runs on Azure Container Apps Express, which scales to zero and sup
 - Events carry names and emails. Events that Headroom sent before Erase personal details stay at the receiver. Headroom cannot recall them.
 
 The host named here is the maintainer's host. The decision still holds for any host that scales to zero. See [ADR 0013](0013-the-public-repo-publishes-the-image-only.md).
+
+## Update
+
+Since [ADR 0019](0019-a-person-is-deleted-not-erased.md), Headroom deletes a Person and no longer erases one. Events sent before the Delete stay at the receiver.
