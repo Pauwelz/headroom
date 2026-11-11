@@ -20,6 +20,8 @@ builder.Services.AddHealthChecks().AddCheck<Headroom.Data.DatabaseHealthCheck>("
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Headroom.Capacity.IPublicHolidays, Headroom.Capacity.BelgianPublicHolidays>();
 builder.Services.AddHeadroomTelemetry(builder.Configuration);
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<TelemetryPrivacy>();
 builder.Services.AddHeadroomAuth();
 builder.Services.AddHeadroomOAuth(builder.Configuration);
 PasskeyCeremony.AddPasskeys(builder.Services);
@@ -75,7 +77,7 @@ app.UseApiResourceMetadata();
 app.UseApiChallenge();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseClientTags(app.Configuration);
+app.UseClientTags();
 app.UseApiAntiforgery();
 app.UseAntiforgery();
 

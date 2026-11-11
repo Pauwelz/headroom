@@ -277,6 +277,12 @@ namespace Headroom.Migrations
                     b.Property<string>("SmtpUsername")
                         .HasColumnType("text");
 
+                    b.Property<bool?>("TelemetryClientAddress")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("TelemetryEndUserId")
+                        .HasColumnType("boolean");
+
                     b.HasKey("Id");
 
                     b.ToTable("InstanceSettings");

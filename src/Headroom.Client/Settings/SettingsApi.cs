@@ -88,6 +88,15 @@ public class SettingsApi(HttpClient http)
     public async Task<string?> SaveEmailServerAsync(EmailServerRequest request) =>
         await ApiCall.SendAsync(http.PutAsJsonAsync(EmailServerPath, request));
 
+    private const string TelemetryPath = "api/settings/telemetry";
+
+    public async Task<TelemetrySettingsResponse> GetTelemetryAsync() =>
+        (await http.GetFromJsonAsync<TelemetrySettingsResponse>(TelemetryPath))!;
+
+    // Returns null on success, or the server's error text.
+    public async Task<string?> SaveTelemetryAsync(TelemetrySettingsRequest request) =>
+        await ApiCall.SendAsync(http.PutAsJsonAsync(TelemetryPath, request));
+
     private static async Task<(CreatedConnectedAppResponse?, string?)> ReadCreatedAsync(HttpResponseMessage response) =>
         response.IsSuccessStatusCode
             ? (await response.Content.ReadFromJsonAsync<CreatedConnectedAppResponse>(), null)

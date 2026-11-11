@@ -16,4 +16,8 @@ public class InstanceSettings : Record
     // Data Protection ciphertext, never plain text.
     public string? SmtpPassword { get; set; }
     public string? SmtpFromAddress { get; set; }
+
+    // The telemetry privacy values a Planner sets. Null means nothing is stored, and Telemetry__* applies.
+    public bool? TelemetryEndUserId { get; set; }
+    public bool? TelemetryClientAddress { get; set; }
 }

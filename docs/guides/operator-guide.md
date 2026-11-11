@@ -60,8 +60,8 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional. Sends telemetry to Azure Monitor |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional (also `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`). Sends telemetry to an OTLP backend or collector. Headroom reads the other standard `OTEL_EXPORTER_OTLP_*` variables too, such as `OTEL_EXPORTER_OTLP_HEADERS` and `OTEL_EXPORTER_OTLP_PROTOCOL` |
 | `Logging__LogLevel__OpenIddict` | Optional. Default `Warning`. At `Information`, OpenIddict logs each OAuth request, including one-time values such as `code_verifier` |
-| `Telemetry__EndUserId` | Optional. `false` keeps the Person id out of telemetry. The default is `true` |
-| `Telemetry__ClientAddress` | Optional. `false` keeps the client IP address out of telemetry. The default is `true` |
+| `Telemetry__EndUserId` | Optional fallback. `false` keeps the Person id out of telemetry while Settings holds no value. The default is `true`. A later release removes it |
+| `Telemetry__ClientAddress` | Optional fallback. `false` keeps the client IP address out of telemetry while Settings holds no value. The default is `true`. A later release removes it |
 | `Seed__PlannerEmail` | Test Instances only. Never set it in production: it seeds demo data into an empty database |
 
 The Instance uses one URL. A custom domain is your choice, as long as `BaseUri` matches it.
@@ -259,7 +259,10 @@ The telemetry holds two personal values:
 - The client IP address, as `client.address` on each request. Azure Monitor shows it as `client_IP`. It is the real client only when `ASPNETCORE_FORWARDEDHEADERS_ENABLED` is `true`.
 
 Every target that you set receives both. Set the retention of each target for personal data.
-Both are on by default. To switch one off, set `Telemetry__EndUserId` or `Telemetry__ClientAddress` to `false`.
+A Planner switches each value in Settings (Instance, Telemetry). Both are on by default.
+The order is: the value in Settings, then `Telemetry__EndUserId` or `Telemetry__ClientAddress`, then on.
+The two variables are a fallback. They apply only while Settings holds no value. A later release removes them.
+A change in Settings applies to the next request on that replica. Other replicas follow within 30 seconds.
 The telemetry holds no other personal data:
 - Requests show the route template, such as `/api/people/{id}`. They show no path with ids and no query string.
 - Database calls show no statement text.

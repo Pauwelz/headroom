@@ -1,0 +1,44 @@
+@using Headroom.Client.Api
+@inject SettingsApi Api
+
+<SettingsSection Id="telemetry" Title="Telemetry" Summary="Personal data in telemetry">
+    @if (!_exporterSet)
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Headroom sends no telemetry: the Operator has not set an exporter.</MudText>
+    }
+
+    @if (_error is not null)
+    {
+        <SettingsAlert OnClose="() => _error = null">@_error</SettingsAlert>
+    }
+    @if (_saved)
+    {
+        <SettingsAlert Severity="Severity.Success" OnClose="() => _saved = false">Saved. The change applies to the next request.</SettingsAlert>
+    }
+
+    <MudSwitch T="bool" @bind-Value="_sendPersonId" Label="Send Person id" Color="Color.Primary" />
+    <MudText Typo="Typo.body2" Class="mb-2">Lets the Operator count active users and trace a fault of one Person.</MudText>
+    <MudSwitch T="bool" @bind-Value="_sendClientAddress" Label="Send client IP address" Color="Color.Primary" />
+    <MudText Typo="Typo.body2" Class="mb-2">Shows the real client address instead of the proxy.</MudText>
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Save</MudButton>
+</SettingsSection>
+
+@code {
+    private bool _sendPersonId, _sendClientAddress, _exporterSet = true, _busy, _saved;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await Api.GetTelemetryAsync();
+        (_sendPersonId, _sendClientAddress, _exporterSet) = (settings.SendPersonId, settings.SendClientAddress, settings.ExporterSet);
+    }
+
+    private async Task SaveAsync()
+    {
+        (_busy, _error, _saved) = (true, null, false);
+        _error = await Api.SaveTelemetryAsync(new TelemetrySettingsRequest(_sendPersonId, _sendClientAddress));
+        _busy = false;
+        _saved = _error is null;
+    }
+}
