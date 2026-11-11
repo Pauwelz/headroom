@@ -35,13 +35,13 @@ Status values:
 
 - **Edit name or email** changes the name or email.
 - The Planner checkbox gives or removes the Planner right. Any Planner can do this, also for themselves.
-- The last Planner who can log in cannot lose the flag and cannot get an end date. Make another Person a Planner first.
+- The last Planner who can log in cannot lose the flag, get an end date, be erased or be deleted. Make another Person a Planner first.
 - The card shows the hours that apply now.
 
 ## Contracts card
 
 - The table shows From, To, the hours from Monday to Sunday, and the hours each week.
-- **Edit** and **Delete** change a row. **+ Contract** adds a Contract from a date.
+- The **Edit Contract** and **Delete Contract** icons change a row. **+ Contract** adds a Contract from a date.
 - You can change Contracts in the past.
 - Two Contracts of one Person cannot start on the same day.
 - A Contract cannot start after the end date. Use Rehire for that.

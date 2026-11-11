@@ -86,7 +86,8 @@ A Planner changes the Time off of every Person. Other People change only their o
 - Open the bar menu: right-click the bar, or focus it with Tab and press the Menu key or Shift+F10. It has **Edit** and **Delete**.
   **Edit** has one **Period** field. To pick a single day, select the same date twice.
   **From part** and **To part** each have the choices **Morning** and **Afternoon**.
-- The menu also lets you set the first day and the last day to half day or full day.
+- For Time off of several days, the menu has **First day: Half day** and **Last day: Half day**.
+  On a half day, the item reads **Full day** instead.
   For a single day, choose **Morning**, **Afternoon** or **Full day**.
 
 Time off has no type. Leave, sickness and other absence are all the same.
