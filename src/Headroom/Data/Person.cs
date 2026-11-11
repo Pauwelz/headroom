@@ -12,6 +12,10 @@ public class Person : Record
     // Last working day, inclusive.
     public DateOnly? EndDate { get; set; }
 
+    // Who the Company login said this Person is. Set at the first Company login, then the only match. Unique per Instance.
+    public string? CompanyLoginIssuer { get; set; }
+    public string? CompanyLoginSubject { get; set; }
+
     public int? ErasedNumber { get; set; }
 
     // What the UI shows for the Person. Not stored.

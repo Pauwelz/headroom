@@ -250,6 +250,18 @@ namespace Headroom.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CompanyLoginClientId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyLoginClientSecret")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyLoginIssuer")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyLoginKind")
+                        .HasColumnType("text");
+
                     b.Property<string>("CompanyName")
                         .HasColumnType("text");
 
@@ -379,6 +391,12 @@ namespace Headroom.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CompanyLoginIssuer")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyLoginSubject")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("DateModified")
                         .HasColumnType("timestamp with time zone");
 
@@ -407,6 +425,9 @@ namespace Headroom.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyLoginIssuer", "CompanyLoginSubject")
                         .IsUnique();
 
                     b.ToTable("People");

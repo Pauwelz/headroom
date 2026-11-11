@@ -32,7 +32,11 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
         // A nondeterministic collation rejects LIKE, so never run Contains or StartsWith on these columns in the database.
         modelBuilder.HasCollation("case_insensitive", locale: "und-u-ks-level2", provider: "icu", deterministic: false);
         // The server generates ids, so the database does not.
-        modelBuilder.Entity<InstanceSettings>().Property(s => s.Id).ValueGeneratedNever();
+        modelBuilder.Entity<InstanceSettings>(settings =>
+        {
+            settings.Property(s => s.Id).ValueGeneratedNever();
+            settings.Property(s => s.CompanyLoginKind).HasConversion<string>();
+        });
         modelBuilder.Entity<Person>(person =>
         {
             person.Property(p => p.Id).ValueGeneratedNever();
@@ -40,6 +44,7 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
             person.Property(p => p.Email).HasMaxLength(254).UseCollation("case_insensitive");
             // A unique index allows many nulls, so erased Persons (null email) do not clash.
             person.HasIndex(p => p.Email).IsUnique();
+            person.HasIndex(p => new { p.CompanyLoginIssuer, p.CompanyLoginSubject }).IsUnique();
         });
         modelBuilder.Entity<Contract>(contract =>
         {

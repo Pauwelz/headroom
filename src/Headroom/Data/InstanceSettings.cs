@@ -1,3 +1,5 @@
+using Headroom.Client.Api;
+
 namespace Headroom.Data;
 
 public class InstanceSettings : Record
@@ -20,4 +22,12 @@ public class InstanceSettings : Record
     // The telemetry privacy values a Planner sets. Null means nothing is stored, and Telemetry__* applies.
     public bool? TelemetryEndUserId { get; set; }
     public bool? TelemetryClientAddress { get; set; }
+
+    // The Company login a Planner sets. A null kind means there is none.
+    public CompanyLoginKind? CompanyLoginKind { get; set; }
+    public string? CompanyLoginIssuer { get; set; }
+    public string? CompanyLoginClientId { get; set; }
+
+    // Data Protection ciphertext, never plain text.
+    public string? CompanyLoginClientSecret { get; set; }
 }

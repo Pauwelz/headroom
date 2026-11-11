@@ -20,6 +20,7 @@ public static class PersonEraser
         person.ErasedNumber = settings.ErasedCount;
         person.Name = "";
         person.Email = null;
+        person.CompanyLoginIssuer = person.CompanyLoginSubject = null;
         person.IsPlanner = false;
         person.LastChangedBy = by;
         await db.AccessTokens.Where(t => t.PersonId == person.Id).ExecuteDeleteAsync();
