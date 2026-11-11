@@ -125,7 +125,6 @@ public class PeopleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Null(flo.Locks.SetEndDate);
         Assert.NotNull(flo.Locks.RemoveEndDate);
         Assert.NotNull(flo.Locks.Rehire);
-        Assert.NotNull(flo.Locks.Erase);
     }
 
     [Fact]
@@ -214,14 +213,13 @@ public class PeopleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(null, null, "2026-01-01", "2026-06-01", PersonStatus.Active)]
-    [InlineData(null, null, "2026-06-02", "2026-06-01", PersonStatus.StartsLater)]
-    [InlineData(null, "2026-06-01", "2026-01-01", "2026-06-01", PersonStatus.Leaving)]
-    [InlineData(null, "2026-05-31", "2026-01-01", "2026-06-01", PersonStatus.Left)]
-    [InlineData(3, "2026-05-31", "2026-01-01", "2026-06-01", PersonStatus.Erased)]
-    public void StatusFollowsTheLifecycleRules(int? erased, string? end, string start, string today, string expected) =>
+    [InlineData(null, "2026-01-01", "2026-06-01", PersonStatus.Active)]
+    [InlineData(null, "2026-06-02", "2026-06-01", PersonStatus.StartsLater)]
+    [InlineData("2026-06-01", "2026-01-01", "2026-06-01", PersonStatus.Leaving)]
+    [InlineData("2026-05-31", "2026-01-01", "2026-06-01", PersonStatus.Left)]
+    public void StatusFollowsTheLifecycleRules(string? end, string start, string today, string expected) =>
         Assert.Equal(expected, PersonStatus.Of(
-            erased, end is null ? null : DateOnly.Parse(end), DateOnly.Parse(start), DateOnly.Parse(today)));
+            end is null ? null : DateOnly.Parse(end), DateOnly.Parse(start), DateOnly.Parse(today)));
 
     private async Task<PersonResponse> Add(string name, string email, bool isPlanner = false)
     {

@@ -36,11 +36,11 @@ public record ContractResponse(
 /// Why a lifecycle action is not possible now. The server computes each reason.
 /// A null reason means the action is allowed.
 /// </summary>
-public record PersonLocks(string? SetEndDate, string? RemoveEndDate, string? Rehire, string? Erase, string? PlannerFlag);
+public record PersonLocks(string? SetEndDate, string? RemoveEndDate, string? Rehire, string? PlannerFlag);
 
-/// <summary>Name is "Former Person N" and Email is null for an erased Person. Contracts are sorted by start date.</summary>
+/// <summary>Contracts are sorted by start date.</summary>
 public record PersonResponse(
-    string Type, Guid Id, string Name, string? Email, bool IsPlanner, DateOnly? EndDate, int? ErasedNumber,
+    string Type, Guid Id, string Name, string? Email, bool IsPlanner, DateOnly? EndDate,
     string Status, bool CanLogIn, decimal HoursPerWeekNow, PersonLocks Locks, IReadOnlyList<ContractResponse> Contracts,
     Guid? LastChangedBy, DateTimeOffset DateModified);
 
@@ -65,11 +65,9 @@ public static class PersonStatus
     public const string StartsLater = "Starts later";
     public const string Leaving = "Leaving";
     public const string Left = "Left";
-    public const string Erased = "Erased";
 
-    public static string Of(int? erasedNumber, DateOnly? endDate, DateOnly? firstContractStart, DateOnly today) =>
-        erasedNumber is not null ? Erased
-        : endDate < today ? Left
+    public static string Of(DateOnly? endDate, DateOnly? firstContractStart, DateOnly today) =>
+        endDate < today ? Left
         : endDate is not null ? Leaving
         : firstContractStart > today ? StartsLater
         : Active;

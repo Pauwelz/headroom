@@ -93,6 +93,31 @@ public class SettingsApi(HttpClient http)
     public async Task<string?> SaveEmailServerAsync(EmailServerRequest request) =>
         await ApiCall.SendAsync(http.PutAsJsonAsync(EmailServerPath, request));
 
+    private const string CompanyLoginPath = "api/settings/company-login";
+
+    public async Task<CompanyLoginResponse> GetCompanyLoginAsync() =>
+        (await http.GetFromJsonAsync<CompanyLoginResponse>(CompanyLoginPath))!;
+
+    // Returns where the test login starts, or the server's error text. Nothing is saved before the test login succeeds.
+    public async Task<(string? TestUrl, string? Error)> StartCompanyLoginTestAsync(CompanyLoginRequest request)
+    {
+        using var response = await http.PutAsJsonAsync(CompanyLoginPath, request);
+        return response.IsSuccessStatusCode
+            ? ((await response.Content.ReadFromJsonAsync<CompanyLoginTestResponse>())!.TestUrl, null)
+            : (null, await ApiCall.ErrorTextAsync(response));
+    }
+
+    public Task<string?> RemoveCompanyLoginAsync() => ApiCall.SendAsync(http.DeleteAsync(CompanyLoginPath));
+
+    private const string CompanyLoginOnlyPath = "api/settings/company-login-only";
+
+    public async Task<CompanyLoginOnlyResponse> GetCompanyLoginOnlyAsync() =>
+        (await http.GetFromJsonAsync<CompanyLoginOnlyResponse>(CompanyLoginOnlyPath))!;
+
+    // Returns null on success, or the server's error text.
+    public Task<string?> SaveCompanyLoginOnlyAsync(CompanyLoginOnlyRequest request) =>
+        ApiCall.SendAsync(http.PutAsJsonAsync(CompanyLoginOnlyPath, request));
+
     private const string TelemetryPath = "api/settings/telemetry";
 
     public async Task<TelemetrySettingsResponse> GetTelemetryAsync() =>

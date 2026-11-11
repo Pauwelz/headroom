@@ -39,7 +39,8 @@ public static class AuthSetup
             // The client calls /api and needs a 401 or 403, not a redirect to a page.
             o.Events.OnRedirectToLogin = ctx => ApiStatusOrRedirect(ctx, StatusCodes.Status401Unauthorized);
             o.Events.OnRedirectToAccessDenied = ctx => ApiStatusOrRedirect(ctx, StatusCodes.Status403Forbidden);
-        });
+        })
+        .AddCompanyLogin();
         services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
             .Configure<DbTicketStore>((o, store) => o.SessionStore = store);
         services.AddAuthorization(o =>

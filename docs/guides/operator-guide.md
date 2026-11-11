@@ -36,9 +36,8 @@ gh attestation verify oci://ghcr.io/pauwelz/headroom:<version> --owner Pauwelz
 
 ### One replica
 
-Run exactly one replica. Each replica runs the daily erase (`ErasureCheck.cs`).
-The erase counter has no concurrency check (`PersonEraser.cs`).
-Two replicas that erase at the same time can give two Persons the same "Former Person N".
+Run exactly one replica. Each replica runs the daily delete (`DailyDeleteCheck.cs`).
+Two replicas that delete the same Person at the same time can make one of the two requests fail.
 The app may scale to zero when idle: the first request after that is slow (see ADR 0004).
 Sending Webhook Events is safe with more replicas, because a replica claims an Event before it sends.
 OAuth tokens and login cookies use the Data Protection key ring in the database, so they work on every replica.
@@ -111,6 +110,11 @@ To go back further than one release, restore the database to a time before the u
    If the send fails, the screen shows "Could not connect to the email server." and keeps the values, but not the password.
 5. The first Planner exists. Headroom stores the email server with the encrypted password. The first-run screen closes for good.
 
+Instead of steps 3 and 4, the first Planner can select **Set up Company login instead**.
+Enter the Kind, the issuer, the client ID and the client secret, and log in at the provider.
+Headroom then creates the first Planner with the name and email from the provider. It needs no email server for this.
+See the Company login section on the [Settings page](user-guide/settings.md).
+
 There is no setup secret. Until setup ends, anyone who reaches the screen can make the server connect to any host and port. The error shows no reply from that server. Complete this screen right after the first start, before anyone else finds the URL.
 The company name cannot change after this step.
 The first run also creates a default Contract for the Planner: 8 hours, Monday to Friday, from today.
@@ -156,6 +160,17 @@ The key ring that decrypts the password is in the same database.
 If you restore the database without its key ring, Headroom cannot decrypt the password. Then all Login codes fail.
 Run the SQL statement above to clear the settings, and set them again in Settings.
 
+## Company login only
+
+A Planner can make Company login the only login for company email domains. If the provider breaks, nobody in those domains can log in.
+To turn the switch off, run this SQL statement:
+
+```sql
+UPDATE "InstanceSettings" SET "CompanyLoginOnly" = false;
+```
+
+Login codes work again for every email. No restart is needed. Headroom does not bring back the Passkeys that it deleted.
+
 ## Export
 
 Headroom has no export feature. The Operator makes a dump with `pg_dump`.
@@ -174,8 +189,8 @@ Headroom has no export feature. The Operator makes a dump with `pg_dump`.
 The file holds personal data. Store it with care.
 
 A Planner answers an access request for one Person by hand.
-A request for full erasure, including Time off, is also handled by hand.
-Headroom erases personal details automatically 12 months after the end date.
+A Planner answers a request for erasure with Delete. Delete removes the Person with their Contracts, Allocations and Time off.
+Headroom also deletes a Person automatically 12 months after the end date.
 Your database host sets how long backups keep data.
 
 ## Delete the Instance
@@ -191,7 +206,6 @@ After those dates, nobody can log in and nobody can change the Instance.
 Then the Operator sets the Planner flag and clears the end date in the database.
 
 The columns `IsPlanner` and `EndDate` are in the table `People`.
-An erased Person has no email and cannot log in. Choose a Person who is not erased.
 
 1. Allow your IP address to connect to the PostgreSQL server.
 2. Connect to the database `<database>` with an account that can write to it.

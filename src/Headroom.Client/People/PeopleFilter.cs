@@ -13,8 +13,8 @@ public static class PeopleFilter
         return people
             .Where(p => scope switch
             {
-                PeopleScope.Current => p.Status is not (PersonStatus.Left or PersonStatus.Erased),
-                PeopleScope.Left => p.Status is PersonStatus.Left or PersonStatus.Erased,
+                PeopleScope.Current => p.Status != PersonStatus.Left,
+                PeopleScope.Left => p.Status == PersonStatus.Left,
                 _ => true,
             })
             .Where(p => text.Length == 0

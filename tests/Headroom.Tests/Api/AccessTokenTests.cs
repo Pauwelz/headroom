@@ -210,13 +210,13 @@ public class AccessTokenTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task ErasingAPersonDeletesTheirTokens()
+    public async Task DeletingAPersonDeletesTheirTokens()
     {
         var secret = await SeedTokenAsync("token-hal@example.com");
         var (ann, xsrf) = await PlannerAsync();
         var hal = (await ann.GetFromJsonAsync<List<PersonResponse>>("/api/people", cancellationToken: TestContext.Current.CancellationToken))!.Single(p => p.Name == "Hal");
 
-        Assert.Equal(HttpStatusCode.OK, (await Send(ann, xsrf, HttpMethod.Post, $"/api/people/{hal.Id}/erase", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(ann, xsrf, HttpMethod.Delete, $"/api/people/{hal.Id}", null)).StatusCode);
 
         using var scope = _factory.Services.CreateScope();
         Assert.False(await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().AccessTokens.AnyAsync(t => t.PersonId == hal.Id, TestContext.Current.CancellationToken));

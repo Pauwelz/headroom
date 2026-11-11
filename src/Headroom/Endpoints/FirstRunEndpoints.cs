@@ -8,8 +8,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 
 namespace Headroom.Endpoints;
@@ -24,10 +22,48 @@ public static class FirstRunEndpoints
         group.MapPost("/", SendCode);
         group.MapPost("/server", SendServerCode);
         group.MapPost("/verify", VerifyCode);
+        group.MapPost("/company-login", ShowCompanyLogin);
+        group.MapPost("/company-login/test", StartCompanyLogin);
     }
 
     private static async Task<IResult> ShowForm(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, IOptions<SmtpOptions> smtp, IHostEnvironment env) =>
-        await IsClosed(db) ? Results.NotFound() : FirstRunPages.Page(FirstRunPages.Form(Token(http, antiforgery), null, "", "", "", AsksForServer(env, smtp)));
+        await IsClosed(db) ? Results.NotFound() : FirstRunPages.Page(FirstRunPages.Form(Token(http, antiforgery), OutcomeError(http), "", "", "", AsksForServer(env, smtp)));
+
+    // A test login with the Company login sends the browser back here with its outcome.
+    private static string? OutcomeError(HttpContext http) =>
+        http.Request.Query["companyLogin"].ToString() is { Length: > 0 } outcome ? CompanyLoginOutcome.Message(outcome) : null;
+
+    private static string RedirectUri(HttpContext http) => $"{http.Request.Scheme}://{http.Request.Host}{CompanyLogin.CallbackPath}";
+
+    private static readonly FirstRunPages.CompanyLoginForm DefaultCompanyLoginForm = new("Entra", "", "");
+
+    // The test login creates the first Planner from the token. It needs only the company name.
+    private static async Task<IResult> ShowCompanyLogin(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, IFormCollection form)
+    {
+        if (await IsClosed(db)) return Results.NotFound();
+        var company = form["company"].ToString().Trim();
+        var token = Token(http, antiforgery);
+        return company.Length is 0 or > 200
+            ? FirstRunPages.Page(FirstRunPages.Form(token, "Enter a company name of 1 to 200 characters.", company, "", ""), 400)
+            : FirstRunPages.Page(FirstRunPages.CompanyLogin(token, null, company, DefaultCompanyLoginForm, RedirectUri(http)));
+    }
+
+    // Headroom stores nothing until the test login succeeds. The values wait in a cookie.
+    private static async Task<IResult> StartCompanyLogin(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, IFormCollection form)
+    {
+        if (await IsClosed(db)) return Results.NotFound();
+        var company = form["company"].ToString().Trim();
+        if (company.Length is 0 or > 200) return Results.Redirect("/first-run");
+        var request = new CompanyLoginRequest(
+            Enum.TryParse<CompanyLoginKind>(form["kind"], out var kind) ? kind : (CompanyLoginKind)(-1),
+            form["issuer"].ToString().Trim(), form["clientId"].ToString().Trim(), form["clientSecret"].ToString());
+        var invalid = CompanyLoginEndpoints.Validate(request) ?? (request.ClientSecret!.Length == 0 ? "Enter the client secret." : null);
+        if (invalid is not null)
+            return FirstRunPages.Page(FirstRunPages.CompanyLogin(Token(http, antiforgery), invalid, company,
+                new(request.Kind.ToString(), request.Issuer, request.ClientId), RedirectUri(http)), 400);
+        new CompanyLogin.Pending(request.Kind, request.Issuer, request.ClientId, request.ClientSecret!, null, company).Write(http);
+        return Results.Redirect(CompanyLogin.TestPath);
+    }
 
     // Development logs the code. Smtp__Host is a fallback. Neither needs the Email server step.
     private static bool AsksForServer(IHostEnvironment env, IOptions<SmtpOptions> smtp) =>
@@ -133,12 +169,22 @@ public static class FirstRunEndpoints
         if (!await codes.VerifyAsync(email, form["code"].ToString().Trim(), ct))
             return FirstRunPages.Page(FirstRunPages.Code(token, "The code is wrong or has expired.", company, name, email, protectedServer), 400);
 
-        var today = BrusselsTime.Today(time);
         var person = new Person { Name = name, Email = email, IsPlanner = true };
-        // The first Planner is the "last changed by" of every record of the first run.
-        person.LastChangedBy = person.Id;
-        var settings = new InstanceSettings { CompanyName = company, LastChangedBy = person.Id };
+        var settings = new InstanceSettings { CompanyName = company };
         if (server is not null) EmailServer.Store(settings, server, protection);
+        AddFirstPlanner(db, person, settings, BrusselsTime.Today(time));
+        await db.SaveChangesAsync(ct);
+
+        await LoginEndpoints.SignInAsync(http, person);
+        LoginEndpoints.MarkPasskeyOffer(http);
+        return Results.Redirect("/");
+    }
+
+    // Adds the first Planner, the Instance settings and the default Contract. The caller saves.
+    // The first Planner is the "last changed by" of every record of the first run.
+    internal static void AddFirstPlanner(HeadroomDbContext db, Person person, InstanceSettings settings, DateOnly today)
+    {
+        person.LastChangedBy = settings.LastChangedBy = person.Id;
         db.InstanceSettings.Add(settings);
         db.People.Add(person);
         db.Contracts.Add(new Contract
@@ -146,11 +192,6 @@ public static class FirstRunEndpoints
             PersonId = person.Id, StartDate = today, LastChangedBy = person.Id,
             HoursMonday = 8, HoursTuesday = 8, HoursWednesday = 8, HoursThursday = 8, HoursFriday = 8,
         });
-        await db.SaveChangesAsync(ct);
-
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
-        LoginEndpoints.MarkPasskeyOffer(http);
-        return Results.Redirect("/");
     }
 
     // shortcut: two Operators who finish at the same moment could create two Planners; the screen is for one Operator.

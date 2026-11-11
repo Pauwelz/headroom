@@ -37,7 +37,7 @@ public static class UtilisationEndpoints
         var periods = UtilisationBuilder.Periods(from, to, period);
         var start = periods.Count > 0 ? DateOnly.FromDayNumber(Math.Min(from.DayNumber, periods[0].StartDate.DayNumber)) : from;
         var end = periods.Count > 0 ? DateOnly.FromDayNumber(Math.Max(to.DayNumber, periods[^1].EndDate.DayNumber)) : to;
-        var (inputs, companyDays) = await ScheduleInputs.LoadAsync(db, start, end, BrusselsTime.Today(time), includeErased: true);
+        var (inputs, companyDays) = await ScheduleInputs.LoadAsync(db, start, end, BrusselsTime.Today(time));
         return (UtilisationBuilder.Build(from, to, period, inputs, holidays, companyDays), null);
     }
 }

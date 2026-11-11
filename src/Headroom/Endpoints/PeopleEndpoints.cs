@@ -21,8 +21,6 @@ public static class PeopleEndpoints
         people.MapDelete("/{id:guid}/contracts/{contractId:guid}", DeleteContract);
         people.MapEndDateEndpoints();
         people.MapRehireAndDeleteEndpoints();
-
-        people.MapPost("/{id:guid}/erase", Erase);
     }
 
     public static async Task<List<PersonResponse>> ListAsync(HeadroomDbContext db, TimeProvider time)
@@ -65,18 +63,6 @@ public static class PeopleEndpoints
     private static async Task<IResult> DeleteContract(Guid id, Guid contractId, HeadroomDbContext db) =>
         await PeopleWrites.DeleteContractAsync(db, id, contractId) is { } refusal ? Refused(refusal) : Results.NoContent();
 
-    // The dialog asks for the "I understand" tick. The result cannot be undone.
-    private static async Task<IResult> Erase(Guid id, HttpContext http, HeadroomDbContext db, TimeProvider time)
-    {
-        var person = await db.People.FindAsync(id);
-        if (person is null) return Results.NotFound();
-        var today = BrusselsTime.Today(time);
-        if (PersonLockRules.Erase(person, await LastPlanner.IsAsync(db, person, today), today) is { } reason) return Problem(409, reason);
-
-        await PersonEraser.EraseAsync(db, person, http.User.PersonId());
-        return Results.Ok(await ToResponseAsync(db, person, today));
-    }
-
     private static WeekHours GetHours(Contract c) =>
         new(c.HoursMonday, c.HoursTuesday, c.HoursWednesday, c.HoursThursday, c.HoursFriday, c.HoursSaturday, c.HoursSunday);
 
@@ -106,9 +92,9 @@ public static class PeopleEndpoints
     {
         var rows = ToResponses(contracts, p.EndDate);
         var now = rows.LastOrDefault(c => c.StartDate <= today);
-        var status = PersonStatus.Of(p.ErasedNumber, p.EndDate, rows.FirstOrDefault()?.StartDate, today);
+        var status = PersonStatus.Of(p.EndDate, rows.FirstOrDefault()?.StartDate, today);
         var locks = PersonLockRules.Of(p, await LastPlanner.IsAsync(db, p, today), today);
-        return new PersonResponse("Person", p.Id, p.DisplayName, p.Email, p.IsPlanner, p.EndDate, p.ErasedNumber, status,
+        return new PersonResponse("Person", p.Id, p.Name, p.Email, p.IsPlanner, p.EndDate, status,
             p.CanLogIn(today), now?.HoursPerWeek ?? 0, locks, rows, p.LastChangedBy, p.DateModified);
     }
 }

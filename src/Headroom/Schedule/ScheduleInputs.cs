@@ -8,11 +8,11 @@ namespace Headroom.Schedule;
 // Loads the plain inputs of the Schedule rules from the database.
 public static class ScheduleInputs
 {
-    /// <summary>The Persons and Company days off the Schedule rules need for a range. The Utilisation report reuses it and also wants erased People.</summary>
+    /// <summary>The Persons and Company days off the Schedule rules need for a range. The Utilisation report reuses it.</summary>
     public static async Task<(List<SchedulePersonInput> People, Dictionary<DateOnly, string> CompanyDays)> LoadAsync(
-        HeadroomDbContext db, DateOnly from, DateOnly to, DateOnly today, bool includeErased)
+        HeadroomDbContext db, DateOnly from, DateOnly to, DateOnly today)
     {
-        var people = await db.People.AsNoTracking().Where(p => includeErased || p.ErasedNumber == null).ToListAsync();
+        var people = await db.People.AsNoTracking().ToListAsync();
         var contracts = (await db.Contracts.AsNoTracking().ToListAsync()).ToLookup(c => c.PersonId);
         var allocations = await LoadAllocationsAsync(db, from, to);
         var timeOff = await LoadTimeOffAsync(db, from, to);
@@ -21,8 +21,8 @@ public static class ScheduleInputs
             .ToDictionaryAsync(d => d.Date, d => d.Name);
 
         var inputs = people.Select(p => new SchedulePersonInput(
-            p.Id, p.DisplayName,
-            PersonStatus.Of(p.ErasedNumber, p.EndDate, contracts[p.Id].MinBy(c => c.StartDate)?.StartDate, today),
+            p.Id, p.Name,
+            PersonStatus.Of(p.EndDate, contracts[p.Id].MinBy(c => c.StartDate)?.StartDate, today),
             p.EndDate,
             contracts[p.Id].Select(ToTerm).ToList(),
             allocations[p.Id].ToList(),

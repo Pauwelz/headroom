@@ -31,7 +31,7 @@ public static class ScheduleEndpoints
         if (to < from || to.DayNumber - from.DayNumber >= MaxDays)
             return (null, $"Ask for 1 to {MaxDays} days.");
 
-        var (inputs, companyDays) = await ScheduleInputs.LoadAsync(db, from, to, BrusselsTime.Today(time), includeErased: false);
+        var (inputs, companyDays) = await ScheduleInputs.LoadAsync(db, from, to, BrusselsTime.Today(time));
         return (ScheduleBuilder.Build(from, to, inputs, holidays, companyDays), null);
     }
 }

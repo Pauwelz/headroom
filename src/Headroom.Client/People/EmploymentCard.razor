@@ -2,8 +2,7 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 
-@* Employment card. Add the next lifecycle buttons inside the MudStack below:
-   Erase personal details. Each button is a ReasonTooltip around a MudButton. *@
+@* Employment card. Each lifecycle button is a ReasonTooltip around a MudButton. *@
 <MudPaper Class="pa-4">
     <MudText Typo="Typo.h6">Employment</MudText>
     <MudText Typo="Typo.body1" Class="mt-2">@EmploymentText.Sentence(Person)</MudText>
@@ -24,10 +23,6 @@
             <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="@(_deleteLockReason is not null)"
                        OnClick="DeleteAsync">Delete</MudButton>
         </ReasonTooltip>
-        <ReasonTooltip Reason="@EraseLockReason">
-            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="@(EraseLockReason is not null)"
-                       OnClick="EraseAsync">Erase personal details</MudButton>
-        </ReasonTooltip>
     </MudStack>
     <MudText Typo="Typo.caption" Class="mt-3" Style="display:block">
         Last changed by @EmploymentText.ChangedBy(Person.LastChangedBy, Everyone)
@@ -46,11 +41,11 @@
     private string? SetLockReason => Person.Locks.SetEndDate;
     private string? RemoveLockReason => Person.Locks.RemoveEndDate;
     private string? RehireLockReason => Person.Locks.Rehire;
-    private string? EraseLockReason => Person.Locks.Erase;
 
-    // Only the server knows what refers to the Person. Ask again for each new version of the Person.
-    private const string Checking = "Checking what refers to this Person.";
+    // Only the server knows what a Delete removes. Ask again for each new version of the Person.
+    private const string Checking = "Checking what a Delete removes.";
     private string? _deleteLockReason = Checking;
+    private DeleteCheck _delete = new(0, 0, 0, null);
     private (Guid, DateTimeOffset) _checked;
 
     protected override async Task OnParametersSetAsync()
@@ -58,7 +53,11 @@
         if (_checked == (Person.Id, Person.DateModified)) return;
         _checked = (Person.Id, Person.DateModified);
         _deleteLockReason = Checking;
-        try { _deleteLockReason = await Api.DeleteReasonAsync(Person.Id); }
+        try
+        {
+            _delete = await Api.DeleteCheckAsync(Person.Id);
+            _deleteLockReason = _delete.Reason;
+        }
         catch (ApiException e) { _deleteLockReason = e.Message; }
     }
 
@@ -72,18 +71,13 @@
     private async Task DeleteAsync()
     {
         var confirmed = await Dialogs.ShowMessageBoxAsync("Delete Person",
-            $"Delete {Person.Name} and their Contracts? This cannot be undone.", yesText: "Delete", cancelText: "Cancel");
+            $"Delete {Person.Name} with {_delete.Contracts} Contracts, {_delete.Allocations} Allocations and {_delete.TimeOff} Time off? "
+            + "Delete also removes the Passkeys, Access tokens and Connections of this Person. This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
         if (confirmed != true) return;
         try { await Api.DeleteAsync(Person.Id); }
         catch (ApiException e) { Snackbar.Add(e.Message, Severity.Error); }
         await Changed.InvokeAsync();
-    }
-
-    private async Task EraseAsync()
-    {
-        var dialog = await Dialogs.ShowAsync<EraseDialog>("Erase personal details",
-            new DialogParameters<EraseDialog> { { x => x.Person, Person } }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
-        if (!(await dialog.Result)!.Canceled) await Changed.InvokeAsync();
     }
 
     private async Task SetEndDateAsync()

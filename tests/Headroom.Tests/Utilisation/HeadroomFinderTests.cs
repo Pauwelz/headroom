@@ -30,7 +30,7 @@ public class HeadroomFinderTests
     }
 
     private static List<PersonHeadroom> Find(decimal hours, IReadOnlyDictionary<DateOnly, string>? companyDays = null, params SchedulePersonInput[] people) =>
-        HeadroomFinder.Find(UtilisationBuilder.Build(Mon, Fri, UtilisationBuilder.Week, people, new NoHolidays(), companyDays ?? NoCompanyDays), hours, new HashSet<Guid>());
+        HeadroomFinder.Find(UtilisationBuilder.Build(Mon, Fri, UtilisationBuilder.Week, people, new NoHolidays(), companyDays ?? NoCompanyDays), hours);
 
     [Fact]
     public void Free_hours_are_Capacity_minus_all_allocated_hours_and_Tentative_counts_like_in_the_report()

@@ -6,8 +6,8 @@ namespace Headroom.Tests.People;
 public class EmploymentTextTests
 {
     private static PersonResponse Person(string status, DateOnly? end = null) =>
-        new("Person", Guid.NewGuid(), "Zed", "zed@example.com", false, end, null, status, true, 40,
-            new PersonLocks(null, null, null, null, null), [], null, default);
+        new("Person", Guid.NewGuid(), "Zed", "zed@example.com", false, end, status, true, 40,
+            new PersonLocks(null, null, null, null), [], null, default);
 
     [Fact]
     public void LeavingNamesTheLastWorkingDayAndTheDayTheLoginStops() =>
@@ -17,6 +17,10 @@ public class EmploymentTextTests
     [Fact]
     public void ANullReferenceShowsAsSystem() =>
         Assert.Equal("System", EmploymentText.ChangedBy(null, []));
+
+    [Fact]
+    public void AnIdWithoutAPersonShowsAsADeletedPerson() =>
+        Assert.Equal("a deleted Person", EmploymentText.ChangedBy(Guid.NewGuid(), []));
 
     [Fact]
     public void ChangedByShowsTheNameOfThePerson()

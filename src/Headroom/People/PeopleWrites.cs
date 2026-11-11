@@ -1,3 +1,4 @@
+using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Endpoints;
@@ -36,7 +37,6 @@ public static class PeopleWrites
     public static async Task<(Person? Person, Refusal? Refusal)> EditPersonAsync(HeadroomDbContext db, Guid? by, Guid id, EditPersonRequest request, DateOnly today)
     {
         if (await db.People.FindAsync(id) is not { } person) return (null, PersonNotFound);
-        if (person.ErasedNumber is not null) return (null, new(409, PersonLockRules.ErasedDetails));
         var name = request.Name?.Trim() ?? "";
         var email = request.Email?.Trim() ?? "";
         if (name.Length is 0 or > 200) return (null, new(400, ApiProblem.NameDetail));
@@ -49,6 +49,7 @@ public static class PeopleWrites
         person.IsPlanner = request.IsPlanner;
         person.LastChangedBy = by;
         await db.SaveChangesAsync();
+        await CompanyLoginOnly.DeletePasskeysAsync(db, person.Id); // the new email may be in a company domain
         return (person, null);
     }
 

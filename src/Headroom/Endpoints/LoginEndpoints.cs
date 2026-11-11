@@ -1,4 +1,5 @@
 using Headroom.Auth;
+using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Telemetry;
 using Microsoft.AspNetCore.Antiforgery;
@@ -28,8 +29,9 @@ public static class LoginEndpoints
     {
         var returnUrl = SafeReturnUrl(http.Request.Query["ReturnUrl"]);
         if (http.User.Identity?.IsAuthenticated == true) return Results.Redirect(returnUrl);
+        var outcome = http.Request.Query["companyLogin"].ToString();
         return await Company(db) is { } company
-            ? FirstRunPages.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, null, "", returnUrl), allowLoginScript: true)
+            ? FirstRunPages.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, outcome.Length == 0 ? null : CompanyLoginOutcome.Message(outcome), "", returnUrl, await HasCompanyLogin(db)), allowLoginScript: true)
             : Results.Redirect("/first-run");
     }
 
@@ -42,7 +44,11 @@ public static class LoginEndpoints
         var returnUrl = SafeReturnUrl(form["ReturnUrl"]);
         var token = FirstRunEndpoints.Token(http, antiforgery);
         if (!FirstRunEndpoints.IsEmail(email))
-            return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl), 400, allowLoginScript: true);
+            return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl, await HasCompanyLogin(db)), 400, allowLoginScript: true);
+
+        // The reply depends only on the typed domain, so it never says whether the email is known.
+        if (await CompanyLoginOnly.MatchAsync(db, email) is { } domain)
+            return FirstRunPages.Page(LoginPages.Email(token, company, $"Use Company login for @{domain}", email, returnUrl, true), allowLoginScript: true);
 
         var person = await FindPerson(db, email, ct);
         if (person is not null && person.CanLogIn(BrusselsTime.Today(time)))
@@ -71,6 +77,7 @@ public static class LoginEndpoints
         var person = FirstRunEndpoints.IsEmail(email) ? await FindPerson(db, email, ct) : null;
 
         if (person is null || !person.CanLogIn(BrusselsTime.Today(time))
+            || await CompanyLoginOnly.MatchAsync(db, person.Email) is not null
             || !await codes.VerifyAsync(person.Email!, form["code"].ToString().Trim(), ct))
         {
             HeadroomMetrics.Login(success: false);
@@ -84,10 +91,10 @@ public static class LoginEndpoints
         return Results.Redirect(returnUrl);
     }
 
-    private static async Task SignInAsync(HttpContext http, Person person)
+    internal static async Task SignInAsync(HttpContext http, Person person, AuthenticationProperties? properties = null)
     {
         HeadroomMetrics.Login(success: true);
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person));
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PersonPrincipal.Create(person), properties);
     }
 
     // One-time marker: the app offers a Passkey once, then deletes the cookie.
@@ -103,7 +110,8 @@ public static class LoginEndpoints
         using var reader = new StreamReader(http.Request.Body);
         var passkey = await ceremony.CompleteLoginAsync(http, await reader.ReadToEndAsync(ct), PasskeyPath, db);
         var person = passkey is null ? null : await db.People.FirstOrDefaultAsync(p => p.Id == passkey.PersonId, ct);
-        if (passkey is null || person is null || !person.CanLogIn(BrusselsTime.Today(time)))
+        if (passkey is null || person is null || !person.CanLogIn(BrusselsTime.Today(time))
+            || await CompanyLoginOnly.MatchAsync(db, person.Email) is not null)
         {
             HeadroomMetrics.Login(success: false);
             return Results.BadRequest(new { error = "Headroom could not log you in with this Passkey. Use a Login code instead." });
@@ -118,11 +126,14 @@ public static class LoginEndpoints
     }
 
     // After login the Person returns to an authorize request of a Connected app. Nowhere else: no open redirect.
-    private static string SafeReturnUrl(string? url) =>
+    internal static string SafeReturnUrl(string? url) =>
         url is not null && url.StartsWith("/connect/authorize?", StringComparison.Ordinal) && !url.Contains('\\') ? url : "/";
 
     private static Task<Person?> FindPerson(HeadroomDbContext db, string email, CancellationToken ct) =>
         db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Email == email, ct); // the column collation ignores case
+
+    private static Task<bool> HasCompanyLogin(HeadroomDbContext db) =>
+        db.InstanceSettings.AnyAsync(s => s.CompanyLoginKind != null);
 
     private static Task<string?> Company(HeadroomDbContext db) =>
         db.InstanceSettings.Select(s => s.CompanyName).FirstOrDefaultAsync();

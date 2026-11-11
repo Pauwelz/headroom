@@ -69,7 +69,7 @@ public static class AllocationWrites
     {
         if (!AllocationRules.IsValidPercentage(p.Percentage)) return new Refusal(400, "The percentage is 5 to 100 in steps of 5.");
         if (p.End < p.Start) return new Refusal(400, "The end date is before the start date.");
-        if (await db.People.FindAsync(p.PersonId) is not { ErasedNumber: null } person) return new Refusal(400, "The Person does not exist.");
+        if (await db.People.FindAsync(p.PersonId) is not { } person) return new Refusal(400, "The Person does not exist.");
         if (await db.Projects.FindAsync(p.ProjectId) is not { } project) return new Refusal(400, "The Project does not exist.");
         if (await ArchivedProblem(db, project.Id) is { } archived) return archived;
         if (person.EndDate is { } last && p.End > last)

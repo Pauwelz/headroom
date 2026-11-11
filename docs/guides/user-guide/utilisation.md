@@ -38,5 +38,5 @@ The **Week** and **Month** toggle group shows only on the Heatmap tab.
 
 ![The Table tab of the Utilisation report](images/utilisation-table.png)
 
-A Person who is erased shows as "Former Person N" in periods before the end date.
+A deleted Person does not show. Past Utilisation drops when a Planner deletes a Person.
 

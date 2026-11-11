@@ -28,7 +28,7 @@ PasskeyCeremony.AddPasskeys(builder.Services);
 builder.Services.AddApiAntiforgery();
 builder.Services.AddHeadroomMcp();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
-builder.Services.AddSingleton<ErasureCheck>();
+builder.Services.AddSingleton<DailyDeleteCheck>();
 builder.Services.AddScoped<IEmailSender, EmailSender>();
 builder.Services.AddSingleton(new EmailTestTimeout(TimeSpan.FromSeconds(15)));
 builder.Services.AddScoped<Headroom.Dev.DevSeed>();
@@ -45,7 +45,7 @@ if (!EF.IsDesignTime)
 {
     using var scope = app.Services.CreateScope();
     scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().Database.Migrate();
-    await app.Services.GetRequiredService<ErasureCheck>().RunIfDueAsync();
+    await app.Services.GetRequiredService<DailyDeleteCheck>().RunIfDueAsync();
     var seedPlannerEmail = app.Configuration["Seed:PlannerEmail"];
     if (args.Contains("--seed") || !string.IsNullOrEmpty(seedPlannerEmail))
         await scope.ServiceProvider.GetRequiredService<Headroom.Dev.DevSeed>().RunAsync(app.Environment.EnvironmentName, seedPlannerEmail);
@@ -68,7 +68,7 @@ app.UseWhen(http => !http.Request.Path.StartsWithSegments("/api") && !http.Reque
 app.UseHttpsRedirection();
 app.Use(async (_, next) =>
 {
-    await app.Services.GetRequiredService<ErasureCheck>().RunIfDueAsync();
+    await app.Services.GetRequiredService<DailyDeleteCheck>().RunIfDueAsync();
     await next();
 });
 
@@ -88,6 +88,7 @@ app.MapApi();
 app.MapHeadroomMcp();
 app.MapFirstRunEndpoints();
 app.MapLoginEndpoints();
+app.MapCompanyLoginEndpoints();
 app.MapOAuthEndpoints();
 // The server redirects a logged-out visitor to /login before it sends the app shell.
 app.MapRazorComponents<App>()

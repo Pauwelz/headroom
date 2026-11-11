@@ -41,7 +41,7 @@ public static class EventRecorder
             var person = lookups.People[a.PersonId];
             var project = lookups.Projects[a.ProjectId];
             return new AllocationData(
-                a.Id, a.PersonId, person.DisplayName, person.Email, a.ProjectId, project.Name, project.ClientId,
+                a.Id, a.PersonId, person.Name, person.Email, a.ProjectId, project.Name, project.ClientId,
                 lookups.Clients[project.ClientId].Name, a.StartDate, a.EndDate, a.Percentage, a.DateModified, a.LastChangedBy);
         }),
         [typeof(TimeOff)] = new(e => ByState("TimeOff", e),
@@ -51,7 +51,7 @@ public static class EventRecorder
             var t = (TimeOff)record;
             var owner = lookups.People[t.PersonId];
             return new TimeOffData(
-                t.Id, t.PersonId, owner.DisplayName, owner.Email, t.StartDate, DayPartNames.ToApi(t.StartPart),
+                t.Id, t.PersonId, owner.Name, owner.Email, t.StartDate, DayPartNames.ToApi(t.StartPart),
                 t.EndDate, DayPartNames.ToApi(t.EndPart), t.DateModified, t.LastChangedBy);
         }),
         [typeof(Project)] = new(
@@ -118,9 +118,9 @@ public static class EventRecorder
         return events;
     }
 
-    // Replaces the name and email of a Person in their stored Events. Allocation and TimeOff data share these three fields.
-    // shortcut: a scan of the Event payloads, because erase and Delete are rare. Add an index if the Event table grows large.
-    public static async Task ScrubPersonAsync(HeadroomDbContext db, Guid personId, string name)
+    // Blanks the name and email of a Person in their stored Events. Allocation and TimeOff data share these three fields.
+    // shortcut: a scan of the Event payloads, because Delete is rare. Add an index if the Event table grows large.
+    public static async Task BlankPersonAsync(HeadroomDbContext db, Guid personId)
     {
         string Key(string property) => Json.PropertyNamingPolicy!.ConvertName(property);
         var (idKey, nameKey, emailKey) = (Key(nameof(AllocationData.PersonId)), Key(nameof(AllocationData.PersonName)), Key(nameof(AllocationData.PersonEmail)));
@@ -129,7 +129,7 @@ public static class EventRecorder
         {
             var node = JsonNode.Parse(e.Payload);
             if (node?[Key(nameof(CloudEvent.Data))] is not JsonObject data || data[idKey]?.ToString() != personId.ToString()) continue;
-            data[nameKey] = name;
+            data[nameKey] = "";
             data[emailKey] = null;
             e.Payload = node.ToJsonString();
         }

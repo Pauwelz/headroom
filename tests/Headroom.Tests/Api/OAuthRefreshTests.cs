@@ -108,14 +108,12 @@ public class OAuthRefreshTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         Assert.Equal(HttpStatusCode.BadRequest, (await _flow.RefreshAsync(app, Str(await third.Content.ReadFromJsonAsync<JsonElement>(Ct), "refresh_token"))).StatusCode);
     }
 
-    [Theory]
-    [InlineData("ended")]
-    [InlineData("erased")]
-    public async Task ARefreshForAPersonWhoLeftIsRefused(string how)
+    [Fact]
+    public async Task ARefreshForAPersonWhoLeftIsRefused()
     {
         var app = await _flow.AddAppAsync();
         var refresh = Str(await _flow.TokensAsync(app, Ann), "refresh_token");
-        await UpdateAnnAsync(how == "ended" ? s => s.SetProperty(p => p.EndDate, new DateOnly(2026, 10, 1)) : s => s.SetProperty(p => p.ErasedNumber, 1));
+        await UpdateAnnAsync(s => s.SetProperty(p => p.EndDate, new DateOnly(2026, 10, 1)));
 
         try
         {
@@ -125,7 +123,7 @@ public class OAuthRefreshTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         }
         finally
         {
-            await UpdateAnnAsync(s => s.SetProperty(p => p.EndDate, (DateOnly?)null).SetProperty(p => p.ErasedNumber, (int?)null));
+            await UpdateAnnAsync(s => s.SetProperty(p => p.EndDate, (DateOnly?)null));
         }
     }
 

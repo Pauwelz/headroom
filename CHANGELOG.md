@@ -12,15 +12,24 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A Planner sets the email server in Settings (Instance, Email server). Headroom encrypts the password and saves new settings only after a test email to the Planner succeeds.
 - The first-run screen asks for the email server before it sends the login code. Headroom skips this step when `Smtp__Host` is set, and in Development.
 - A Planner switches "Send Person id" and "Send client IP address" in Settings (Instance, Telemetry). A change applies to the next request, with no restart.
+- A Planner sets up one Company login (OpenID Connect) in Settings or on the first-run screen. People who are already in Headroom can then log in with it. Headroom saves new settings only after a test login that matches the Planner. A Company login session lasts 12 hours. See ADR 0018.
+- A Planner makes Company login the only login for company email domains in Settings (Instance, Company login only). Those People get no Login code and cannot use a Passkey. Turning the switch on, adding a domain, or changing an email into a company domain deletes the affected Passkeys. The Operator guide has the SQL that turns the switch off. See ADR 0018.
+- `scripts/preview.sh` also starts a mock OpenID Connect provider for local tests of the Company login.
+- A Planner can change the Company login to another provider without Remove first. The test login must match the Planner's email. Headroom then deletes the links of all other People.
 
 ### Changed
 
+- Delete replaces Erase personal details. A Planner can delete a Person at any time. Delete removes the Person with their Contracts, Allocations, Time off, Passkeys, Access tokens and Connections. Headroom sends a deleted Event for each Allocation and Time off, with no name and no email. The dialog shows what goes. Past Utilisation and Project hours drop. "Last changed by" keeps the id and shows "a deleted Person". The daily check deletes a Person 12 months after the end date. See ADR 0019.
 - The user guide and the in-app Help have new screenshots. They now describe the Passkey offer after login and the Time off item in the side drawer.
 
 ### Deprecated
 
 - `Telemetry__EndUserId` and `Telemetry__ClientAddress` are now a fallback for the Settings section. A later release removes them.
 - The `Smtp__*` variables are now a fallback for the Settings section. A later release removes them.
+
+### Removed
+
+- Erase personal details: the erase endpoint, the dialog, the "Former Person N" name, the Erased status and the erase counter. The columns `People.ErasedNumber` and `InstanceSettings.ErasedCount` stay unused. A later release drops them.
 
 ## [0.5.0] - 2026-11-10
 

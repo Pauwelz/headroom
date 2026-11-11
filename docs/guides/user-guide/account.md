@@ -9,6 +9,7 @@ The Account page holds your own login settings: your Passkeys, your Access token
 A Passkey lets you log in without waiting for a Login code. Your device or password manager keeps the Passkey.
 The Login code always keeps working. Use it to log in the first time, on a new device, or after you lose a Passkey.
 
+- If a Planner made Company login the only login for your email domain, you cannot save a Passkey. Headroom deletes the Passkeys that you had.
 - To save a Passkey, select **Save a Passkey** and follow the prompt of your browser or password manager.
   The button shows only when your browser supports Passkeys.
   After a login with a code, Headroom also offers **Save a Passkey** in a message.
@@ -20,7 +21,7 @@ The Login code always keeps working. Use it to log in the first time, on a new d
   You do not enter an email address first.
 - **Remove** deletes one Passkey at once. The device of that Passkey can no longer log in. Your other Passkeys keep working.
 - You see only your own Passkeys on this page.
-- A Person who has left cannot log in with a Passkey. When a Planner erases your personal details, Headroom deletes your Passkeys.
+- A Person who has left cannot log in with a Passkey. When a Planner deletes you, Headroom deletes your Passkeys.
 - A Passkey belongs to the domain of your Instance. If your Operator changes the domain, all Passkeys stop working. Log in with a Login code and save a new Passkey.
 
 ## Access tokens
@@ -46,7 +47,7 @@ Every Person can allow a token to change things with **Can change**.
 - Send the token in the header `Authorization: Bearer <token>`.
 - **Revoke** stops one token at once. The other tokens keep working.
 - You see only your own tokens on this page. A Planner sees all tokens on the [Settings page](settings.md).
-- A token stops working when its Person has left, or when a Planner erases the personal details of the Person.
+- A token stops working when its Person has left, or when a Planner deletes the Person.
 - A token cannot create, list or revoke Access tokens. Use the page for that.
 
 ## Connections
@@ -62,4 +63,4 @@ It is not an Access token. Use an Access token only for a client that cannot use
 - **Can change** shows whether you allowed the app to change the planning. Every Person can allow it. The app then has the rights of that Person.
 - **Revoke** stops one Connection at once. The app must ask you to connect again. Your other Connections keep working.
 - You see only your own Connections on this page. A Planner sees all Connections on the [Settings page](settings.md).
-- A Connection stops working when its Person has left, or when a Planner erases the personal details of the Person.
+- A Connection stops working when its Person has left, or when a Planner deletes the Person.

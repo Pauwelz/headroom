@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Headroom.People;
 
-// The last Planner who can log in cannot lose the flag, get an end date, be erased or be deleted.
+// The last Planner who can log in cannot lose the flag, get an end date or be deleted.
 public static class LastPlanner
 {
     public const string Message = "This is the last Planner who can log in. Make another Person a Planner first.";

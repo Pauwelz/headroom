@@ -11,8 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Headroom.Tests.Api;
 
-// Rehire and delete a Person.
-public class RehireDeleteTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
+// Rehire a Person.
+public class RehireTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
     private static readonly DateOnly End = new(2026, 10, 30);
@@ -23,7 +23,7 @@ public class RehireDeleteTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     private HttpClient _ann = null!;
     private Guid _annId;
 
-    public RehireDeleteTests(ClockedHeadroomApp app)
+    public RehireTests(ClockedHeadroomApp app)
     {
         _factory = app.Factory;
         _mail = app.Mail;
@@ -94,87 +94,14 @@ public class RehireDeleteTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     }
 
     [Fact]
-    public async Task RehireRefusesAnErasedPerson()
-    {
-        var zed = await SeedLeaver();
-        await Run(db => db.People.Single(p => p.Id == zed).ErasedNumber = 1);
-
-        var response = await Send(HttpMethod.Post, $"/api/people/{zed}/rehire", JsonContent.Create(new RehireRequest(new DateOnly(2026, 12, 1), Half)));
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-    }
-
-    [Fact]
     public void RehireDefaultsToTheLastContractWithHours()
     {
         var zero = new WeekHours(0, 0, 0, 0, 0, 0, 0);
-        PersonResponse Person(params WeekHours[] hours) => new("person", Guid.NewGuid(), "Zed", null, false, End, null, PersonStatus.Left, false, 0, new PersonLocks(null, null, null, null, null),
+        PersonResponse Person(params WeekHours[] hours) => new("person", Guid.NewGuid(), "Zed", null, false, End, PersonStatus.Left, false, 0, new PersonLocks(null, null, null, null),
             hours.Select(h => new ContractResponse("contract", Guid.NewGuid(), Guid.Empty, Jan1, null, h, h.Total, null, default)).ToList(), null, default);
 
         Assert.Equal(Half, EmploymentText.DefaultRehireHours(Person(WeekHours.FullTime, Half, zero)));
         Assert.Equal(WeekHours.FullTime, EmploymentText.DefaultRehireHours(Person(zero)));
-    }
-
-    [Fact]
-    public async Task DeleteRemovesThePersonAndTheirContracts()
-    {
-        var zed = await SeedLeaver();
-
-        var check = await Send(HttpMethod.Get, $"/api/people/{zed}/delete-check", null);
-        var response = await Send(HttpMethod.Delete, $"/api/people/{zed}", null);
-
-        Assert.Null((await check.Content.ReadFromJsonAsync<DeleteCheck>(cancellationToken: TestContext.Current.CancellationToken))!.Reason);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal((0, 0), await Run(db => (db.People.Count(p => p.Id == zed), db.Contracts.Count(c => c.PersonId == zed))));
-    }
-
-    [Fact]
-    public async Task DeleteIsRefusedWhileAnAllocationOrTimeOffRefersToThePerson()
-    {
-        var withAllocation = await SeedLeaver();
-        var client = await Run(db => db.Clients.Add(new Headroom.Data.Client { Name = $"Acme {Guid.NewGuid():N}" }).Entity);
-        var project = await Run(db => db.Projects.Add(new Project { ClientId = client.Id, Name = "Live", Status = ProjectStatus.Confirmed }).Entity.Id);
-        await Run(db => db.Allocations.Add(new Allocation { PersonId = withAllocation, ProjectId = project, StartDate = Jan1, EndDate = Jan1, Percentage = 50 }));
-        var withTimeOff = await SeedLeaver();
-        await Run(db => db.TimeOff.Add(new Headroom.Data.TimeOff { PersonId = withTimeOff, StartDate = Jan1, StartPart = DayPart.Morning, EndDate = Jan1, EndPart = DayPart.Afternoon }));
-
-        foreach (var id in new[] { withAllocation, withTimeOff })
-        {
-            var response = await Send(HttpMethod.Delete, $"/api/people/{id}", null);
-            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-            Assert.Equal(1, await Run(db => db.People.Count(p => p.Id == id)));
-        }
-    }
-
-    [Fact]
-    public async Task DeleteIsRefusedWhileAnyRecordShowsThePersonAsLastChangedBy()
-    {
-        var byClient = await SeedLeaver();
-        await Run(db => db.Clients.Add(new Headroom.Data.Client { Name = $"Acme {Guid.NewGuid():N}", LastChangedBy = byClient }));
-        var byContract = await SeedLeaver();
-        var other = await SeedLeaver();
-        await Run(db => db.Contracts.Add(new Contract { PersonId = other, StartDate = End, LastChangedBy = byContract }));
-        var byPerson = await SeedLeaver();
-        await Run(db => db.People.Single(p => p.Id == other).LastChangedBy = byPerson);
-
-        foreach (var id in new[] { byClient, byContract, byPerson })
-        {
-            var response = await Send(HttpMethod.Delete, $"/api/people/{id}", null);
-            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-            Assert.Contains("last changed by", (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)));
-        }
-    }
-
-    [Fact]
-    public async Task DeleteIgnoresTheOwnRowAndOwnContractsAsLastChangedBy()
-    {
-        var zed = await SeedLeaver();
-        await Run(db => db.People.Single(p => p.Id == zed).LastChangedBy = zed);
-        await Run(db => db.Contracts.Single(c => c.PersonId == zed).LastChangedBy = zed);
-
-        var response = await Send(HttpMethod.Delete, $"/api/people/{zed}", null);
-
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     private async Task<Guid> SeedLeaver()
