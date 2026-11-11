@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs Headroom locally with fresh demo data and Mailpit for the login emails.
+# Runs Headroom locally with fresh demo data, Mailpit for the login emails and a mock OpenID Connect provider.
 # Stop it with Ctrl+C. The containers and their data are then removed.
 set -euo pipefail
 
@@ -8,20 +8,23 @@ export DOCKER_HOST=unix:///var/run/docker.sock
 
 db=headroom-preview-db
 mail=headroom-preview-mail
+oidc=headroom-preview-oidc
 password='Dev_Passw0rd!' # the same as in src/Headroom/appsettings.Development.json
 
-for port in 5432 1025 8025 5002; do
+for port in 5432 1025 8025 5002 8080; do
   if ss -ltn | grep -q ":$port "; then
     echo "Port $port is in use. Stop what uses it, then run this script again." >&2
     exit 1
   fi
 done
 
-cleanup() { docker rm -f "$db" "$mail" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -f "$db" "$mail" "$oidc" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 docker run -d --name "$db" -e "POSTGRES_PASSWORD=$password" -p 5432:5432 postgres:17 >/dev/null
 docker run -d --name "$mail" -p 1025:1025 -p 8025:8025 axllent/mailpit:v1.27 >/dev/null
+# The login form of this provider accepts any claims, so a developer can log in as anyone.
+docker run -d --name "$oidc" -p 8080:8080 -e 'JSON_CONFIG={"interactiveLogin":true}' ghcr.io/navikt/mock-oauth2-server:2.1.10 >/dev/null
 
 echo "Waiting for PostgreSQL..."
 ready=false
@@ -37,6 +40,8 @@ fi
 
 echo "App:     http://localhost:5002"
 echo "Mailpit: http://localhost:8025"
+echo "Company login: set it in Settings. Kind Other OpenID Connect, issuer http://localhost:8080/default, any client ID and secret."
+echo "At the login form of the provider, enter any user name and the claims {\"email\":\"planner@example.test\",\"email_verified\":true}."
 echo "Log in as planner@example.test or person@example.test. The codes arrive in Mailpit."
 
 cd "$(dirname "$0")/.."

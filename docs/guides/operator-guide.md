@@ -111,6 +111,11 @@ To go back further than one release, restore the database to a time before the u
    If the send fails, the screen shows "Could not connect to the email server." and keeps the values, but not the password.
 5. The first Planner exists. Headroom stores the email server with the encrypted password. The first-run screen closes for good.
 
+Instead of steps 3 and 4, the first Planner can select **Set up Company login instead**.
+Enter the Kind, the issuer, the client ID and the client secret, and log in at the provider.
+Headroom then creates the first Planner with the name and email from the provider. It needs no email server for this.
+See the Company login section on the [Settings page](user-guide/settings.md).
+
 There is no setup secret. Until setup ends, anyone who reaches the screen can make the server connect to any host and port. The error shows no reply from that server. Complete this screen right after the first start, before anyone else finds the URL.
 The company name cannot change after this step.
 The first run also creates a default Contract for the Planner: 8 hours, Monday to Friday, from today.

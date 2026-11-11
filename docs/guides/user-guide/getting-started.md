@@ -42,6 +42,13 @@ The offer shows only when your browser supports Passkeys. See the [Account page]
 
 If you saved a Passkey, you can log in with it instead: select **Log in with a Passkey**. See the [Account page](account.md).
 
+If your company set up a Company login, the login screen has a **Company login** button above the email field.
+Select it to log in with the login of your company. The session lasts 12 hours. After that, Headroom sends you to your company login again.
+Your email address must be in Headroom already. A Planner must enter the email that your company login returns.
+For Microsoft Entra ID, this is your user principal name (UPN), for example `upn@company.be`. It can differ from your email alias.
+Headroom refuses the login in the same way when you are not known, when your end date has passed, or when the provider gives no verified email.
+The Login code and the Passkey keep working beside it.
+
 Rules for the code:
 
 - The code works for 10 minutes and works once.
@@ -71,6 +78,9 @@ To log out, select **Sign out** in the header.
 ## Planners: first steps
 
 The Operator creates the first Planner on the first-run screen. The operator guide describes it.
+The first-run screen offers **Set up Company login instead**. The first Planner then enters the company name and the Company login.
+Headroom tests it with a login. This login creates the first Planner with the name and the email from the provider.
+The email server is then optional: a Planner adds it later in Settings, and Login codes work from then on.
 That Planner gets a Contract of 8 hours, Monday to Friday, from the day of the first run.
 Then follow these steps in order to set up the new Instance.
 
