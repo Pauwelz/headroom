@@ -12,25 +12,48 @@ namespace Headroom.Endpoints;
 public static class FirstRunPages
 {
     private static readonly string[] Steps = ["Company and first Planner", "Code from email"];
+    private static readonly string[] StepsWithServer = ["Company and first Planner", "Email server", "Code from email"];
 
-    public static string Form(string token, string? error, string company, string name, string email) =>
-        Layout("Set up Headroom", error, Steps, 0, null, $$"""
+    // The entered values of the Email server step. The password is never here: the Code page carries it protected.
+    public record ServerForm(string Host, string Port, string Username, string FromAddress);
+
+    // withServer: the Email server step follows (it is skipped in Development and when Smtp__Host is set).
+    public static string Form(string token, string? error, string company, string name, string email, bool withServer = false) =>
+        Layout("Set up Headroom", error, withServer ? StepsWithServer : Steps, 0, null, $$"""
             <p class="hint">The first Planner adds People, Clients and Projects. Headroom emails them a code to log in.</p>
             <form method="post" action="/first-run">
               {{Hidden("__RequestVerificationToken", token)}}
               <label>Company name <input name="company" value="{{E(company)}}" maxlength="200" required autofocus></label>
               <label>Name of the first Planner <input name="name" value="{{E(name)}}" maxlength="200" required></label>
               <label>Email of the first Planner <input name="email" type="email" value="{{E(email)}}" maxlength="254" required></label>
+              <button>{{(withServer ? "Next" : "Send code")}}</button>
+            </form>
+            """);
+
+    public static string Server(string token, string? error, string company, string name, string email, ServerForm server) =>
+        Layout("Set the email server", error, StepsWithServer, 1, null, $$"""
+            <p class="hint">Headroom sends the login code through this server. It sends a test email to <strong>{{E(email)}}</strong> first.</p>
+            <form method="post" action="/first-run/server">
+              {{Hidden("__RequestVerificationToken", token)}}
+              {{Hidden("company", company)}}{{Hidden("name", name)}}{{Hidden("email", email)}}
+              <label>Host <input name="host" value="{{E(server.Host)}}" maxlength="253" required autofocus></label>
+              <label>Port <input name="port" type="number" min="1" max="65535" value="{{E(server.Port)}}" required></label>
+              <label>User name <input name="username" value="{{E(server.Username)}}" maxlength="254" autocomplete="off"></label>
+              <label>Password <input name="password" type="password" maxlength="1000" autocomplete="new-password"></label>
+              <label>From address <input name="from" type="email" value="{{E(server.FromAddress)}}" maxlength="254" required></label>
               <button>Send code</button>
             </form>
             """);
 
-    public static string Code(string token, string? error, string company, string name, string email) =>
-        Layout("Enter your code", error, Steps, 1, null, $$"""
+    // server and protectedPassword: set when the Email server step ran. They travel as hidden fields; the password is protected.
+    public static string Code(string token, string? error, string company, string name, string email, ServerForm? server = null, string protectedPassword = "") =>
+        Layout("Enter your code", error, server is null ? Steps : StepsWithServer, server is null ? 1 : 2, null, $$"""
             <p class="hint">We sent a 6-digit code to <strong>{{E(email)}}</strong>. It works for {{LoginCodeService.ValidityText}}.</p>
             <form method="post" action="/first-run/verify">
               {{Hidden("__RequestVerificationToken", token)}}
               {{Hidden("company", company)}}{{Hidden("name", name)}}{{Hidden("email", email)}}
+              {{(server is null ? "" : Hidden("host", server.Host) + Hidden("port", server.Port) + Hidden("username", server.Username)
+                  + Hidden("from", server.FromAddress) + Hidden("password", protectedPassword))}}
               {{CodeField}}
               <button>Finish setup</button>
             </form>

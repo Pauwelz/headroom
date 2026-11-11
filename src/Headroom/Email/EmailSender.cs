@@ -21,8 +21,13 @@ public class EmailSender(
     HeadroomDbContext db, IOptions<SmtpOptions> environment, IHostEnvironment host,
     IDataProtectionProvider protection, ILogger<EmailSender> log) : IEmailSender
 {
-    public async Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct)
+    public async Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct, SmtpOptions? server = null)
     {
+        if (server is not null)
+        {
+            await SendAsync(server, toAddress, companyName, LoginCodeEmail.Subject, LoginCodeEmail.Body(companyName, code), ct);
+            return;
+        }
         var stored = await EmailServer.ReadStoredAsync(db, protection, ct);
         var source = EmailServer.Resolve(stored is not null, environment.Value.Host, host.IsDevelopment());
         if (source == EmailServer.Source.Console)

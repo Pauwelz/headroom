@@ -17,7 +17,7 @@ public class LoginCodeService(HeadroomDbContext db, IEmailSender mail, TimeProvi
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
 
     // Returns false, and sends nothing, when the email has had 3 codes in 15 minutes.
-    public async Task<bool> IssueAsync(string email, string companyName, CancellationToken ct)
+    public async Task<bool> IssueAsync(string email, string companyName, CancellationToken ct, SmtpOptions? server = null)
     {
         await SweepAsync(time.GetUtcNow(), ct);
         var now = time.GetUtcNow();
@@ -31,7 +31,7 @@ public class LoginCodeService(HeadroomDbContext db, IEmailSender mail, TimeProvi
 
         try
         {
-            await mail.SendLoginCodeAsync(email, companyName, code, ct);
+            await mail.SendLoginCodeAsync(email, companyName, code, ct, server);
         }
         catch
         {

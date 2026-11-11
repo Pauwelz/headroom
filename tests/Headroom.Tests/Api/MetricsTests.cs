@@ -203,8 +203,8 @@ public sealed class MetricsApp : HeadroomApp
 
     private sealed class SwitchableEmailSender(MetricsApp app) : IEmailSender
     {
-        public Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct) =>
-            app.MailFails ? throw new InvalidOperationException("mail down") : app.Mail.SendLoginCodeAsync(toAddress, companyName, code, ct);
+        public Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct, SmtpOptions? server = null) =>
+            app.MailFails ? throw new InvalidOperationException("mail down") : app.Mail.SendLoginCodeAsync(toAddress, companyName, code, ct, server);
 
         public Task SendTestAsync(SmtpOptions server, string toAddress, string companyName, CancellationToken ct) =>
             app.Mail.SendTestAsync(server, toAddress, companyName, ct);

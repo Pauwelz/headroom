@@ -27,6 +27,23 @@ public static class EmailServerEndpoints
         group.MapPut("/", Save);
     }
 
+    // The one rule set of Settings and the first-run screen. Returns the error text, or null when the values are fine.
+    public static string? Validate(EmailServerRequest request) =>
+        (request.Host?.Trim() ?? "").Length is 0 or > 253 ? "Enter a host of 1 to 253 characters."
+        : request.Port is < 1 or > 65535 ? "Enter a port from 1 to 65535."
+        : !FirstRunEndpoints.IsEmail(request.FromAddress?.Trim() ?? "") ? "Enter a valid From address."
+        : (request.Username?.Trim() ?? "").Length > 254 ? "Enter a user name of at most 254 characters."
+        : request.Password is { Length: > 1000 } ? "Enter a password of at most 1000 characters."
+        : null;
+
+    // The test email may take only so long, then the caller sees the same error as for a refusal.
+    public static CancellationTokenSource Limit(EmailTestTimeout timeout, CancellationToken ct)
+    {
+        var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(timeout.Value);
+        return limit;
+    }
+
     // The values of Smtp__* are the Operator's. The response only says that they apply.
     private static async Task<IResult> Get(HeadroomDbContext db, IOptions<SmtpOptions> environment)
     {
@@ -40,14 +57,8 @@ public static class EmailServerEndpoints
         EmailServerRequest request, HttpContext http, HeadroomDbContext db, IEmailSender mail, EmailTestTimeout timeout,
         IDataProtectionProvider protection, ILogger<Program> log, CancellationToken ct)
     {
-        var host = request.Host?.Trim() ?? "";
-        var from = request.FromAddress?.Trim() ?? "";
-        var username = request.Username?.Trim() ?? "";
-        if (host.Length is 0 or > 253) return Problem(400, "Enter a host of 1 to 253 characters.");
-        if (request.Port is < 1 or > 65535) return Problem(400, "Enter a port from 1 to 65535.");
-        if (!FirstRunEndpoints.IsEmail(from)) return Problem(400, "Enter a valid From address.");
-        if (username.Length > 254) return Problem(400, "Enter a user name of at most 254 characters.");
-        if (request.Password is { Length: > 1000 }) return Problem(400, "Enter a password of at most 1000 characters.");
+        if (Validate(request) is { } invalid) return Problem(400, invalid);
+        var (host, from, username) = (request.Host.Trim(), request.FromAddress.Trim(), request.Username?.Trim() ?? "");
 
         // An empty password keeps the stored one, but only for the same server and user name.
         var stored = await EmailServer.ReadStoredAsync(db, protection, ct);
@@ -63,8 +74,7 @@ public static class EmailServerEndpoints
 
         var row = await db.InstanceSettings.FirstAsync(ct);
         var planner = await db.People.AsNoTracking().FirstAsync(p => p.Id == http.User.PersonId(), ct);
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        limit.CancelAfter(timeout.Value);
+        using var limit = Limit(timeout, ct);
         try
         {
             await mail.SendTestAsync(server, planner.Email!, row.CompanyName ?? "", limit.Token);
