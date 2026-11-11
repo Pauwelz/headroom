@@ -46,6 +46,10 @@ public static class LoginEndpoints
         if (!FirstRunEndpoints.IsEmail(email))
             return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl, await HasCompanyLogin(db)), 400, allowLoginScript: true);
 
+        // The reply depends only on the typed domain, so it never says whether the email is known.
+        if (await CompanyLoginOnly.MatchAsync(db, email) is { } domain)
+            return FirstRunPages.Page(LoginPages.Email(token, company, $"Use Company login for @{domain}", email, returnUrl, true), allowLoginScript: true);
+
         var person = await FindPerson(db, email, ct);
         if (person is not null && person.CanLogIn(BrusselsTime.Today(time)))
         {
@@ -73,6 +77,7 @@ public static class LoginEndpoints
         var person = FirstRunEndpoints.IsEmail(email) ? await FindPerson(db, email, ct) : null;
 
         if (person is null || !person.CanLogIn(BrusselsTime.Today(time))
+            || await CompanyLoginOnly.MatchAsync(db, person.Email) is not null
             || !await codes.VerifyAsync(person.Email!, form["code"].ToString().Trim(), ct))
         {
             HeadroomMetrics.Login(success: false);
@@ -105,7 +110,8 @@ public static class LoginEndpoints
         using var reader = new StreamReader(http.Request.Body);
         var passkey = await ceremony.CompleteLoginAsync(http, await reader.ReadToEndAsync(ct), PasskeyPath, db);
         var person = passkey is null ? null : await db.People.FirstOrDefaultAsync(p => p.Id == passkey.PersonId, ct);
-        if (passkey is null || person is null || !person.CanLogIn(BrusselsTime.Today(time)))
+        if (passkey is null || person is null || !person.CanLogIn(BrusselsTime.Today(time))
+            || await CompanyLoginOnly.MatchAsync(db, person.Email) is not null)
         {
             HeadroomMetrics.Login(success: false);
             return Results.BadRequest(new { error = "Headroom could not log you in with this Passkey. Use a Login code instead." });

@@ -9,6 +9,7 @@ The Account page holds your own login settings: your Passkeys, your Access token
 A Passkey lets you log in without waiting for a Login code. Your device or password manager keeps the Passkey.
 The Login code always keeps working. Use it to log in the first time, on a new device, or after you lose a Passkey.
 
+- If a Planner made Company login the only login for your email domain, you cannot save a Passkey. Headroom deletes the Passkeys that you had.
 - To save a Passkey, select **Save a Passkey** and follow the prompt of your browser or password manager.
   The button shows only when your browser supports Passkeys.
   After a login with a code, Headroom also offers **Save a Passkey** in a message.

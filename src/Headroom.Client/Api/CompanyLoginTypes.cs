@@ -15,6 +15,14 @@ public record CompanyLoginResponse(CompanyLoginKind? Kind, string? Issuer, strin
     public string Type => "CompanyLogin";
 }
 
+/// <summary>Shared API types of /api/settings/company-login-only.</summary>
+public record CompanyLoginOnlyRequest(bool On, List<string> Domains);
+
+public record CompanyLoginOnlyResponse(bool On, List<string> Domains)
+{
+    public string Type => "CompanyLoginOnly";
+}
+
 /// <summary>Where the test login starts. The browser goes there after Save.</summary>
 public record CompanyLoginTestResponse(string TestUrl)
 {

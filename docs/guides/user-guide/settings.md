@@ -30,6 +30,19 @@ The page has three groups: **Company**, **Instance** and **Access and integratio
   - Headroom never shows the password again. The field says "Stored. Leave empty to keep it." Leave it empty to keep the password.
     If you change the host, the port or the user name, enter the password again.
   - The line under the heading shows the host, "The Operator's server" when the Operator set the server in the environment, or "Not set".
+- **Company login only.** This section makes Company login the only login for the company email domains.
+  - Enter **Domains**, one per line, for example `company.be`. A domain matches the part of an email after `@`, without case.
+    It does not match subdomains. A wildcard such as `*.company.be` is not allowed.
+  - Add every domain people use to log in, including aliases.
+  - Turn on **Company login only** and select **Save**. You need a Company login, and you must have logged in with it at least once.
+    If not, Headroom refuses the switch and says why. No Planner is exempt.
+  - While the switch is on, the login page sends no Login code for these emails. It says "Use Company login for @domain". It gives the same answer for known and unknown emails.
+    Passkey login is refused, and a Passkey cannot be saved. The Passkey offer does not show.
+  - When you turn the switch on, add a domain, or change a Person's email into a company domain, Headroom deletes the Passkeys of the People affected. There is no confirmation step.
+    Turning the switch off brings back Login codes. It does not bring back deleted Passkeys.
+  - People with other domains, such as freelancers, keep Login codes and Passkeys.
+    Access tokens and Connections keep working. They are not a login.
+  - **Remove** on Company login also turns the switch off. If the provider breaks, the Operator can turn the switch off. The Operator guide has the steps.
 - **Company login.** This section lets People log in with the login of your company. An Instance has at most one Company login.
   - Choose the **Kind**: **Microsoft Entra ID** or **Other OpenID Connect**. Fill in **Issuer URL**, **Client ID** and **Client secret**.
   - Register the **Redirect URI** at the provider. Select the copy button to copy it. It is the address of your Instance followed by `/signin-oidc`.

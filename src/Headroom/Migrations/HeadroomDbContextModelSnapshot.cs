@@ -250,6 +250,10 @@ namespace Headroom.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.PrimitiveCollection<string[]>("CompanyDomains")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
                     b.Property<string>("CompanyLoginClientId")
                         .HasColumnType("text");
 
@@ -261,6 +265,9 @@ namespace Headroom.Migrations
 
                     b.Property<string>("CompanyLoginKind")
                         .HasColumnType("text");
+
+                    b.Property<bool>("CompanyLoginOnly")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("CompanyName")
                         .HasColumnType("text");

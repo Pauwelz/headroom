@@ -109,6 +109,15 @@ public class SettingsApi(HttpClient http)
 
     public Task<string?> RemoveCompanyLoginAsync() => ApiCall.SendAsync(http.DeleteAsync(CompanyLoginPath));
 
+    private const string CompanyLoginOnlyPath = "api/settings/company-login-only";
+
+    public async Task<CompanyLoginOnlyResponse> GetCompanyLoginOnlyAsync() =>
+        (await http.GetFromJsonAsync<CompanyLoginOnlyResponse>(CompanyLoginOnlyPath))!;
+
+    // Returns null on success, or the server's error text.
+    public Task<string?> SaveCompanyLoginOnlyAsync(CompanyLoginOnlyRequest request) =>
+        ApiCall.SendAsync(http.PutAsJsonAsync(CompanyLoginOnlyPath, request));
+
     private const string TelemetryPath = "api/settings/telemetry";
 
     public async Task<TelemetrySettingsResponse> GetTelemetryAsync() =>

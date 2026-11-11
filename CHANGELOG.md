@@ -14,6 +14,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A Planner switches "Send Person id" and "Send client IP address" in Settings (Instance, Telemetry). A change applies to the next request, with no restart.
 
 - A Planner sets up one Company login (OpenID Connect) in Settings or on the first-run screen. People who are already in Headroom can then log in with it. Headroom saves new settings only after a test login that matches the Planner. A Company login session lasts 12 hours. See ADR 0018.
+- A Planner makes Company login the only login for company email domains in Settings (Instance, Company login only). Those People get no Login code and cannot use a Passkey. Turning the switch on, adding a domain, or changing an email into a company domain deletes the affected Passkeys. The Operator guide has the SQL that turns the switch off. See ADR 0018.
 - `scripts/preview.sh` also starts a mock OpenID Connect provider for local tests of the Company login.
 
 ### Changed
