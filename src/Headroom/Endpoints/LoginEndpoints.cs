@@ -1,4 +1,5 @@
 using Headroom.Auth;
+using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Telemetry;
 using Microsoft.AspNetCore.Antiforgery;
@@ -28,8 +29,9 @@ public static class LoginEndpoints
     {
         var returnUrl = SafeReturnUrl(http.Request.Query["ReturnUrl"]);
         if (http.User.Identity?.IsAuthenticated == true) return Results.Redirect(returnUrl);
+        var outcome = http.Request.Query["companyLogin"].ToString();
         return await Company(db) is { } company
-            ? FirstRunPages.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, null, "", returnUrl), allowLoginScript: true)
+            ? FirstRunPages.Page(LoginPages.Email(FirstRunEndpoints.Token(http, antiforgery), company, outcome.Length == 0 ? null : CompanyLoginOutcome.Message(outcome), "", returnUrl, await HasCompanyLogin(db)), allowLoginScript: true)
             : Results.Redirect("/first-run");
     }
 
@@ -42,7 +44,7 @@ public static class LoginEndpoints
         var returnUrl = SafeReturnUrl(form["ReturnUrl"]);
         var token = FirstRunEndpoints.Token(http, antiforgery);
         if (!FirstRunEndpoints.IsEmail(email))
-            return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl), 400, allowLoginScript: true);
+            return FirstRunPages.Page(LoginPages.Email(token, company, "Enter a valid email address.", email, returnUrl, await HasCompanyLogin(db)), 400, allowLoginScript: true);
 
         var person = await FindPerson(db, email, ct);
         if (person is not null && person.CanLogIn(BrusselsTime.Today(time)))
@@ -118,11 +120,14 @@ public static class LoginEndpoints
     }
 
     // After login the Person returns to an authorize request of a Connected app. Nowhere else: no open redirect.
-    private static string SafeReturnUrl(string? url) =>
+    internal static string SafeReturnUrl(string? url) =>
         url is not null && url.StartsWith("/connect/authorize?", StringComparison.Ordinal) && !url.Contains('\\') ? url : "/";
 
     private static Task<Person?> FindPerson(HeadroomDbContext db, string email, CancellationToken ct) =>
         db.People.AsNoTracking().FirstOrDefaultAsync(p => p.Email == email, ct); // the column collation ignores case
+
+    private static Task<bool> HasCompanyLogin(HeadroomDbContext db) =>
+        db.InstanceSettings.AnyAsync(s => s.CompanyLoginKind != null);
 
     private static Task<string?> Company(HeadroomDbContext db) =>
         db.InstanceSettings.Select(s => s.CompanyName).FirstOrDefaultAsync();

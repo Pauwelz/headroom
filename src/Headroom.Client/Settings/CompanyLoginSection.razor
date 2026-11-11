@@ -1,0 +1,86 @@
+@using Headroom.Client.Api
+@inject SettingsApi Api
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<SettingsSection Id="company-login" Title="Company login" Summary="@Summary">
+    <MudText Typo="Typo.body2" Class="mb-2">
+        People who are already in Headroom can log in with the login of your company. Before Headroom saves a change,
+        you log in once as a test. The test login must be yours. If the test fails, Headroom keeps the old settings.
+    </MudText>
+
+    @if (_message is not null)
+    {
+        <SettingsAlert Severity="@(_saved ? Severity.Success : Severity.Error)" OnClose="() => _message = null">@_message</SettingsAlert>
+    }
+
+    <MudSelect T="CompanyLoginKind" @bind-Value="_kind" Label="Kind" Class="mb-2">
+        <MudSelectItem Value="CompanyLoginKind.Entra">Microsoft Entra ID</MudSelectItem>
+        <MudSelectItem Value="CompanyLoginKind.Other">Other OpenID Connect</MudSelectItem>
+    </MudSelect>
+    <MudTextField @bind-Value="_issuer" Label="Issuer URL" MaxLength="500" Immediate="true" Required="true" Class="mb-2"
+                  HelperText="@(_kind == CompanyLoginKind.Entra ? "For example https://login.microsoftonline.com/{tenant id}/v2.0. It must name one tenant." : null)" />
+    <MudTextField @bind-Value="_clientId" Label="Client ID" MaxLength="200" Immediate="true" Required="true" Class="mb-2" />
+    <MudTextField @bind-Value="_clientSecret" Label="Client secret" InputType="InputType.Password" MaxLength="1000" Immediate="true"
+                  HelperText="@(_hasSecret ? "Stored. Leave empty to keep it." : null)" Class="mb-2" />
+
+    <MudTextField Value="@RedirectUri" Label="Redirect URI" ReadOnly="true" Class="mb-2" HelperText="Register this URI at the provider."
+                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.ContentCopy" OnAdornmentClick="CopyAsync" AdornmentAriaLabel="Copy the redirect URI" />
+
+    <div class="d-flex gap-2">
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync"
+                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_issuer) || string.IsNullOrWhiteSpace(_clientId))">Test and save</MudButton>
+        @if (_isSet)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" OnClick="RemoveAsync" Disabled="_busy">Remove</MudButton>
+        }
+    </div>
+</SettingsSection>
+
+@code {
+    private CompanyLoginKind _kind = CompanyLoginKind.Entra;
+    private string _issuer = "", _clientId = "", _clientSecret = "";
+    private bool _hasSecret, _isSet, _busy, _saved;
+    private string? _message;
+
+    private string RedirectUri => $"{Navigation.BaseUri}signin-oidc";
+
+    private string Summary => !_isSet ? "Not set" : _kind == CompanyLoginKind.Entra ? "Microsoft Entra ID" : "Other OpenID Connect";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        // A test login sends the browser back to this page with its outcome.
+        if (System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["companyLogin"] is { Length: > 0 } outcome)
+        {
+            _saved = outcome == CompanyLoginOutcome.Saved;
+            _message = _saved ? "Saved. The test login worked." : CompanyLoginOutcome.Message(outcome);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var settings = await Api.GetCompanyLoginAsync();
+        (_isSet, _kind, _issuer, _clientId) = (settings.Kind is not null, settings.Kind ?? CompanyLoginKind.Entra, settings.Issuer ?? "", settings.ClientId ?? "");
+        (_hasSecret, _clientSecret) = (settings.HasSecret, "");
+    }
+
+    private async Task SaveAsync()
+    {
+        (_busy, _message, _saved) = (true, null, false);
+        var (testUrl, error) = await Api.StartCompanyLoginTestAsync(new CompanyLoginRequest(_kind, _issuer, _clientId, _clientSecret));
+        _busy = false;
+        if (testUrl is null) _message = error;
+        else Navigation.NavigateTo(testUrl, forceLoad: true);
+    }
+
+    private async Task RemoveAsync()
+    {
+        (_busy, _message, _saved) = (true, null, false);
+        _message = await Api.RemoveCompanyLoginAsync();
+        _busy = false;
+        if (_message is null) await LoadAsync();
+    }
+
+    private async Task CopyAsync() => await Js.InvokeVoidAsync("navigator.clipboard.writeText", RedirectUri);
+}
