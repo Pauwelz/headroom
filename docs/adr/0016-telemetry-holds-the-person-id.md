@@ -17,3 +17,5 @@ Request spans also carry the client IP address as `client.address`. Azure Monito
 - Names, emails, Login codes, paths with ids, query strings and SQL text stay out. The integration test still asserts this.
 - Erasure removes the name and email from the database. After that, the Person id in telemetry no longer links to a Person.
 - MCP calls export the spans of the MCP SDK, with the tool name. They carry no tool arguments.
+
+Superseded in part by [ADR 0017](0017-planners-configure-the-instance-in-the-app.md): a Planner switches each value off in Settings.
