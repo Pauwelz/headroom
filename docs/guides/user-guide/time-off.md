@@ -3,6 +3,8 @@
 The Time off calendar shows who is off on each day. Every Person can open it.
 The page is read-only. To change Time off, use the Schedule. See [Schedule view](schedule.md).
 
+![The Time off calendar for November 2026 with two Time off bars and three days off](images/time-off.png)
+
 ## Read it
 
 - The page shows one month as a wall calendar. It opens on the current month.

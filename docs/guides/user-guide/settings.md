@@ -1,6 +1,6 @@
 # Settings page (Planners only)
 
-![The Settings page with the nav on the left, and the Company and Access and integrations groups on the right](images/settings.png)
+![The Settings page with the nav on the left, and the Company, Instance and Access and integrations groups on the right](images/settings.png)
 
 The page has three groups: **Company**, **Instance** and **Access and integrations**.
 - The nav on the left lists each area. Click an area to jump to it. On a phone, the nav shows above the page.
@@ -16,7 +16,8 @@ The page has three groups: **Company**, **Instance** and **Access and integratio
   It reduces Capacity like a public holiday.
   Use the arrows to change the year.
   - Belgian public holidays show in grey. You cannot change them.
-    A public holiday on a Saturday or Sunday shows a prompt to add a replacement day.
+    A public holiday on a Saturday or Sunday shows the note "On a Saturday: add a replacement day?" (or Sunday).
+    To add the replacement day, use the row at the bottom.
   - Each Company day off has **Edit** and **Delete**.
   - The row at the bottom adds a date and a name, for example a bridge day.
     **Add** stays disabled until the date and the name are filled in.
@@ -95,7 +96,7 @@ Each Person connects with their own login. Claude then acts as that Person, with
 
    It names the Connected app and the Person.
    Every Person can tick **Can change**. With it, Claude can change your own Time off. If you are a Planner, Claude can also change the planning.
-   Without it, Claude reads only. Select **Allow**.
+   Without it, Claude reads only. Select **Allow**. **Cancel** refuses the access.
 
 Each member sees their own data. `get_me` tells each member who they are.
 Headroom asks for consent on every connect.
@@ -281,8 +282,7 @@ For example, a Power Automate flow can post to Teams.
 
 - The row at the bottom adds a Webhook with a name and a URL.
   Headroom shows the secret (`whsec_...`) once. Copy it then.
-- The URL must use https and must point to a public address.
-- The URL must use https and must not point to an internal address.
+- The URL must use https and must point to a public address, not to an internal address.
   A development instance also accepts http.
   **Add** stays disabled until the name is filled in and the URL is valid.
   The server checks the URL again.

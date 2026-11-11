@@ -24,7 +24,7 @@ Everyone sees the whole report, read-only. Your own row is highlighted.
 | --- | --- |
 | Below 75% | Under-used |
 | 75% to 90% | Ideal (green) |
-| 90% to 100% | High (amber) |
+| Above 90% to 100% | High (amber) |
 | Above 100% | Over-allocated (red) |
 | No Capacity | Grey |
 

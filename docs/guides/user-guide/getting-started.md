@@ -3,8 +3,8 @@
 ## Roles
 
 - A **Planner** changes everything in the app.
-- A **Person who is not a Planner** views the Schedule view, the Projects page and the Utilisation report.
-  They change nothing.
+- A **Person who is not a Planner** views the Schedule view, the Time off calendar, the Projects page and the Utilisation report.
+  They change only their own Time off and their own Account page.
 
 The server checks every right. A hidden button is not the only protection.
 A disabled button says why in its tooltip.
@@ -37,6 +37,9 @@ It comes with no warranty. Support is best effort.
 
 You are logged in. The session lasts 30 days from your last visit.
 
+After a login with a code, Headroom offers "Log in faster next time." Select **Save a Passkey** to save one, or close the message.
+The offer shows only when your browser supports Passkeys. See the [Account page](account.md).
+
 If you saved a Passkey, you can log in with it instead: select **Log in with a Passkey**. See the [Account page](account.md).
 
 Rules for the code:
@@ -49,7 +52,7 @@ You get the same "code sent" message if your email is not known, or if your end 
 In that case no email goes out. Ask a Planner to check your email address and end date.
 Your login stops the day after your end date.
 
-The login screen has a "Privacy notice" link. Click it to open the notice. It names the company that controls your data.
+The login screen has a "Privacy notice" link. Click it to show the notice below the link. It names the company that controls your data.
 It says what Headroom stores: your name, email, Contracts, Allocations and Time off.
 Headroom erases your personal details 12 months after your end date.
 The database host of your company sets how long backups keep data.
@@ -58,14 +61,18 @@ To log out, select **Sign out** in the header.
 
 ## The app
 
+- The menu button at the left of the header shows or hides the side drawer.
 - The header shows the app name, the company name, the help button, the theme button, your name and **Sign out**.
 - The help button (**?**) opens the help for the screen you are on. On other screens, it opens the contents.
+  A help topic has a "Back to Help" link to the contents. Each help page shows the app version at the bottom.
 - The theme button cycles through Auto, Light and Dark. Auto follows your system.
-- The side drawer has **Schedule**, **Projects**, **Utilisation** and **Account**, and for Planners also **People** and **Settings**.
+- The side drawer has **Schedule**, **Time off**, **Projects**, **Utilisation** and **Account**, and for Planners also **People** and **Settings**.
 
 ## Planners: first steps
 
-Follow these steps in order to set up a new Instance.
+The Operator creates the first Planner on the first-run screen. The operator guide describes it.
+That Planner gets a Contract of 8 hours, Monday to Friday, from the day of the first run.
+Then follow these steps in order to set up the new Instance.
 
 1. Set the Company days off. Open the **Settings** page.
    Add each Company day off for the year. See [Settings page](settings.md).

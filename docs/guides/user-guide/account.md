@@ -2,6 +2,8 @@
 
 The Account page holds your own login settings: your Passkeys, your Access tokens and your Connections.
 
+![The Account page with the Passkeys, Access tokens and Connections sections](images/account.png)
+
 ## Passkeys
 
 A Passkey lets you log in without waiting for a Login code. Your device or password manager keeps the Passkey.
@@ -9,6 +11,7 @@ The Login code always keeps working. Use it to log in the first time, on a new d
 
 - To save a Passkey, select **Save a Passkey** and follow the prompt of your browser or password manager.
   The button shows only when your browser supports Passkeys.
+  After a login with a code, Headroom also offers **Save a Passkey** in a message.
 - Headroom names the Passkey from your browser and system, for example "Firefox on Linux". You cannot rename it.
   The list shows the name, the creation date and the date you last used the Passkey.
 - You can save several Passkeys, for example one for your laptop and one for your phone.

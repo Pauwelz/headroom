@@ -58,6 +58,8 @@ const shots = {
     const page = await open('planner', '/utilisation');
     await page.locator('td', { hasText: '75%' }).filter({ hasText: 'incl.' }).last().click();
     await settle(page);
+    // The breakdown shows below all People; a full-page shot breaks the sticky header.
+    await page.getByText(/^Utilisation: /).scrollIntoViewIfNeeded();
     return page;
   },
   'utilisation-table': async () => {
@@ -68,16 +70,25 @@ const shots = {
   },
   'people': async () => {
     const page = await open('planner', '/people');
-    await page.getByText('Pia Person', { exact: true }).click();
+    await page.getByText('Ava Janssens', { exact: true }).click();
     await settle(page);
     return page;
   },
   'people-end-date': async () => {
     const page = await open('planner', '/people');
-    await page.getByText('Pia Person', { exact: true }).click();
+    await page.getByText('Ava Janssens', { exact: true }).click();
     await settle(page);
     await page.getByRole('button', { name: 'Set end date' }).click();
     await settle(page);
+    return page;
+  },
+  'time-off': async () => {
+    const page = await open('person', '/time-off');
+    return page;
+  },
+  'account': async () => {
+    const page = await open('person', '/account');
+    page.full = true;
     return page;
   },
   'settings': async () => {

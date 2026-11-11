@@ -13,6 +13,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The first-run screen asks for the email server before it sends the login code. Headroom skips this step when `Smtp__Host` is set, and in Development.
 - A Planner switches "Send Person id" and "Send client IP address" in Settings (Instance, Telemetry). A change applies to the next request, with no restart.
 
+### Changed
+
+- The user guide and the in-app Help have new screenshots. They now describe the Passkey offer after login and the Time off item in the side drawer.
+
 ### Deprecated
 
 - `Telemetry__EndUserId` and `Telemetry__ClientAddress` are now a fallback for the Settings section. A later release removes them.
