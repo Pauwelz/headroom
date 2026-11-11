@@ -16,6 +16,17 @@ public static class SettingsEndpoints
         days.MapPost("/", Add);
         days.MapPut("/{id:guid}", Edit);
         days.MapDelete("/{id:guid}", Delete);
+        api.MapPut("/settings/company-name", ChangeCompanyName).RequirePlanner();
+    }
+
+    // The From name of the login email and the login page read the name at each request, so they follow at once.
+    private static async Task<IResult> ChangeCompanyName(CompanyNameRequest request, HttpContext http, HeadroomDbContext db)
+    {
+        if (ApiProblem.CleanName(request.Name) is not { } name) return ApiProblem.Problem(400, ApiProblem.NameDetail);
+        var settings = await db.InstanceSettings.FirstAsync();
+        (settings.CompanyName, settings.LastChangedBy) = (name, http.User.PersonId());
+        await db.SaveChangesAsync();
+        return Results.NoContent();
     }
 
     private static async Task<IResult> ListYear(int year, HeadroomDbContext db, IPublicHolidays holidays)
