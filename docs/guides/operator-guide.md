@@ -105,10 +105,13 @@ To go back further than one release, restore the database to a time before the u
 1. Open the URL from the deploy run, followed by `/first-run`.
    For example `https://<container app>.<environment>.westeurope.azurecontainerapps.io/first-run`.
 2. Enter the company name, and the name and email of the first Planner.
-3. The server sends a login code to that email. Enter the code.
-4. The first Planner exists. The first-run screen closes for good.
+3. Enter the email server: host, port, user name, password and From address.
+   Headroom skips this step when `Smtp__Host` is set, and in Development.
+4. Headroom sends a login code to the email of the first Planner, through the server that you entered. Enter the code.
+   If the send fails, the screen shows "Could not connect to the email server." and keeps the values, but not the password.
+5. The first Planner exists. Headroom stores the email server with the encrypted password. The first-run screen closes for good.
 
-There is no setup secret. Complete this screen right after the first start, before anyone else finds the URL.
+There is no setup secret. Until setup ends, anyone who reaches the screen can make the server connect to any host and port. The error shows no reply from that server. Complete this screen right after the first start, before anyone else finds the URL.
 The company name cannot change after this step.
 The first run also creates a default Contract for the Planner: 8 hours, Monday to Friday, from today.
 
@@ -129,7 +132,7 @@ That provider sees the email addresses and the codes. Check that its terms and l
 - Headroom does not write email addresses or codes to the logs.
 - If the provider is down, nobody can log in.
 
-A Planner sets the email server in Settings, in the group **Instance**, section **Email server**.
+The first-run screen sets the email server for a new Instance. After that, a Planner changes it in Settings, in the group **Instance**, section **Email server**.
 Headroom sends a test email to the Planner before it saves a change.
 Headroom encrypts the password with the Data Protection key ring. The key ring is in the same database.
 At each send, Headroom uses the first of these:
