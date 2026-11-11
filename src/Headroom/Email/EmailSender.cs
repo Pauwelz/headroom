@@ -1,3 +1,4 @@
+using Headroom.Client.Api;
 using Headroom.Data;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -10,7 +11,7 @@ namespace Headroom.Email;
 public class SmtpOptions
 {
     public string Host { get; set; } = "";
-    public int Port { get; set; } = 587;
+    public int Port { get; set; } = EmailServerDefaults.Port;
     public string Username { get; set; } = "";
     public string Password { get; set; } = "";
     public string FromAddress { get; set; } = "";
@@ -23,20 +24,16 @@ public class EmailSender(
 {
     public async Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct, SmtpOptions? server = null)
     {
-        if (server is not null)
-        {
-            await SendAsync(server, toAddress, companyName, LoginCodeEmail.Subject, LoginCodeEmail.Body(companyName, code), ct);
-            return;
-        }
-        var stored = await EmailServer.ReadStoredAsync(db, protection, ct);
-        var source = EmailServer.Resolve(stored is not null, environment.Value.Host, host.IsDevelopment());
+        var stored = server is null ? await EmailServer.ReadStoredAsync(db, protection, ct) : null;
+        var source = server is not null ? EmailServer.Source.Database
+            : EmailServer.Resolve(stored is not null, environment.Value.Host, host.IsDevelopment());
         if (source == EmailServer.Source.Console)
         {
-            // The address stays out of the log: it is personal data.
+            // The address stays out of the log. It is personal data.
             log.LogWarning("Login code ({Company}): {Code}", companyName, code);
             return;
         }
-        await SendAsync(stored ?? environment.Value, toAddress, companyName, LoginCodeEmail.Subject, LoginCodeEmail.Body(companyName, code), ct);
+        await SendAsync(server ?? stored ?? environment.Value, toAddress, companyName, LoginCodeEmail.Subject, LoginCodeEmail.Body(companyName, code), ct);
     }
 
     public Task SendTestAsync(SmtpOptions server, string toAddress, string companyName, CancellationToken ct) =>

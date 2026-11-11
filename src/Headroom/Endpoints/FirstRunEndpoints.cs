@@ -4,6 +4,7 @@ using Headroom.Data;
 using Headroom.Client.Api;
 using Headroom.Email;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Antiforgery;
@@ -28,7 +29,7 @@ public static class FirstRunEndpoints
     private static async Task<IResult> ShowForm(HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, IOptions<SmtpOptions> smtp, IHostEnvironment env) =>
         await IsClosed(db) ? Results.NotFound() : FirstRunPages.Page(FirstRunPages.Form(Token(http, antiforgery), null, "", "", "", AsksForServer(env, smtp)));
 
-    // Development logs the code and Smtp__Host is a fallback, so neither needs the Email server step (and nothing is stored).
+    // Development logs the code. Smtp__Host is a fallback. Neither needs the Email server step.
     private static bool AsksForServer(IHostEnvironment env, IOptions<SmtpOptions> smtp) =>
         !env.IsDevelopment() && string.IsNullOrEmpty(smtp.Value.Host);
 
@@ -41,9 +42,9 @@ public static class FirstRunEndpoints
         var token = Token(http, antiforgery);
         var asks = AsksForServer(env, smtp);
 
-        if (company.Length is 0 or > 200 || name.Length is 0 or > 200 || !IsEmail(email))
-            return FirstRunPages.Page(FirstRunPages.Form(token, "Fill in all fields with a valid email address.", company, name, email, asks), 400);
-        if (asks) return FirstRunPages.Page(FirstRunPages.Server(token, null, company, name, email, new("", "587", "", "")));
+        if (!HasIdentity(company, name, email))
+            return FirstRunPages.Page(FirstRunPages.Form(token, IdentityDetail, company, name, email, asks), 400);
+        if (asks) return FirstRunPages.Page(FirstRunPages.Server(token, null, company, name, email, DefaultServerForm));
 
         try
         {
@@ -59,7 +60,8 @@ public static class FirstRunEndpoints
         return FirstRunPages.Page(FirstRunPages.Code(token, null, company, name, email));
     }
 
-    // The Email server step: the login code goes through exactly these settings. Nothing is stored until the code is right.
+    // The Email server step sends the login code through exactly these settings.
+    // Headroom stores nothing until the code is right.
     private static async Task<IResult> SendServerCode(
         HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, LoginCodeService codes, IOptions<SmtpOptions> smtp, IHostEnvironment env,
         EmailTestTimeout timeout, IDataProtectionProvider protection, ILogger<Program> log, IFormCollection form, CancellationToken ct)
@@ -67,43 +69,43 @@ public static class FirstRunEndpoints
         if (await IsClosed(db) || !AsksForServer(env, smtp)) return Results.NotFound();
         var (company, name, email) = Read(form);
         var token = Token(http, antiforgery);
-        if (company.Length is 0 or > 200 || name.Length is 0 or > 200 || !IsEmail(email))
-            return FirstRunPages.Page(FirstRunPages.Form(token, "Fill in all fields with a valid email address.", company, name, email, true), 400);
+        if (!HasIdentity(company, name, email))
+            return FirstRunPages.Page(FirstRunPages.Form(token, IdentityDetail, company, name, email, true), 400);
 
-        var request = ReadServer(form, form["password"].ToString());
-        var shown = ShownOf(request);
+        var request = new EmailServerRequest(
+            form["host"].ToString().Trim(), int.TryParse(form["port"], out var port) ? port : 0,
+            form["username"].ToString().Trim(), form["password"].ToString(), form["from"].ToString().Trim());
+        var shown = new FirstRunPages.ServerForm(request.Host, request.Port.ToString(), request.Username ?? "", request.FromAddress);
         if (EmailServerEndpoints.Validate(request) is { } invalid)
             return FirstRunPages.Page(FirstRunPages.Server(token, invalid, company, name, email, shown), 400);
+        var server = new SmtpOptions
+        {
+            Host = request.Host, Port = request.Port, Username = request.Username ?? "", Password = request.Password ?? "", FromAddress = request.FromAddress,
+        };
 
         try
         {
-            using var limit = EmailServerEndpoints.Limit(timeout, ct);
-            if (!await codes.IssueAsync(email, company, limit.Token, ServerOf(request)))
+            using var limit = EmailServerEndpoints.LinkedTimeout(timeout, ct);
+            if (!await codes.IssueAsync(email, company, limit.Token, server))
                 return FirstRunPages.Page(FirstRunPages.Server(token, "Too many codes for this email. Wait 15 minutes.", company, name, email, shown), 429);
         }
         catch (Exception ex)
         {
-            // Log the exception type only. The message of a mail error can hold an address, and the page shows no reply.
+            // Log the exception type only. A mail error can hold an address. The page shows no reply.
             log.LogError("Could not send the first-run code: {ExceptionType}", ex.GetType().Name);
             return FirstRunPages.Page(FirstRunPages.Server(token, EmailServerEndpoints.ConnectDetail, company, name, email, shown), 400);
         }
-        // The password is not in a hidden field in plain text: it is protected and expires.
-        var protectedPassword = request.Password is { Length: > 0 } ? TimeLimited(protection).Protect(request.Password, PasswordLifetime) : "";
-        return FirstRunPages.Page(FirstRunPages.Code(token, null, company, name, email, shown, protectedPassword));
+        // The tested server travels as one protected value. The browser cannot change it.
+        var protectedServer = TimeLimited(protection).Protect(JsonSerializer.Serialize(server), ServerLifetime);
+        return FirstRunPages.Page(FirstRunPages.Code(token, null, company, name, email, protectedServer));
     }
 
-    private static readonly TimeSpan PasswordLifetime = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan ServerLifetime = TimeSpan.FromMinutes(30);
+
+    private static readonly FirstRunPages.ServerForm DefaultServerForm = new("", EmailServerDefaults.Port.ToString(), "", "");
 
     private static ITimeLimitedDataProtector TimeLimited(IDataProtectionProvider protection) =>
         protection.CreateProtector("Headroom.FirstRunSmtp").ToTimeLimitedDataProtector();
-
-    private static EmailServerRequest ReadServer(IFormCollection form, string password) =>
-        new(form["host"].ToString().Trim(), int.TryParse(form["port"], out var port) ? port : 0, form["username"].ToString().Trim(), password, form["from"].ToString().Trim());
-
-    private static FirstRunPages.ServerForm ShownOf(EmailServerRequest r) => new(r.Host, r.Port.ToString(), r.Username ?? "", r.FromAddress);
-
-    private static SmtpOptions ServerOf(EmailServerRequest r) =>
-        new() { Host = r.Host, Port = r.Port, Username = r.Username ?? "", Password = r.Password ?? "", FromAddress = r.FromAddress };
 
     private static async Task<IResult> VerifyCode(
         HttpContext http, HeadroomDbContext db, IAntiforgery antiforgery, LoginCodeService codes, IOptions<SmtpOptions> smtp, IHostEnvironment env,
@@ -113,29 +115,23 @@ public static class FirstRunEndpoints
         var (company, name, email) = Read(form);
         var token = Token(http, antiforgery);
 
-        if (company.Length is 0 or > 200 || name.Length is 0 or > 200 || !IsEmail(email))
+        if (!HasIdentity(company, name, email))
             return FirstRunPages.Page(FirstRunPages.Code(token, "The code is wrong or has expired.", company, name, email), 400);
 
-        // Read the settings before the code is used up, so that a bad value does not waste the code.
+        // Read the server before the code is used up. A bad value then does not waste the code.
         SmtpOptions? server = null;
-        FirstRunPages.ServerForm? shown = null;
-        var protectedPassword = form["password"].ToString();
+        var protectedServer = form["server"].ToString();
         if (AsksForServer(env, smtp))
         {
-            var request = ReadServer(form, "");
-            shown = ShownOf(request);
-            try { request = request with { Password = protectedPassword.Length == 0 ? "" : TimeLimited(protection).Unprotect(protectedPassword) }; }
-            catch (CryptographicException)
+            try { server = JsonSerializer.Deserialize<SmtpOptions>(TimeLimited(protection).Unprotect(protectedServer)); }
+            catch (Exception ex) when (ex is CryptographicException or JsonException)
             {
-                return FirstRunPages.Page(FirstRunPages.Server(token, "The email server settings expired. Enter them again.", company, name, email, shown), 400);
+                return FirstRunPages.Page(FirstRunPages.Server(token, "The email server settings expired. Enter them again.", company, name, email, DefaultServerForm), 400);
             }
-            if (EmailServerEndpoints.Validate(request) is { } invalid)
-                return FirstRunPages.Page(FirstRunPages.Server(token, invalid, company, name, email, shown), 400);
-            server = ServerOf(request);
         }
 
         if (!await codes.VerifyAsync(email, form["code"].ToString().Trim(), ct))
-            return FirstRunPages.Page(FirstRunPages.Code(token, "The code is wrong or has expired.", company, name, email, shown, protectedPassword), 400);
+            return FirstRunPages.Page(FirstRunPages.Code(token, "The code is wrong or has expired.", company, name, email, protectedServer), 400);
 
         var today = BrusselsTime.Today(time);
         var person = new Person { Name = name, Email = email, IsPlanner = true };
@@ -162,6 +158,11 @@ public static class FirstRunEndpoints
 
     private static (string Company, string Name, string Email) Read(IFormCollection form) =>
         (form["company"].ToString().Trim(), form["name"].ToString().Trim(), form["email"].ToString().Trim());
+
+    private const string IdentityDetail = "Fill in all fields with a valid email address.";
+
+    private static bool HasIdentity(string company, string name, string email) =>
+        company.Length is > 0 and <= 200 && name.Length is > 0 and <= 200 && IsEmail(email);
 
     internal static bool IsEmail(string email) =>
         email.Length <= 254 && MailAddress.TryCreate(email, out var parsed) && parsed.Address == email;

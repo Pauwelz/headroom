@@ -1,3 +1,4 @@
+using Headroom.Client.Api;
 using Headroom.Data;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ public static class EmailServer
 {
     public enum Source { Database, Environment, Console }
 
-    // The order: stored settings, then Smtp__*, then the console in Development. The decision is pure.
+    // The order is: stored settings, then Smtp__*, then the console in Development. The function is pure.
     public static Source Resolve(bool hasStored, string? environmentHost, bool isDevelopment) =>
         hasStored ? Source.Database
         : !string.IsNullOrEmpty(environmentHost) ? Source.Environment
@@ -25,7 +26,7 @@ public static class EmailServer
         return row?.SmtpHost is null ? null : new SmtpOptions
         {
             Host = row.SmtpHost,
-            Port = row.SmtpPort ?? 587,
+            Port = row.SmtpPort ?? EmailServerDefaults.Port,
             Username = row.SmtpUsername ?? "",
             Password = row.SmtpPassword is null ? "" : protection.CreateProtector(Purpose).Unprotect(row.SmtpPassword),
             FromAddress = row.SmtpFromAddress ?? "",

@@ -152,6 +152,10 @@ SET "SmtpHost" = NULL, "SmtpPort" = NULL, "SmtpUsername" = NULL, "SmtpPassword" 
 
 Headroom then uses the `Smtp__*` parameters again. No restart is needed.
 
+The key ring that decrypts the password is in the same database.
+If you restore the database without its key ring, Headroom cannot decrypt the password. Then all Login codes fail.
+Run the SQL statement above to clear the settings, and set them again in Settings.
+
 ## Export
 
 Headroom has no export feature. The Operator makes a dump with `pg_dump`.

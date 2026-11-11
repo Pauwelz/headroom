@@ -14,10 +14,10 @@ public static class FirstRunPages
     private static readonly string[] Steps = ["Company and first Planner", "Code from email"];
     private static readonly string[] StepsWithServer = ["Company and first Planner", "Email server", "Code from email"];
 
-    // The entered values of the Email server step. The password is never here: the Code page carries it protected.
+    // The values that the Email server step shows again. The password is never in it.
     public record ServerForm(string Host, string Port, string Username, string FromAddress);
 
-    // withServer: the Email server step follows (it is skipped in Development and when Smtp__Host is set).
+    // withServer is true when the Email server step follows. Development and Smtp__Host skip it.
     public static string Form(string token, string? error, string company, string name, string email, bool withServer = false) =>
         Layout("Set up Headroom", error, withServer ? StepsWithServer : Steps, 0, null, $$"""
             <p class="hint">The first Planner adds People, Clients and Projects. Headroom emails them a code to log in.</p>
@@ -45,15 +45,14 @@ public static class FirstRunPages
             </form>
             """);
 
-    // server and protectedPassword: set when the Email server step ran. They travel as hidden fields; the password is protected.
-    public static string Code(string token, string? error, string company, string name, string email, ServerForm? server = null, string protectedPassword = "") =>
-        Layout("Enter your code", error, server is null ? Steps : StepsWithServer, server is null ? 1 : 2, null, $$"""
+    // protectedServer is set when the Email server step ran. It is one protected value, not plain fields.
+    public static string Code(string token, string? error, string company, string name, string email, string protectedServer = "") =>
+        Layout("Enter your code", error, protectedServer.Length == 0 ? Steps : StepsWithServer, protectedServer.Length == 0 ? 1 : 2, null, $$"""
             <p class="hint">We sent a 6-digit code to <strong>{{E(email)}}</strong>. It works for {{LoginCodeService.ValidityText}}.</p>
             <form method="post" action="/first-run/verify">
               {{Hidden("__RequestVerificationToken", token)}}
               {{Hidden("company", company)}}{{Hidden("name", name)}}{{Hidden("email", email)}}
-              {{(server is null ? "" : Hidden("host", server.Host) + Hidden("port", server.Port) + Hidden("username", server.Username)
-                  + Hidden("from", server.FromAddress) + Hidden("password", protectedPassword))}}
+              {{(protectedServer.Length == 0 ? "" : Hidden("server", protectedServer))}}
               {{CodeField}}
               <button>Finish setup</button>
             </form>

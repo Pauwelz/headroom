@@ -48,7 +48,7 @@ public class FirstRunServerTests
         var server = app.Mail.CodeServers[Email]!;
         Assert.Equal(("smtp.example.com", 465, "user", "plain-secret", "headroom@example.com"), (server.Host, server.Port, server.Username, server.Password, server.FromAddress));
 
-        var done = await client.PostAsync("/first-run/verify", Form(Token(html), Hidden(html, "company", "name", "email", "host", "port", "username", "from", "password"),
+        var done = await client.PostAsync("/first-run/verify", Form(Token(html), Hidden(html, "company", "name", "email", "server"),
             ("code", app.Mail.Sent.Single().Code)), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Redirect, done.StatusCode);
 
@@ -56,6 +56,7 @@ public class FirstRunServerTests
         Assert.Equal("smtp.example.com", stored.SmtpHost);
         Assert.NotNull(stored.SmtpPassword);
         Assert.DoesNotContain("plain-secret", stored.SmtpPassword);
+        Assert.NotEqual("plain-secret", stored.SmtpPassword);
         var get = await client.GetFromJsonAsync<EmailServerResponse>("/api/settings/email-server", TestContext.Current.CancellationToken);
         Assert.Equal(("smtp.example.com", 465, "user", true), (get!.Host, get.Port, get.Username, get.HasPassword));
     }
@@ -119,11 +120,31 @@ public class FirstRunServerTests
         var token = Token(await Html(await client.GetAsync("/first-run", TestContext.Current.CancellationToken)));
 
         var response = await client.PostAsync("/first-run/verify", Form(token, ("company", "Acme"), ("name", "Ann"), ("email", Email),
-            ("host", "h"), ("port", "587"), ("from", "headroom@example.com"), ("password", "not-protected"), ("code", "123456")), TestContext.Current.CancellationToken);
+            ("server", "not-protected"), ("code", "123456")), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("expired", await Html(response));
         Assert.Empty(await Settings(app));
+    }
+
+    [Fact]
+    public async Task ChangedHiddenFieldsCannotChangeTheStoredServer()
+    {
+        await using var app = await StartAsync(new("Production"));
+        var client = Client(app);
+        var token = Token(await Html(await client.GetAsync("/first-run", TestContext.Current.CancellationToken)));
+        var code = await client.PostAsync("/first-run/server", Form(token, ("company", "Acme"), ("name", "Ann"), ("email", Email),
+            ("host", "smtp.example.com"), ("port", "587"), ("username", "user"), ("password", "plain-secret"), ("from", "headroom@example.com")), TestContext.Current.CancellationToken);
+        var html = await Html(code);
+        Assert.DoesNotContain("name=\"host\"", html);
+
+        var done = await client.PostAsync("/first-run/verify", Form(Token(html), Hidden(html, "company", "name", "email", "server"),
+            ("host", "evil.example.com"), ("port", "25"), ("username", "evil"), ("password", "evil"), ("from", "evil@example.com"),
+            ("code", app.Mail.Sent.Single().Code)), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Redirect, done.StatusCode);
+        var stored = await Stored(app);
+        Assert.Equal(("smtp.example.com", 587, "user", "headroom@example.com"), (stored.SmtpHost, stored.SmtpPort, stored.SmtpUsername, stored.SmtpFromAddress));
     }
 
     [Fact]

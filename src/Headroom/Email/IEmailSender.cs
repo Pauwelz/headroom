@@ -4,7 +4,8 @@ namespace Headroom.Email;
 public interface IEmailSender
 {
     // The From name is "<company name> Headroom".
-    // With a server, the email goes through exactly that server (the first-run screen, before anything is stored).
+    // With a server, the email goes through exactly that server.
+    // The first-run screen uses this before it stores anything.
     Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct, SmtpOptions? server = null);
 
     // Sends a short test email through exactly this server, whatever the stored settings say.

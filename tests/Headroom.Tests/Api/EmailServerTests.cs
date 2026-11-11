@@ -49,7 +49,10 @@ public class EmailServerTests : IClassFixture<EmailServerApp>, IAsyncLifetime
     {
         _factory = app.Factory;
         _mail = app.Mail;
+        _connectionString = app.ConnectionString;
     }
+
+    private readonly string _connectionString;
 
     private static readonly EmailServerRequest Valid = new("smtp.example.com", 587, "user", "secret-pw", "headroom@example.com");
 
@@ -77,6 +80,35 @@ public class EmailServerTests : IClassFixture<EmailServerApp>, IAsyncLifetime
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task DevelopmentWithoutAnyServerLogsTheCodeButNotTheAddress()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var log = new CapturingLogger();
+        var sender = new EmailSender(
+            scope.ServiceProvider.GetRequiredService<HeadroomDbContext>(), Microsoft.Extensions.Options.Options.Create(new SmtpOptions()),
+            new Microsoft.Extensions.Hosting.Internal.HostingEnvironment { EnvironmentName = "Development" },
+            scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(), log);
+
+        await sender.SendLoginCodeAsync("someone@example.com", "Acme", "123456", TestContext.Current.CancellationToken);
+
+        var line = Assert.Single(log.Lines);
+        Assert.Contains("123456", line);
+        Assert.DoesNotContain("someone@example.com", line);
+    }
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<EmailSender>
+    {
+        public List<string> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter) => Lines.Add(formatter(state, exception));
+    }
 
     [Fact]
     public async Task NonPlannerGets403OnGetAndPut()
@@ -122,6 +154,15 @@ public class EmailServerTests : IClassFixture<EmailServerApp>, IAsyncLifetime
         Assert.NotNull(stored.SmtpPassword);
         Assert.NotEqual("secret-pw", stored.SmtpPassword);
         Assert.DoesNotContain("secret-pw", stored.SmtpPassword);
+        // The raw column, read without the model, holds ciphertext.
+        await using (var connection = new Npgsql.NpgsqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = new Npgsql.NpgsqlCommand("""SELECT "SmtpPassword" FROM "InstanceSettings" """, connection);
+            var raw = (string)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
+            Assert.NotEqual("secret-pw", raw);
+            Assert.DoesNotContain("secret-pw", raw);
+        }
         Assert.NotNull(stored.LastChangedBy);
 
         var response = await client.GetAsync(Url, TestContext.Current.CancellationToken);

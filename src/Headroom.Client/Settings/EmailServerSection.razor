@@ -30,7 +30,7 @@
 
 @code {
     private string _host = "", _username = "", _password = "", _from = "";
-    private int _port = 587;
+    private int _port = EmailServerDefaults.Port;
     private bool _hasPassword, _usesEnvironment, _busy, _saved;
     private string? _error;
     private string? _storedHost;
