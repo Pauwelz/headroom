@@ -262,6 +262,21 @@ namespace Headroom.Migrations
                     b.Property<Guid?>("LastChangedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("SmtpFromAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SmtpHost")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SmtpPassword")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("SmtpPort")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SmtpUsername")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.ToTable("InstanceSettings");

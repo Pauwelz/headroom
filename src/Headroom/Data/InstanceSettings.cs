@@ -7,4 +7,13 @@ public class InstanceSettings : Record
 
     // The last erased number given out. The next erase takes one more.
     public int ErasedCount { get; set; }
+
+    // The email server a Planner sets. A null host means nothing is stored, and Smtp__* applies.
+    public string? SmtpHost { get; set; }
+    public int? SmtpPort { get; set; }
+    public string? SmtpUsername { get; set; }
+
+    // Data Protection ciphertext, never plain text.
+    public string? SmtpPassword { get; set; }
+    public string? SmtpFromAddress { get; set; }
 }

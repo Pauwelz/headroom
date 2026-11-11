@@ -18,6 +18,17 @@ public class FakeEmailSender : IEmailSender
         Sent.Add((toAddress, companyName, code));
         return Task.CompletedTask;
     }
+
+    public List<(SmtpOptions Server, string To)> TestSent { get; } = [];
+    public bool TestFails { get; set; }
+    public bool TestHangs { get; set; }
+
+    public async Task SendTestAsync(SmtpOptions server, string toAddress, string companyName, CancellationToken ct)
+    {
+        if (TestHangs) await Task.Delay(Timeout.Infinite, ct);
+        if (TestFails) throw new InvalidOperationException("refused for secret@example.com");
+        TestSent.Add((server, toAddress));
+    }
 }
 
 public class FirstRunTests : IClassFixture<ClockedHeadroomApp>

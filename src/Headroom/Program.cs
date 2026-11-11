@@ -27,7 +27,8 @@ builder.Services.AddApiAntiforgery();
 builder.Services.AddHeadroomMcp();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddSingleton<ErasureCheck>();
-builder.Services.AddEmailSender(builder.Environment, builder.Configuration["Smtp:Host"]);
+builder.Services.AddScoped<IEmailSender, EmailSender>();
+builder.Services.AddSingleton(new EmailTestTimeout(TimeSpan.FromSeconds(15)));
 builder.Services.AddScoped<Headroom.Dev.DevSeed>();
 builder.Services.AddHttpClient(Headroom.Events.EventSender.ClientName, c => c.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => Headroom.Events.WebhookGuard.CreateHandler(allowInternal: builder.Environment.IsDevelopment()));

@@ -5,4 +5,7 @@ public interface IEmailSender
 {
     // The From name is "<company name> Headroom".
     Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct);
+
+    // Sends a short test email through exactly this server, whatever the stored settings say.
+    Task SendTestAsync(SmtpOptions server, string toAddress, string companyName, CancellationToken ct);
 }
