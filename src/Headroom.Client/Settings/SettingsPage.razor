@@ -1,7 +1,4 @@
 @page "/settings"
-@inject SessionApi Session
-@inject SettingsApi Api
-@inject NavigationManager Navigation
 
 <PageTitle>Settings</PageTitle>
 
@@ -28,19 +25,7 @@
     <div class="settings-body">
         <MudText Typo="Typo.h5" Class="mb-2">Company</MudText>
 
-        <SettingsSection Id="company-name" Title="Company name" Summary="@(_company ?? "…")" @bind-Expanded="_companyOpen">
-            <MudText Typo="Typo.body2" Class="mb-2">The name shows on the login page, in the app bar and as the sender of the login email.</MudText>
-            @if (_companyError is not null)
-            {
-                <SettingsAlert OnClose="() => _companyError = null">@_companyError</SettingsAlert>
-            }
-            <div class="d-flex align-center gap-2">
-                <MudTextField @bind-Value="_companyEdit" Label="Company name" MaxLength="200" Immediate="true"
-                              Required="true" RequiredError="Enter a name." />
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveCompanyAsync"
-                           Disabled="@(string.IsNullOrWhiteSpace(_companyEdit) || _companyEdit.Trim() == _company)">Save</MudButton>
-            </div>
-        </SettingsSection>
+        <CompanyNameSection />
 
         <CompanyDaysOffSection />
 
@@ -59,10 +44,6 @@
 @code {
     [CascadingParameter] public MeResponse Me { get; set; } = default!;
 
-    private bool _companyOpen;
-    private string? _company;
-    private string _companyEdit = "";
-    private string? _companyError;
     private int _expiringSoon;
     private int _failedEventCount;
     private ConnectionsSection? _connections;
@@ -70,18 +51,4 @@
     // The nav badge shows the number. Screen readers hear the label instead.
     private static RenderFragment Badge(int count, string label) => count == 0 ? _ => { } :
         @<span><span class="badge" aria-hidden="true">@count</span><span class="sr-only">, @label</span></span>;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (!Me.IsPlanner) return;
-        _company = await Session.GetCompanyNameAsync();
-        _companyEdit = _company ?? "";
-    }
-
-    private async Task SaveCompanyAsync()
-    {
-        _companyError = await Api.ChangeCompanyNameAsync(_companyEdit);
-        // Reload, so the app bar shows the new name too.
-        if (_companyError is null) Navigation.Refresh(forceReload: true);
-    }
 }

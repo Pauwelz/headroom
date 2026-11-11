@@ -139,6 +139,8 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
         var instance = await client.GetFromJsonAsync<InstanceResponse>("/api/instance", ct);
         Assert.Equal("Acme Group", instance!.Name);
+        var loginPage = await _factory.CreateClient().GetStringAsync("/login", ct);
+        Assert.Contains("Acme Group", loginPage);
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
         var settings = db.InstanceSettings.Single();
@@ -154,7 +156,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(client, token, HttpMethod.Put, CompanyNameUrl, new CompanyNameRequest("Evil Corp"))).StatusCode);
     }
 
-    private const string CompanyNameUrl = "/api/settings/company-name";
+    private const string CompanyNameUrl = "/" + SettingsApi.CompanyNamePath;
 
     private static Task<HttpResponseMessage> Send(HttpClient client, string token, HttpMethod method, string url, object? body)
     {

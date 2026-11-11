@@ -20,8 +20,10 @@ public class SettingsApi(HttpClient http)
 
     public async Task<string?> DeleteAsync(Guid id) => await ErrorOf(await http.DeleteAsync($"{Path}/{id}"));
 
+    public const string CompanyNamePath = "api/settings/company-name";
+
     public Task<string?> ChangeCompanyNameAsync(string name) =>
-        ApiCall.SendAsync(http.PutAsJsonAsync("api/settings/company-name", new CompanyNameRequest(name)));
+        ApiCall.SendAsync(http.PutAsJsonAsync(CompanyNamePath, new CompanyNameRequest(name)));
 
     private const string TokenPath = "api/settings/access-tokens";
 
