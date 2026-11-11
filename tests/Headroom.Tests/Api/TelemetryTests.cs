@@ -7,6 +7,8 @@ using Headroom.Client.Api;
 using Headroom.Data;
 using Headroom.Email;
 using Headroom.Telemetry;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -43,16 +45,19 @@ public class TelemetryTests : IAsyncLifetime
     private const string AzureMonitor = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=http://localhost:1/";
     private const string Otlp = "http://localhost:1";
 
-    private WebApplicationFactory<Program> StartFactory(string? connectionString = AzureMonitor, string? otlpKey = null, bool endUserId = true) =>
+    private WebApplicationFactory<Program> StartFactory(string? connectionString = AzureMonitor, string? otlpKey = null, bool endUserId = true, bool clientAddress = true) =>
         _app.Factory.WithWebHostBuilder(builder =>
         {
             // UseSetting, not ConfigureAppConfiguration: Program reads the keys before the host builds.
             if (connectionString is not null) builder.UseSetting(HeadroomTelemetry.ConnectionStringKey, connectionString);
             if (otlpKey is not null) builder.UseSetting(otlpKey, Otlp);
             if (!endUserId) builder.UseSetting(HeadroomTelemetry.EndUserIdKey, "false");
+            if (!clientAddress) builder.UseSetting(HeadroomTelemetry.ClientAddressKey, "false");
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton<IEmailSender>(_mail);
+                // The test server has no client address, so give each request one.
+                services.AddSingleton<IStartupFilter>(new ClientAddressFilter());
                 services.ConfigureOpenTelemetryTracerProvider(t => t.AddInMemoryExporter(_spans));
                 services.ConfigureOpenTelemetryMeterProvider(m => m.AddInMemoryExporter(_metrics));
                 services.ConfigureOpenTelemetryLoggerProvider(l => l.AddInMemoryExporter(_logs));
@@ -90,6 +95,36 @@ public class TelemetryTests : IAsyncLifetime
         // The Person id is the one personal value that telemetry holds (ADR 0016), as enduser.id on the request span.
         Assert.Contains(_spans.Snapshot(), s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == me.Id.ToString());
         AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", code, QueryValue);
+    }
+
+    // The order is the stored value, then Telemetry__*, then on. A save applies to the next request.
+    [Theory]
+    [InlineData(null, true, true)]
+    [InlineData(null, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    public async Task TheClientTagsFollowTheStoredValueThenTheEnvironment(bool? stored, bool environment, bool expected)
+    {
+        var factory = StartFactory(endUserId: environment, clientAddress: environment);
+        var person = new Person { Name = Name, Email = Email, IsPlanner = true };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+            db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = person.Id });
+            db.People.Add(person);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var client = await TestLogin.SignInAsync(factory, _mail, Email);
+        client.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(client));
+        if (stored is { } value)
+            (await client.PutAsJsonAsync("/api/settings/telemetry", new TelemetrySettingsRequest(value, value), TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        await client.GetAsync("/api/people", TestContext.Current.CancellationToken);
+
+        await FlushAndStopAsync(factory);
+        var span = _spans.Snapshot().Last(s => s.Kind == ActivityKind.Server && (s.GetTagItem("http.route") as string)?.Trim('/') == "api/people");
+        Assert.Equal(expected, span.GetTagItem("enduser.id") is not null);
+        Assert.Equal(expected, span.GetTagItem("client.address") is not null);
     }
 
     // Telemetry:EndUserId=false keeps the Person id out of telemetry.
@@ -209,6 +244,19 @@ public class TelemetryTests : IAsyncLifetime
         Assert.NotEmpty(logs);
         foreach (var secret in secrets.Concat(["SELECT ", "INSERT ", "UPDATE ", "FROM ["]))
             Assert.DoesNotContain(secret, everything, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class ClientAddressFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use((http, nextMiddleware) =>
+            {
+                http.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.7");
+                return nextMiddleware(http);
+            });
+            next(app);
+        };
     }
 
     // The exporters add from background threads, also while the test reads. A lock on add and read keeps the read safe.

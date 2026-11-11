@@ -29,6 +29,11 @@ The page has three groups: **Company**, **Instance** and **Access and integratio
   - Headroom never shows the password again. The field says "Stored. Leave empty to keep it." Leave it empty to keep the password.
     If you change the host, the port or the user name, enter the password again.
   - The line under the heading shows the host, "The Operator's server" when the Operator set the server in the environment, or "Not set".
+- **Telemetry.** This section sets which personal data Headroom adds to the telemetry of the Operator.
+  - **Send Person id** lets the Operator count active users and trace a fault of one Person.
+  - **Send client IP address** shows the real client address instead of the proxy.
+  - Click **Save**. The change applies to the next request.
+  - If the page says "Headroom sends no telemetry: the Operator has not set an exporter.", the switches have no effect yet. You can still set them.
 - **Access tokens.** This list shows the Access tokens of all People, with the owner of each token.
   It shows the expiry date and the **Can change** state of each token. It never shows a secret. **Revoke** stops one token at once. The other tokens keep working.
   Each Person creates their own tokens on the [Account page](account.md).
