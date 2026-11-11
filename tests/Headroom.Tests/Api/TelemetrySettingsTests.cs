@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -22,6 +24,17 @@ public class TelemetryPrivacyTests
     [InlineData(false, true, false)]
     public void FollowsTheOrder(bool? stored, bool? environment, bool expected) =>
         Assert.Equal(expected, TelemetryPrivacy.Effective(stored, environment));
+
+    [Fact]
+    public async Task SendsNeitherValueWhenTheDatabaseCannotBeRead()
+    {
+        // Port 1: nothing listens, so the read fails at once.
+        var options = new DbContextOptionsBuilder<HeadroomDbContext>().UseNpgsql("Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=1").Options;
+        await using var db = new HeadroomDbContext(options, TimeProvider.System);
+        var privacy = new TelemetryPrivacy(new MemoryCache(new MemoryCacheOptions()), new ConfigurationBuilder().Build());
+
+        Assert.Equal((false, false), await privacy.GetAsync(db, TestContext.Current.CancellationToken));
+    }
 }
 
 public class TelemetrySettingsTests(HeadroomApp app) : IClassFixture<HeadroomApp>, IAsyncLifetime
