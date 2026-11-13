@@ -43,9 +43,9 @@
       },
       "Microsoft.AspNetCore.App.Internal.Assets": {
         "type": "Direct",
-        "requested": "[10.0.14, )",
-        "resolved": "10.0.14",
-        "contentHash": "T1IOYbID1msKjQEh684HebnN+Xnq/pocMXDukOMZtzzPTf9c4/30+/JndM/1txrqwuSYqWvLiAQWzu4U93cshw=="
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "tYYYBZsuF2DSz1I3hcfB8qC4nNekIKufkYZOJ2R28fNK3PkS7fJao/mIX5H84NH94UACZQ4dhvt8GDlkrJFwLg=="
       },
       "Microsoft.AspNetCore.Components.WebAssembly.Server": {
         "type": "Direct",
@@ -154,9 +154,9 @@
       },
       "PublicHoliday": {
         "type": "Direct",
-        "requested": "[3.17.0, )",
-        "resolved": "3.17.0",
-        "contentHash": "HXlVpE+J3T35EL/xRKjEN5op1TUwBJ64bFjB6nCsxhoJu1O94fiTBVUdgqTX/DKBEOSMcwIXbHUZFQ+Y5zqjhQ=="
+        "requested": "[4.0.0, )",
+        "resolved": "4.0.0",
+        "contentHash": "Hf9AbzDQTi/bmvxbctmDdmRBFdl4ZCtMsqngGKgI9tynUN2CvxBD/LbCU31o8CCuiFI8uu5RveYzM1aoyvc1Fg=="
       },
       "Azure.Core": {
         "type": "Transitive",

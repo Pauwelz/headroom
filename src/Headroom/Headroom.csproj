@@ -33,7 +33,7 @@
     <PackageReference Include="OpenIddict.AspNetCore" Version="7.8.0" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.8.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
-    <PackageReference Include="PublicHoliday" Version="3.17.0" />
+    <PackageReference Include="PublicHoliday" Version="4.0.0" />
     <ProjectReference Include="..\Headroom.Client\Headroom.Client.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.14" />
   </ItemGroup>
