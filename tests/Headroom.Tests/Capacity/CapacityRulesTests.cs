@@ -180,4 +180,26 @@ public class CapacityRulesTests
 
         Assert.Equal(expected, actual);
     }
+
+    [Fact]
+    public void Two_Belgian_holidays_on_one_date_give_one_joined_name()
+    {
+        var names = new BelgianPublicHolidays().InYear(2008);
+
+        Assert.Equal("Dag van de arbeid / Hemelvaartsdag", names[new(2008, 5, 1)]); // May Day and Ascension Day
+    }
+
+    [Fact]
+    public void Belgian_public_holiday_names_for_2026()
+    {
+        var expected = new Dictionary<DateOnly, string>
+        {
+            [new(2026, 1, 1)] = "Nieuwjaar", [new(2026, 4, 6)] = "Paasmaandag", [new(2026, 5, 1)] = "Dag van de arbeid",
+            [new(2026, 5, 14)] = "Hemelvaartsdag", [new(2026, 5, 25)] = "Pinkstermaandag", [new(2026, 7, 21)] = "Nationale feestdag",
+            [new(2026, 8, 15)] = "Onze Lieve Vrouw hemelvaart", [new(2026, 11, 1)] = "Allerheiligen",
+            [new(2026, 11, 11)] = "Wapenstilstand", [new(2026, 12, 25)] = "Kerstmis",
+        };
+
+        Assert.Equal(expected, new BelgianPublicHolidays().InYear(2026));
+    }
 }
