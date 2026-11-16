@@ -4,6 +4,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    labels: [dependencies, .NET, no-changelog]
     groups:
       nuget-minor-patch:
         update-types: [minor, patch]
@@ -11,6 +12,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    labels: [dependencies, github_actions, no-changelog]
     groups:
       actions:
         patterns: ['*']
