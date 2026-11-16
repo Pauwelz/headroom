@@ -5,6 +5,6 @@ public interface IPublicHolidays
 {
     bool IsPublicHoliday(DateOnly day);
 
-    /// <summary>Every public holiday of a year with its name.</summary>
+    /// <summary>Every public holiday of a year with its name. Two holidays on one date share one name, joined with " / ".</summary>
     IReadOnlyDictionary<DateOnly, string> InYear(int year);
 }
