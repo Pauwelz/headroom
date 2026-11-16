@@ -1,5 +1,6 @@
 using Headroom.Client.Api;
 using Headroom.Data;
+using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.AspNetCore.DataProtection;
@@ -51,7 +52,7 @@ public class EmailSender(
         using var client = new SmtpClient { Timeout = 15_000 };
         await client.ConnectAsync(smtp.Host, smtp.Port, SecureSocketOptions.Auto, ct);
         if (smtp.Username.Length > 0) await client.AuthenticateAsync(smtp.Username, smtp.Password, ct);
-        await client.SendAsync(message, ct);
+        await client.SendAsync(new SendRequest(message), ct);
         await client.DisconnectAsync(true, ct);
     }
 }
