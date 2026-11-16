@@ -154,9 +154,9 @@
       },
       "PublicHoliday": {
         "type": "Direct",
-        "requested": "[3.17.0, )",
-        "resolved": "3.17.0",
-        "contentHash": "HXlVpE+J3T35EL/xRKjEN5op1TUwBJ64bFjB6nCsxhoJu1O94fiTBVUdgqTX/DKBEOSMcwIXbHUZFQ+Y5zqjhQ=="
+        "requested": "[4.0.0, )",
+        "resolved": "4.0.0",
+        "contentHash": "Hf9AbzDQTi/bmvxbctmDdmRBFdl4ZCtMsqngGKgI9tynUN2CvxBD/LbCU31o8CCuiFI8uu5RveYzM1aoyvc1Fg=="
       },
       "Azure.Core": {
         "type": "Transitive",
