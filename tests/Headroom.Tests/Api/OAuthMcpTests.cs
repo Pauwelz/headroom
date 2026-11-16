@@ -4,7 +4,6 @@ using System.Web;
 using System.Text;
 using System.Text.Json;
 using Headroom.Data;
-using Headroom.Email;
 using Headroom.Endpoints;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -22,15 +21,13 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string Demoted = "oauth-demoted@example.com";
     private const string Old = "oauth-old@example.com";
     private const string Fallen = "oauth-fallen@example.com";
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly OAuthFlow _flow;
 
     public OAuthMcpTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
-        _flow = new OAuthFlow(_factory, _mail);
+        _flow = new OAuthFlow(_factory);
     }
 
     public async ValueTask InitializeAsync()
@@ -67,7 +64,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task ConsentPageEncodesAndFiltersHostileQueryKeys()
     {
         var app = await _flow.AddAppAsync();
-        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
 
         var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()) + "&%22%3E%3Cscript%3E=x", Ct);
 
@@ -83,7 +80,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task ConsentPageForwardsEveryAllowedParameter()
     {
         var app = await _flow.AddAppAsync();
-        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
 
         var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()) + "&nonce=n1&response_mode=query", Ct);
 
@@ -187,8 +184,9 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
     private async Task<HttpResponseMessage> LogInAsync(HttpClient client, string loginUrl, string email)
     {
-        await PostFormAsync(client, loginUrl, "/login", ("email", email));
-        return await PostFormAsync(client, loginUrl, "/login/verify", ("email", email), ("code", _mail.Sent.Last(m => m.To == email).Code));
+        var returnUrl = OAuthFlow.Hidden(await client.GetStringAsync(loginUrl, Ct)).Single(h => h.Key == "returnUrl").Value;
+        return await _factory.Services.GetRequiredService<FakeProvider>().LoginAsync(
+            client, $"{Headroom.Auth.CompanyLogin.StartPath}?returnUrl={Uri.EscapeDataString(returnUrl)}", TestLogin.Claims(email));
     }
 
     // Posts the form of a page: its hidden fields (antiforgery token, return URL) plus the given fields.
@@ -203,7 +201,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task ConsentNamesTheConnectedAppAndThePerson()
     {
         var app = await _flow.AddAppAsync("Copilot Studio");
-        var client = await TestLogin.SignInAsync(_factory, _mail, "oauth-zed@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "oauth-zed@example.com");
 
         var html = await (await client.GetAsync(OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New()), Ct)).Content.ReadAsStringAsync(Ct);
 
@@ -214,7 +212,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task ADeniedConsentSendsAccessDeniedAndNoCode()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
 
         var response = await OAuthFlow.ConsentAsync(client, OAuthFlow.AuthorizeUrl(await _flow.AddAppAsync(), OAuthFlow.Pkce.New()), "deny");
 
@@ -257,7 +255,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
             "two-resources" => OAuthFlow.AuthorizeUrl(app, pkce) + "&resource=" + Uri.EscapeDataString(OAuthFlow.Api),
             _ => OAuthFlow.AuthorizeUrl(app, pkce, resource: "https://localhost/other"),
         };
-        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
 
         var response = await client.GetAsync(url, Ct);
 
@@ -293,8 +291,8 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var app = await _flow.AddAppAsync();
         var url = OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New());
 
-        var planner = await (await TestLogin.SignInAsync(_factory, _mail, Ann)).GetStringAsync(url, Ct);
-        var other = await (await TestLogin.SignInAsync(_factory, _mail, "oauth-zed@example.com")).GetStringAsync(url, Ct);
+        var planner = await (await TestLogin.SignInAsync(_factory, Ann)).GetStringAsync(url, Ct);
+        var other = await (await TestLogin.SignInAsync(_factory, "oauth-zed@example.com")).GetStringAsync(url, Ct);
 
         Assert.Contains("Can change", planner);
         Assert.Contains("Can change", other);
@@ -517,7 +515,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var token = await _flow.TokenAsync(app, Ann);
         Assert.NotEqual(HttpStatusCode.Unauthorized, (await PostMcpAsync(token)).StatusCode);
 
-        var session = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var session = await TestLogin.SignInAsync(_factory, Ann);
         var delete = new HttpRequestMessage(HttpMethod.Delete, "/api/settings/connected-apps/" + await _flow.IdOfAsync(app));
         delete.Headers.Add(Headroom.Client.Api.AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(session));
         Assert.Equal(HttpStatusCode.NoContent, (await session.SendAsync(delete, Ct)).StatusCode);
@@ -563,7 +561,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task AnAuthorizeRequestForOpenidIsRefused()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
 
         var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(await _flow.AddAppAsync(), OAuthFlow.Pkce.New(), scope: "openid offline_access"), Ct);
 
@@ -574,7 +572,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task AnAuthorizeRequestWithAChallengeButNoMethodIsRefused()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
 
         var response = await client.GetAsync(OAuthFlow.AuthorizeUrl(await _flow.AddAppAsync(), OAuthFlow.Pkce.New(), method: ""), Ct);
 
@@ -599,7 +597,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     {
         var app = await _flow.AddAppAsync("Doomed2");
         var refresh = (await _flow.TokensAsync(app, Ann)).GetProperty("refresh_token").GetString()!;
-        var session = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var session = await TestLogin.SignInAsync(_factory, Ann);
         var delete = new HttpRequestMessage(HttpMethod.Delete, "/api/settings/connected-apps/" + await _flow.IdOfAsync(app));
         delete.Headers.Add(Headroom.Client.Api.AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(session));
         Assert.Equal(HttpStatusCode.NoContent, (await session.SendAsync(delete, Ct)).StatusCode);
@@ -612,7 +610,7 @@ public class OAuthMcpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     {
         var app = await _flow.AddAppAsync();
         var url = OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New());
-        var html = await (await TestLogin.SignInAsync(_factory, _mail, Ann)).GetStringAsync(url, Ct);
+        var html = await (await TestLogin.SignInAsync(_factory, Ann)).GetStringAsync(url, Ct);
 
         var response = await _flow.NewClient().PostAsync("/connect/authorize", new FormUrlEncodedContent(OAuthFlow.Hidden(html).Append(new("decision", "allow"))), Ct);
 

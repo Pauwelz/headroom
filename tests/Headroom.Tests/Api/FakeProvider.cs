@@ -38,6 +38,8 @@ public sealed class FakeProvider : HttpMessageHandler, IDisposable
         options.Configuration = configuration;
         options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
         options.Backchannel = new HttpClient(this);
+        // The test client drops the correlation cookie when the app clock runs in the past.
+        options.TimeProvider = TimeProvider.System;
     }
 
     // Starts at startUrl, answers the authorization request with an ID token with these claims, and returns the callback response.

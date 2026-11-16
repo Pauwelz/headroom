@@ -6,7 +6,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
@@ -14,8 +13,7 @@ using OpenIddict.Abstractions;
 namespace Headroom.Tests.Api;
 
 // Runs the OAuth flow of a Connected app against the real app: authorize, consent, code, token. Later tickets reuse it.
-// The factory must use the FakeEmailSender passed here (see TestLogin).
-public sealed class OAuthFlow(WebApplicationFactory<Program> factory, FakeEmailSender mail)
+public sealed class OAuthFlow(WebApplicationFactory<Program> factory)
 {
     public const string Callback = "https://claude.ai/api/mcp/auth_callback";
     public const string Mcp = "https://localhost/mcp";
@@ -77,7 +75,7 @@ public sealed class OAuthFlow(WebApplicationFactory<Program> factory, FakeEmailS
     // Signs the Person in, opens the authorize URL and approves the consent screen. Returns the final response (the redirect to the app).
     public async Task<HttpResponseMessage> AuthorizeAsync(string email, string url, bool canChange = false)
     {
-        var client = await TestLogin.SignInAsync(factory, mail, email);
+        var client = await TestLogin.SignInAsync(factory, email);
         return await ConsentAsync(client, url, canChange: canChange);
     }
 

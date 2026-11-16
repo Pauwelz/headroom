@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +12,6 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     private static DateOnly March(int day) => new(2026, 3, day);
 
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
     private HttpClient _viewer = null!;
@@ -24,7 +22,6 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public AllocationsApiTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -45,9 +42,9 @@ public class AllocationsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
             _floId = db.People.Single(p => p.Email == "alloc-flo@example.com").Id;
             _leaverId = db.People.Single(p => p.Email == "alloc-lee@example.com").Id;
         }
-        _planner = await TestLogin.SignInAsync(_factory, _mail, "alloc-ann@example.com");
+        _planner = await TestLogin.SignInAsync(_factory, "alloc-ann@example.com");
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
-        _viewer = await TestLogin.SignInAsync(_factory, _mail, "alloc-flo@example.com");
+        _viewer = await TestLogin.SignInAsync(_factory, "alloc-flo@example.com");
         _viewer.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_viewer));
     }
 

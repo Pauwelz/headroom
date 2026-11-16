@@ -4,7 +4,6 @@ using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Client.People;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +16,6 @@ public class RehireTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
     private static readonly DateOnly End = new(2026, 10, 30);
     private static readonly WeekHours Half = new(4, 4, 4, 4, 4, 0, 0);
-    private readonly FakeEmailSender _mail;
     private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _ann = null!;
@@ -26,7 +24,6 @@ public class RehireTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
     public RehireTests(ClockedHeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
         _time = app.Time;
         _time.Set(ClockedHeadroomApp.Start);
     }
@@ -44,9 +41,8 @@ public class RehireTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
             db.Contracts.Add(new Contract { PersonId = ann.Id, StartDate = Jan1, HoursMonday = 8 });
             await db.SaveChangesAsync();
         }
-        await db.LoginCodes.ExecuteDeleteAsync();
         _annId = db.People.Single(p => p.Email == "ann@example.com").Id;
-        _ann = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
+        _ann = await TestLogin.SignInAsync(_factory, "ann@example.com");
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

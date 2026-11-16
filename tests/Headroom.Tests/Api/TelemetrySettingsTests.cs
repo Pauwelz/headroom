@@ -63,7 +63,7 @@ public class TelemetrySettingsTests(HeadroomApp app) : IClassFixture<HeadroomApp
     [Fact]
     public async Task NonPlannerGets403OnGetAndPut()
     {
-        var client = await TestLogin.SignInAsync(_factory, app.Mail, "telemetrysettings-flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "telemetrysettings-flo@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync(Url, TestContext.Current.CancellationToken)).StatusCode);
@@ -73,7 +73,7 @@ public class TelemetrySettingsTests(HeadroomApp app) : IClassFixture<HeadroomApp
     [Fact]
     public async Task AnAccessTokenOfAPlannerNeverReachesTheTelemetrySettings()
     {
-        var client = await TestLogin.SignInAsync(_factory, app.Mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
         var create = new HttpRequestMessage(HttpMethod.Post, "/api/me/access-tokens") { Content = JsonContent.Create(new AccessTokenRequest("telemetry", CanChange: true)) };
         create.Headers.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(client));
         var created = await client.SendAsync(create, TestContext.Current.CancellationToken);
@@ -88,7 +88,7 @@ public class TelemetrySettingsTests(HeadroomApp app) : IClassFixture<HeadroomApp
     [Fact]
     public async Task PlannerReadsTheDefaultsAndSavesBothValues()
     {
-        var client = await TestLogin.SignInAsync(_factory, app.Mail, Ann);
+        var client = await TestLogin.SignInAsync(_factory, Ann);
         var token = await TestLogin.ApiTokenAsync(client);
         var before = await client.GetFromJsonAsync<TelemetrySettingsResponse>(Url, TestContext.Current.CancellationToken);
         Assert.Equal(new TelemetrySettingsResponse(true, true, false), before);

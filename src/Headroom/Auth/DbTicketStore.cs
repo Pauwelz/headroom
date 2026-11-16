@@ -53,6 +53,6 @@ public class DbTicketStore(IServiceScopeFactory scopes, TimeProvider time) : ITi
     private void Fill(Session session, AuthenticationTicket ticket)
     {
         session.Ticket = TicketSerializer.Default.Serialize(ticket);
-        session.ExpiresAt = ticket.Properties.ExpiresUtc ?? time.GetUtcNow().AddDays(30);
+        session.ExpiresAt = ticket.Properties.ExpiresUtc ?? time.GetUtcNow().Add(AuthSetup.SessionLifetime);
     }
 }

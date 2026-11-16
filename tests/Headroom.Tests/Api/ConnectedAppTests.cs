@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
@@ -16,13 +15,11 @@ public class ConnectedAppTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string Url = "/api/settings/connected-apps";
     private const string Callback = "https://claude.ai/api/mcp/auth_callback";
     private const string ResourcePrefix = OpenIddictConstants.Permissions.Prefixes.Resource;
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
 
     public ConnectedAppTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -44,7 +41,7 @@ public class ConnectedAppTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
     private async Task<(HttpClient Client, string Xsrf)> SignInAsync(string email)
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, email);
+        var client = await TestLogin.SignInAsync(_factory, email);
         return (client, await TestLogin.ApiTokenAsync(client));
     }
 
@@ -188,7 +185,7 @@ public class ConnectedAppTests : IClassFixture<HeadroomApp>, IAsyncLifetime
             Assert.True(await apps.ValidateClientSecretAsync((await apps.FindByClientIdAsync(created.ClientId, Ct))!, created.ClientSecret, Ct));
         }
 
-        var flow = new OAuthFlow(_factory, _mail);
+        var flow = new OAuthFlow(_factory);
         var app = new OAuthFlow.App(created.ClientId, created.ClientSecret);
         var allowed = await flow.AuthorizeAsync("app-ann@example.com", OAuthFlow.AuthorizeUrl(app, OAuthFlow.Pkce.New(), redirect: copilot));
         Assert.StartsWith(copilot, allowed.Headers.Location!.OriginalString);

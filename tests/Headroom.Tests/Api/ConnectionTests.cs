@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,15 +16,13 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string Ann = "conn-ann@example.com";
     private const string Zed = "conn-zed@example.com";
     private const string Bob = "conn-bob@example.com";
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly OAuthFlow _flow;
 
     public ConnectionTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
-        _flow = new OAuthFlow(_factory, _mail);
+        _flow = new OAuthFlow(_factory);
     }
 
     public async ValueTask InitializeAsync()
@@ -82,7 +79,7 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var tokens = await _flow.TokensAsync(app, Zed);
         var (access, refresh) = (tokens.GetProperty("access_token").GetString()!, tokens.GetProperty("refresh_token").GetString()!);
         await _flow.TokenAsync(app, Bob);
-        var zed = await TestLogin.SignInAsync(_factory, _mail, Zed);
+        var zed = await TestLogin.SignInAsync(_factory, Zed);
 
         var connection = (await ListAsync(zed, "/api/me/connections")).Single(c => c.GetProperty("connectedApp").GetString() == "Mine");
 
@@ -97,9 +94,9 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task APersonCannotRevokeTheConnectionOfSomeoneElse()
     {
         var access = await _flow.TokenAsync(await _flow.AddAppAsync("Theirs"), Bob);
-        var bob = await TestLogin.SignInAsync(_factory, _mail, Bob);
+        var bob = await TestLogin.SignInAsync(_factory, Bob);
         var id = (await ListAsync(bob, "/api/me/connections")).Single(c => c.GetProperty("connectedApp").GetString() == "Theirs").GetProperty("id").GetString();
-        var zed = await TestLogin.SignInAsync(_factory, _mail, Zed);
+        var zed = await TestLogin.SignInAsync(_factory, Zed);
 
         Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(zed, HttpMethod.Delete, "/api/me/connections/" + id)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(zed, HttpMethod.Delete, "/api/settings/connections/" + id)).StatusCode);
@@ -111,7 +108,7 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task APlannerSeesAllConnectionsAndRevokesAny()
     {
         var access = await _flow.TokenAsync(await _flow.AddAppAsync("Any"), Bob);
-        var ann = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var ann = await TestLogin.SignInAsync(_factory, Ann);
 
         var connection = (await ListAsync(ann, "/api/settings/connections")).Single(c => c.GetProperty("connectedApp").GetString() == "Any");
 
@@ -136,7 +133,7 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     {
         var id = await AddPersonAsync("conn-delete@example.com");
         await _flow.TokenAsync(await _flow.AddAppAsync("Gone"), "conn-delete@example.com");
-        var ann = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var ann = await TestLogin.SignInAsync(_factory, Ann);
 
         Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(ann, HttpMethod.Delete, $"/api/people/{id}")).StatusCode);
 
@@ -149,7 +146,7 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         var app = await _flow.AddAppAsync("Writer");
         var access = await _flow.TokenAsync(app, Ann, OAuthFlow.Api, canChange: true);
         await _flow.TokenAsync(await _flow.AddAppAsync("Reader"), Ann);
-        var ann = await TestLogin.SignInAsync(_factory, _mail, Ann);
+        var ann = await TestLogin.SignInAsync(_factory, Ann);
 
         var list = await ListAsync(ann, "/api/me/connections");
 
@@ -165,7 +162,7 @@ public class ConnectionTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task TheListShowsCanChangeForAPersonWhoIsNoPlanner()
     {
         await _flow.TokenAsync(await _flow.AddAppAsync("Zed writer"), Zed, OAuthFlow.Api, canChange: true);
-        var zed = await TestLogin.SignInAsync(_factory, _mail, Zed);
+        var zed = await TestLogin.SignInAsync(_factory, Zed);
 
         var list = await ListAsync(zed, "/api/me/connections");
 

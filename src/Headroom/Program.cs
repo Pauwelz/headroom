@@ -1,7 +1,6 @@
 using Headroom.Auth;
 using Headroom.Components;
 using Headroom.Data;
-using Headroom.Email;
 using Headroom.Endpoints;
 using Headroom.Mcp;
 using Headroom.People;
@@ -24,13 +23,9 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<TelemetryPrivacy>();
 builder.Services.AddHeadroomAuth();
 builder.Services.AddHeadroomOAuth(builder.Configuration);
-PasskeyCeremony.AddPasskeys(builder.Services);
 builder.Services.AddApiAntiforgery();
 builder.Services.AddHeadroomMcp();
-builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddSingleton<DailyDeleteCheck>();
-builder.Services.AddScoped<IEmailSender, EmailSender>();
-builder.Services.AddSingleton(new EmailTestTimeout(TimeSpan.FromSeconds(15)));
 builder.Services.AddScoped<Headroom.Dev.DevSeed>();
 builder.Services.AddHttpClient(Headroom.Events.EventSender.ClientName, c => c.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => Headroom.Events.WebhookGuard.CreateHandler(allowInternal: builder.Environment.IsDevelopment()));
@@ -86,9 +81,7 @@ app.MapStaticAssets().ShortCircuit();
 app.MapHealthChecks("/health");
 app.MapApi();
 app.MapHeadroomMcp();
-app.MapFirstRunEndpoints();
 app.MapLoginEndpoints();
-app.MapCompanyLoginEndpoints();
 app.MapOAuthEndpoints();
 // The server redirects a logged-out visitor to /login before it sends the app shell.
 app.MapRazorComponents<App>()

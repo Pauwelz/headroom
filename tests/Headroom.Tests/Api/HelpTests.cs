@@ -1,6 +1,5 @@
 using System.Net;
 using Headroom.Data;
-using Headroom.Email;
 using Headroom.Endpoints;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,13 +8,11 @@ namespace Headroom.Tests.Api;
 
 public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
 
     public HelpTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -44,7 +41,7 @@ public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [InlineData("privacy")]
     public async Task APersonWhoIsNotAPlannerReadsEveryTopic(string topic)
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
         var response = await client.GetAsync($"/api/help/{topic}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
@@ -66,14 +63,14 @@ public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [InlineData("/api/help/images/..%2fREADME.md")]
     public async Task AnUnknownNameIsNotFound(string url)
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(url, TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
     public async Task TheContentsLinkToTopicsInsideTheApp()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
         var contents = await client.GetStringAsync("/api/help/README", TestContext.Current.CancellationToken);
         Assert.Contains("href=\"/help/getting-started\"", contents);
     }
@@ -89,7 +86,7 @@ public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task ImagesComeBackFromTheApi()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
         Assert.Contains("src=\"/api/help/images/login-email.png\"", await client.GetStringAsync("/api/help/getting-started", TestContext.Current.CancellationToken));
         var response = await client.GetAsync("/api/help/images/login-email.png", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

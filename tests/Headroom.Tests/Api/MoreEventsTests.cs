@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +12,6 @@ namespace Headroom.Tests.Api;
 // Events for Time off and Project status. The Allocation Events have their tests in WebhookEventsTests.
 public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string _run = Guid.NewGuid().ToString("N")[..8];
     private HttpClient _planner = null!;
@@ -24,7 +22,6 @@ public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public MoreEventsTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -47,7 +44,7 @@ public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
             _clientId = client.Id;
             _projectId = project.Id;
         }
-        _planner = await TestLogin.SignInAsync(_factory, _mail, $"ev-ann-{_run}@example.com");
+        _planner = await TestLogin.SignInAsync(_factory, $"ev-ann-{_run}@example.com");
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
         var added = await _planner.PostAsJsonAsync("/api/settings/webhooks", new WebhookRequest("Flow", "https://receiver.example.com/hook"));
         Assert.Equal(HttpStatusCode.OK, added.StatusCode);
@@ -91,7 +88,7 @@ public class MoreEventsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     {
         var body = new TimeOffRequest(new(2026, 4, 6), "morning", new(2026, 4, 7), "afternoon");
         await _planner.PostAsJsonAsync($"/api/people/{_floId}/time-off", body, cancellationToken: TestContext.Current.CancellationToken);
-        var flo = await TestLogin.SignInAsync(_factory, _mail, $"ev-flo-{_run}@example.com");
+        var flo = await TestLogin.SignInAsync(_factory, $"ev-flo-{_run}@example.com");
         flo.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(flo));
 
         var created = await flo.PostAsJsonAsync($"/api/people/{_floId}/time-off", body with { StartDate = new(2026, 5, 4), EndDate = new(2026, 5, 5) }, cancellationToken: TestContext.Current.CancellationToken);

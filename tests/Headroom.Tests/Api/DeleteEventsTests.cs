@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Headroom.Events;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +12,6 @@ namespace Headroom.Tests.Api;
 // Delete blanks the Person in stored Events and records deleted Events. The sweep deletes old finished Events.
 public class DeleteEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail;
     private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string _run = Guid.NewGuid().ToString("N")[..8];
@@ -23,7 +21,6 @@ public class DeleteEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     public DeleteEventsTests(ClockedHeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
         _time = app.Time;
         _time.Set(ClockedHeadroomApp.Start);
     }
@@ -44,7 +41,7 @@ public class DeleteEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         db.Projects.Add(project);
         await db.SaveChangesAsync();
         _projectId = project.Id;
-        _planner = await TestLogin.SignInAsync(_factory, _mail, $"ee-ann-{_run}@example.com");
+        _planner = await TestLogin.SignInAsync(_factory, $"ee-ann-{_run}@example.com");
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
     }
 
@@ -81,7 +78,7 @@ public class DeleteEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     {
         // The check runs once per day in each host, so this test starts its own.
         await using var host = _factory.WithWebHostBuilder(_ => { });
-        var planner = await TestLogin.SignInAsync(host, _mail, $"ee-ann-{_run}@example.com");
+        var planner = await TestLogin.SignInAsync(host, $"ee-ann-{_run}@example.com");
         var (zed, name, email) = await PersonWithEvents();
         var count = (await Payloads()).Count;
         await Run(db => db.People.Where(p => p.Id == zed).ExecuteUpdate(s => s.SetProperty(p => p.EndDate, new DateOnly(2025, 11, 1))));
@@ -125,7 +122,7 @@ public class DeleteEventsTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         var hook = (await Run(db => db.Webhooks.Add(new Webhook { Name = "Flow", Url = "https://receiver.example.com/hook", Secret = EventSender.NewSecret() }).Entity.Id));
         await Run(db => db.Events.Add(new Event { WebhookId = hook, Type = "old", Payload = "{}", DateCreated = now.AddDays(-31), DeliveredAt = now.AddDays(-31) }));
         await using var host = _factory.WithWebHostBuilder(_ => { });
-        var planner = await TestLogin.SignInAsync(host, _mail, $"ee-ann-{_run}@example.com");
+        var planner = await TestLogin.SignInAsync(host, $"ee-ann-{_run}@example.com");
         _time.Advance(TimeSpan.FromDays(1));
 
         await planner.GetAsync("/api/me", TestContext.Current.CancellationToken);

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +12,6 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     // Monday 2 March 2026.
     private static readonly DateOnly Mon = new(2026, 3, 2);
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private Guid _zed;
     private Guid _gone;
@@ -21,7 +19,6 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public TimeOffTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -47,7 +44,6 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
         _gone = await db.People.Where(p => p.Name == "Gone").Select(p => p.Id).SingleAsync();
         db.TimeOff.RemoveRange(db.TimeOff);
         await db.SaveChangesAsync();
-        await db.LoginCodes.ExecuteDeleteAsync();
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -191,7 +187,7 @@ public class TimeOffTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
     private async Task<(HttpClient Client, string Token)> SignIn(string email)
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, email);
+        var client = await TestLogin.SignInAsync(_factory, email);
         return (client, await TestLogin.ApiTokenAsync(client));
     }
 

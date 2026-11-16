@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,7 +9,6 @@ namespace Headroom.Tests.Api;
 
 public class ProjectsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
     private HttpClient _viewer = null!;
@@ -18,7 +16,6 @@ public class ProjectsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public ProjectsApiTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -36,9 +33,9 @@ public class ProjectsApiTests : IClassFixture<HeadroomApp>, IAsyncLifetime
                 await db.SaveChangesAsync();
             }
         }
-        _planner = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
+        _planner = await TestLogin.SignInAsync(_factory, "ann@example.com");
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
-        _viewer = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        _viewer = await TestLogin.SignInAsync(_factory, "flo@example.com");
         _viewer.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_viewer));
     }
 

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Headroom.People;
 
-// Delete a Person with their Contracts, Allocations, Time off, Passkeys, Access tokens and Connections.
+// Delete a Person with their Contracts, Allocations, Time off, Access tokens and Connections.
 // "Last changed by" on other records keeps the id.
 public static class PersonDeleter
 {
@@ -22,7 +22,6 @@ public static class PersonDeleter
         await db.SaveChangesAsync();
 
         await db.AccessTokens.Where(t => t.PersonId == id).ExecuteDeleteAsync();
-        await db.Passkeys.Where(p => p.PersonId == id).ExecuteDeleteAsync();
         await Connections.DeleteOfPersonAsync(db, id);
         await EventRecorder.BlankPersonAsync(db, id);
         // The save records one deleted Event for each Allocation and Time off.

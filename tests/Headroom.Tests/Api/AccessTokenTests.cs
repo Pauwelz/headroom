@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,13 +14,11 @@ public class AccessTokenTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     private const string Url = "/api/settings/access-tokens";
     private const string OwnUrl = "/api/me/access-tokens";
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
 
     public AccessTokenTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -384,7 +381,7 @@ public class AccessTokenTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 
     private async Task<(HttpClient Client, string Xsrf)> SignInAsync(string email)
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, email);
+        var client = await TestLogin.SignInAsync(_factory, email);
         return (client, await TestLogin.ApiTokenAsync(client));
     }
 

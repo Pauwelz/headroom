@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,7 +14,6 @@ namespace Headroom.Tests.Api;
 public class OAuthRefreshTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private const string Ann = "refresh-ann@example.com";
-    private readonly FakeEmailSender _mail;
     private readonly TestClock _time;
     private readonly HeadroomApp _app;
     private readonly WebApplicationFactory<Program> _factory;
@@ -25,10 +23,9 @@ public class OAuthRefreshTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     {
         _app = app;
         _factory = app.Factory;
-        _mail = app.Mail;
         _time = app.Time;
         _time.Set(ClockedHeadroomApp.Start);
-        _flow = new OAuthFlow(_factory, _mail);
+        _flow = new OAuthFlow(_factory);
     }
 
     public async ValueTask InitializeAsync()
@@ -50,7 +47,7 @@ public class OAuthRefreshTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
 
     private async Task<HttpStatusCode> McpStatusAsync(string token, WebApplicationFactory<Program>? factory = null)
     {
-        var http = new OAuthFlow(factory ?? _factory, _mail).BearerClient(token);
+        var http = new OAuthFlow(factory ?? _factory).BearerClient(token);
         return (await http.PostAsync("/mcp", new StringContent("{}", Encoding.UTF8, "application/json"), Ct)).StatusCode;
     }
 
@@ -142,11 +139,11 @@ public class OAuthRefreshTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
         // A new host on the same database is a restart: only the database carries over.
         await using var restarted = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
-            b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Headroom"] = _app.ConnectionString }));
+            b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>(HeadroomApp.EntraIdSettings) { ["ConnectionStrings:Headroom"] = _app.ConnectionString }));
             b.ConfigureServices(s => s.AddSingleton<TimeProvider>(_time));
         });
 
         Assert.NotEqual(HttpStatusCode.Unauthorized, await McpStatusAsync(Str(tokens, "access_token"), restarted));
-        Assert.Equal(HttpStatusCode.OK, (await new OAuthFlow(restarted, _mail).RefreshAsync(app, Str(tokens, "refresh_token"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await new OAuthFlow(restarted).RefreshAsync(app, Str(tokens, "refresh_token"))).StatusCode);
     }
 }

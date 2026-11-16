@@ -1,4 +1,4 @@
-/* Server pages: first run and login. Colours come from HeadroomTheme as variables (see FirstRunPages.Layout). */
+/* Server pages: login and consent. Colours come from HeadroomTheme as variables (see ServerPages.Layout). */
 :root { color-scheme: light dark; }
 * { box-sizing: border-box; }
 
@@ -56,16 +56,6 @@ input {
     font: 400 1rem/1.4 "Barlow", system-ui, sans-serif;
 }
 
-/* The code: six digits set like a sign. letter-spacing also pads after the last digit, so the width allows for it. */
-input.code {
-    width: 13rem;
-    max-width: 100%;
-    padding: .5rem .25rem .5rem .875rem;
-    font: 600 2.25rem/1.2 "Barlow Semi Condensed", "Barlow", sans-serif;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: .35em;
-}
-
 button {
     justify-self: start;
     padding: .75rem 1.5rem;
@@ -101,4 +91,3 @@ main > form { margin-bottom: 4rem; }
     h1 { font-size: 1.875rem; }
     button { justify-self: stretch; }
 }
-#passkey-login { margin-top: 1rem; }

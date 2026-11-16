@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Headroom.Events;
 using Headroom.Telemetry;
 using Microsoft.AspNetCore.Hosting;
@@ -19,11 +18,9 @@ public class MetricsTests(MetricsApp app) : IClassFixture<MetricsApp>, IAsyncLif
 {
     private const string Email = "metrics-mm@example.com";
     private readonly WebApplicationFactory<Program> _factory = app.Factory;
-    private readonly FakeEmailSender _mail = app.Mail;
 
     public async ValueTask InitializeAsync()
     {
-        app.MailFails = false;
         await SeedAsync(app);
     }
 
@@ -41,67 +38,14 @@ public class MetricsTests(MetricsApp app) : IClassFixture<MetricsApp>, IAsyncLif
     }
 
     [Fact]
-    public async Task LoginsAndLoginCodeEmailsAreCounted()
+    public async Task LoginsAreCounted()
     {
-        var (success, failed, sent) = (app.Total("headroom.logins", "result", "success"), app.Total("headroom.logins", "result", "failed"),
-            app.Total("headroom.login_code_emails", "result", "sent"));
-        await TestLogin.SignInAsync(_factory, _mail, Email);
-        var anonymous = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
-        await TestLogin.Post(anonymous, "/login/verify", ("email", Email), ("code", "000000"));
-
-        Assert.True(app.Total("headroom.logins", "result", "success") > success);
-        Assert.True(app.Total("headroom.logins", "result", "failed") > failed);
-        Assert.True(app.Total("headroom.login_code_emails", "result", "sent") > sent);
-    }
-
-    [Fact]
-    public async Task PasskeyLoginsAreCounted()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var client = await TestLogin.SignInAsync(_factory, _mail, Email);
-        var xsrf = await TestLogin.ApiTokenAsync(client);
-        using var authenticator = new TestAuthenticator();
-        async Task<HttpResponseMessage> Post(HttpClient c, string url, string? json) =>
-            await c.SendAsync(new HttpRequestMessage(HttpMethod.Post, url) { Content = json is null ? null : new StringContent(json, System.Text.Encoding.UTF8, "application/json"), Headers = { { AntiforgeryToken.HeaderName, xsrf } } }, ct);
-        var options = await (await Post(client, "/api/me/passkeys/options", null)).Content.ReadAsStringAsync(ct);
-        Assert.Equal(HttpStatusCode.NoContent, (await Post(client, "/api/me/passkeys", authenticator.CreateAttestation(options))).StatusCode);
         var (success, failed) = (app.Total("headroom.logins", "result", "success"), app.Total("headroom.logins", "result", "failed"));
-
-        var anonymous = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
-        var login = await (await Post(anonymous, "/login/passkey/options", null)).Content.ReadAsStringAsync(ct);
-        Assert.Equal(HttpStatusCode.OK, (await Post(anonymous, "/login/passkey", authenticator.CreateAssertion(login))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Post(anonymous, "/login/passkey", "{}")).StatusCode);
+        await TestLogin.SignInAsync(_factory, Email);
+        await app.Provider.LoginAsync(TestLogin.NewClient(_factory), "/login/company", TestLogin.Claims("metrics-nobody@example.com"));
 
         Assert.True(app.Total("headroom.logins", "result", "success") > success);
         Assert.True(app.Total("headroom.logins", "result", "failed") > failed);
-    }
-
-    [Fact]
-    public async Task AFailedLoginCodeEmailIsCounted()
-    {
-        var failed = app.Total("headroom.login_code_emails", "result", "failed");
-        app.MailFails = true;
-        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
-        await TestLogin.Post(client, "/login", ("email", Email));
-
-        Assert.True(app.Total("headroom.login_code_emails", "result", "failed") > failed);
-    }
-
-    // The first run needs a database without People, so this test has its own app.
-    [Fact]
-    public async Task LoginCodeEmailsOfTheFirstRunAreCounted()
-    {
-        await using var empty = new MetricsApp();
-        await empty.InitializeAsync();
-        foreach (var (fails, result) in new[] { (false, "sent"), (true, "failed") })
-        {
-            var before = empty.Total("headroom.login_code_emails", "result", result);
-            empty.MailFails = fails;
-            var client = empty.Factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
-            await TestLogin.PostFrom(client, "/first-run", "/first-run", ("company", "Acme"), ("name", "Ann Planner"), ("email", "first-run-fr@example.com"));
-
-            Assert.True(empty.Total("headroom.login_code_emails", "result", result) > before);
-        }
     }
 
     [Fact]
@@ -112,7 +56,7 @@ public class MetricsTests(MetricsApp app) : IClassFixture<MetricsApp>, IAsyncLif
         long Api() => app.Total("headroom.requests", "surface", "api");
         long Mcp() => app.Total("headroom.requests", "surface", "mcp");
         var (created0, changed0, api0, mcp0) = (Created(), Changed(), Api(), Mcp());
-        var client = await TestLogin.SignInAsync(_factory, _mail, Email);
+        var client = await TestLogin.SignInAsync(_factory, Email);
         client.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(client));
         var me = (await client.GetFromJsonAsync<MeResponse>("/api/me", TestContext.Current.CancellationToken))!;
         var created = (await (await client.PostAsJsonAsync("/api/clients", new ClientRequest($"Metrics Client {Guid.NewGuid():N}"), TestContext.Current.CancellationToken))
@@ -168,8 +112,6 @@ public sealed class MetricsApp : HeadroomApp
     private readonly List<Metric> _metrics = [];
     private readonly Lock _gate = new();
 
-    public bool MailFails { get; set; }
-
     public StubReceiver Receiver { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -178,7 +120,6 @@ public sealed class MetricsApp : HeadroomApp
             "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=http://localhost:1/");
         builder.ConfigureServices(services =>
         {
-            services.AddSingleton<IEmailSender>(new SwitchableEmailSender(this));
             services.ConfigureOpenTelemetryMeterProvider(m => m.AddInMemoryExporter(_metrics));
             services.AddHttpClient(EventSender.ClientName).ConfigurePrimaryHttpMessageHandler(() => Receiver);
             services.Remove(services.Single(d => d.ImplementationType == typeof(EventSenderService)));
@@ -201,14 +142,6 @@ public sealed class MetricsApp : HeadroomApp
         }
     }
 
-    private sealed class SwitchableEmailSender(MetricsApp app) : IEmailSender
-    {
-        public Task SendLoginCodeAsync(string toAddress, string companyName, string code, CancellationToken ct, SmtpOptions? server = null) =>
-            app.MailFails ? throw new InvalidOperationException("mail down") : app.Mail.SendLoginCodeAsync(toAddress, companyName, code, ct, server);
-
-        public Task SendTestAsync(SmtpOptions server, string toAddress, string companyName, CancellationToken ct) =>
-            app.Mail.SendTestAsync(server, toAddress, companyName, ct);
-    }
 }
 
 public sealed class StubReceiver : HttpMessageHandler

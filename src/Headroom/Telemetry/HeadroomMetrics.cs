@@ -9,14 +9,11 @@ public static class HeadroomMetrics
     private static readonly Meter Meter = new(HeadroomTelemetry.Name);
 
     private static readonly Counter<long> Logins = Meter.CreateCounter<long>("headroom.logins", "{login}");
-    private static readonly Counter<long> LoginCodeEmails = Meter.CreateCounter<long>("headroom.login_code_emails", "{email}");
     private static readonly Counter<long> RecordChanges = Meter.CreateCounter<long>("headroom.record_changes", "{change}");
     private static readonly Counter<long> Requests = Meter.CreateCounter<long>("headroom.requests", "{request}");
     private static readonly Counter<long> WebhookDeliveries = Meter.CreateCounter<long>("headroom.webhook_deliveries", "{delivery}");
 
     public static void Login(bool success) => Logins.Add(1, Result(success));
-
-    public static void LoginCodeEmail(bool sent) => LoginCodeEmails.Add(1, Tag("result", sent ? "sent" : "failed"));
 
     public static void WebhookDelivery(bool success) => WebhookDeliveries.Add(1, Result(success));
 

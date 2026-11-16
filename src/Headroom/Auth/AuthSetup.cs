@@ -10,11 +10,13 @@ public static class AuthSetup
 {
     private const string DefaultScheme = "Headroom";
 
+    // A session ends 12 hours after the login. It does not slide.
+    public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(12);
+
     public static void AddHeadroomAuth(this IServiceCollection services)
     {
         services.AddDataProtection().PersistKeysToDbContext<HeadroomDbContext>();
         services.AddSingleton<DbTicketStore>();
-        services.AddScoped<LoginCodeService>();
         // "Headroom" picks the bearer selector when the request has a bearer header, else the cookie.
         services.AddAuthentication(o =>
         {
@@ -32,8 +34,8 @@ public static class AuthSetup
             o.Cookie.HttpOnly = true;
             o.Cookie.SameSite = SameSiteMode.Lax;
             o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-            o.ExpireTimeSpan = TimeSpan.FromDays(30);
-            o.SlidingExpiration = true;
+            o.ExpireTimeSpan = SessionLifetime;
+            o.SlidingExpiration = false;
             o.LoginPath = "/login";
             o.Events.OnValidatePrincipal = ValidatePerson;
             // The client calls /api and needs a 401 or 403, not a redirect to a page.

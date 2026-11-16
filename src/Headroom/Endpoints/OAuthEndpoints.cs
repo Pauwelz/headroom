@@ -54,12 +54,12 @@ public static class OAuthEndpoints
         var app = (await apps.FindByClientIdAsync(request.ClientId!))!;
         if (!HttpMethods.IsPost(http.Request.Method))
         {
-            var token = FirstRunEndpoints.Token(http, antiforgery);
-            var company = (await db.InstanceSettings.Select(s => s.CompanyName).FirstAsync())!;
+            var token = ServerPages.Token(http, antiforgery);
+            var company = await db.InstanceSettings.Select(s => s.CompanyName).FirstAsync();
             var parameters = http.Request.Query
                 .Where(q => ForwardedParameters.Contains(q.Key))
                 .Select(q => KeyValuePair.Create(q.Key, (string?)q.Value.ToString()));
-            return FirstRunPages.Page(ConsentPages.Consent(token, company, (await apps.GetDisplayNameAsync(app))!, person.Name, parameters));
+            return ServerPages.Page(ConsentPages.Consent(token, company, (await apps.GetDisplayNameAsync(app))!, person.Name, parameters));
         }
 
         try { await antiforgery.ValidateRequestAsync(http); }

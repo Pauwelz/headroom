@@ -7,7 +7,6 @@ using System.Text;
 using System.Text.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Headroom.Events;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +20,6 @@ namespace Headroom.Tests.Api;
 public class WebhookEventsTests : IClassFixture<WebhookApp>, IAsyncLifetime
 {
     private const string Url = "/api/settings/webhooks";
-    private readonly FakeEmailSender _mail;
     private readonly CapturingHandler _receiver;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
@@ -31,7 +29,6 @@ public class WebhookEventsTests : IClassFixture<WebhookApp>, IAsyncLifetime
     public WebhookEventsTests(WebhookApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
         _receiver = app.Receiver;
         _receiver.Status = HttpStatusCode.OK;
     }
@@ -55,7 +52,7 @@ public class WebhookEventsTests : IClassFixture<WebhookApp>, IAsyncLifetime
             _floId = db.People.Single(p => p.Email == "wh-flo@example.com").Id;
             _projectId = db.Projects.Single(p => p.Name == "Website").Id;
         }
-        _planner = await TestLogin.SignInAsync(_factory, _mail, "wh-ann@example.com");
+        _planner = await TestLogin.SignInAsync(_factory, "wh-ann@example.com");
         _planner.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(_planner));
     }
 

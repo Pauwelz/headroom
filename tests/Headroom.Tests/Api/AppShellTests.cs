@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Headroom.Auth;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -16,13 +15,11 @@ namespace Headroom.Tests.Api;
 
 public class AppShellTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
 
     public AppShellTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -43,7 +40,7 @@ public class AppShellTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task SignOutEndsTheSessionOnTheServer()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
         var sessionsBefore = await CountSessions();
 
@@ -59,7 +56,7 @@ public class AppShellTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task ALoggedInPersonReadsTheInstance()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
 
         var instance = await client.GetFromJsonAsync<Headroom.Client.Api.InstanceResponse>("/api/instance", cancellationToken: TestContext.Current.CancellationToken);
 
@@ -70,7 +67,7 @@ public class AppShellTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task AStaticAssetDoesNotReadTheSession()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
         var options = _factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(CookieAuthenticationDefaults.AuthenticationScheme);
         var store = options.SessionStore!;

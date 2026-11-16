@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +14,6 @@ namespace Headroom.Tests.Api;
 public class DeletePersonTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
-    private readonly FakeEmailSender _mail;
     private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _ann = null!;
@@ -24,7 +22,6 @@ public class DeletePersonTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     public DeletePersonTests(ClockedHeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
         _time = app.Time;
         _time.Set(ClockedHeadroomApp.Start);
     }
@@ -42,9 +39,8 @@ public class DeletePersonTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
             db.Contracts.Add(new Contract { PersonId = ann.Id, StartDate = Jan1, HoursMonday = 8 });
             await db.SaveChangesAsync();
         }
-        await db.LoginCodes.ExecuteDeleteAsync();
         _annId = db.People.Single(p => p.Email == "ann@example.com").Id;
-        _ann = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
+        _ann = await TestLogin.SignInAsync(_factory, "ann@example.com");
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -80,15 +76,14 @@ public class DeletePersonTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     }
 
     [Fact]
-    public async Task DeleteRemovesThePasskeysAndAccessTokensOfThePerson()
+    public async Task DeleteRemovesTheAccessTokensOfThePerson()
     {
         var zed = await Leaver(null);
-        await Run(db => db.Passkeys.Add(new Passkey { PersonId = zed, Name = "Laptop", CredentialId = Guid.NewGuid().ToByteArray(), PublicKey = [1], UserHandle = [1] }));
         await Run(db => db.AccessTokens.Add(new AccessToken { PersonId = zed, Name = "Script", TokenHash = SHA256.HashData(Guid.NewGuid().ToByteArray()) }));
 
         await Delete(zed);
 
-        Assert.Equal((0, 0), await Run(db => (db.Passkeys.Count(p => p.PersonId == zed), db.AccessTokens.Count(t => t.PersonId == zed))));
+        Assert.Equal(0, await Run(db => db.AccessTokens.Count(t => t.PersonId == zed)));
     }
 
     [Fact]
@@ -134,7 +129,7 @@ public class DeletePersonTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifeti
     {
         // The check runs once per day in each host, so this test starts its own.
         await using var host = _factory.WithWebHostBuilder(_ => { });
-        var ann = await TestLogin.SignInAsync(host, _mail, "ann@example.com");
+        var ann = await TestLogin.SignInAsync(host, "ann@example.com");
         // The next day is 3 November 2026, so the limit is 3 November 2025.
         var due = await Leaver(new(2025, 11, 3), planner: true);
         var older = await Leaver(new(2024, 6, 1));

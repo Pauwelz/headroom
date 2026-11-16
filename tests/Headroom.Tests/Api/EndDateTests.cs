@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +14,6 @@ public class EndDateTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
 {
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
     private static readonly DateOnly End = new(2026, 11, 13);
-    private readonly FakeEmailSender _mail;
     private readonly TestClock _time;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _ann = null!;
@@ -24,7 +22,6 @@ public class EndDateTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
     public EndDateTests(ClockedHeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
         _time = app.Time;
         _time.Set(ClockedHeadroomApp.Start);
     }
@@ -42,12 +39,11 @@ public class EndDateTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
             db.Contracts.Add(new Contract { PersonId = ann.Id, StartDate = Jan1, HoursMonday = 8 });
             await db.SaveChangesAsync();
         }
-        await db.LoginCodes.ExecuteDeleteAsync();
         // Each test starts with Ann as the only Planner who can log in.
         await db.People.ExecuteUpdateAsync(s => s.SetProperty(p => p.IsPlanner, p => p.Email == "ann@example.com"));
         await db.People.Where(p => p.Email == "ann@example.com").ExecuteUpdateAsync(s => s.SetProperty(p => p.EndDate, (DateOnly?)null));
         _annId = db.People.Single(p => p.Email == "ann@example.com").Id;
-        _ann = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
+        _ann = await TestLogin.SignInAsync(_factory, "ann@example.com");
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -172,7 +168,7 @@ public class EndDateTests : IClassFixture<ClockedHeadroomApp>, IAsyncLifetime
     public async Task OpenSessionsEndTheDayAfterTheEndDate()
     {
         var (bea, beaEmail) = await AddPlanner();
-        var beaClient = await TestLogin.SignInAsync(_factory, _mail, beaEmail);
+        var beaClient = await TestLogin.SignInAsync(_factory, beaEmail);
         await Send(HttpMethod.Put, $"/api/people/{bea}/end-date", JsonContent.Create(new SetEndDateRequest(new DateOnly(2026, 11, 2))));
         Assert.Equal(HttpStatusCode.OK, (await beaClient.GetAsync("/api/me", TestContext.Current.CancellationToken)).StatusCode);
 

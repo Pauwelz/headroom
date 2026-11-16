@@ -72,7 +72,7 @@
     {
         var confirmed = await Dialogs.ShowMessageBoxAsync("Delete Person",
             $"Delete {Person.Name} with {_delete.Contracts} Contracts, {_delete.Allocations} Allocations and {_delete.TimeOff} Time off? "
-            + "Delete also removes the Passkeys, Access tokens and Connections of this Person. This cannot be undone.",
+            + "Delete also removes the Access tokens and Connections of this Person. This cannot be undone.",
             yesText: "Delete", cancelText: "Cancel");
         if (confirmed != true) return;
         try { await Api.DeleteAsync(Person.Id); }

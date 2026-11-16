@@ -1,22 +1,16 @@
 using System.Net;
-using System.Net.Http.Json;
-using Headroom.Auth;
-using Headroom.Client.Api;
 using Headroom.Data;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Headroom.Tests.Api;
 
-// A HeadroomApp with a fake provider behind the Company login and a clock that tests control.
+// A HeadroomApp with a clock that tests control.
 public class CompanyLoginApp : HeadroomApp
 {
-    public FakeProvider Provider { get; } = new();
-
     // The clock starts at the real time: the test client drops cookies that the app dates in the past.
     public DateTimeOffset Start { get; } = DateTimeOffset.UtcNow;
 
@@ -24,20 +18,13 @@ public class CompanyLoginApp : HeadroomApp
 
     public CompanyLoginApp() => Time = new(Start);
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureServices(services =>
-    {
-        services.AddSingleton<TimeProvider>(Time);
-        services.PostConfigure<OpenIdConnectOptions>(CompanyLogin.Scheme, Provider.Configure);
-    });
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        builder.ConfigureServices(services => services.AddSingleton<TimeProvider>(Time));
 }
 
 public class CompanyLoginTests : IClassFixture<CompanyLoginApp>, IAsyncLifetime
 {
     private const string Planner = "cl-planner@example.com";
-    private const string Tenant = "11111111-1111-1111-1111-111111111111";
-    private const string EntraIssuer = $"https://login.microsoftonline.com/{Tenant}/v2.0";
-    private const string OtherIssuer = "https://idp.example.com";
-    private const string Secret = "client-secret-value";
 
     private readonly CompanyLoginApp _app;
     private readonly WebApplicationFactory<Program> _factory;
@@ -54,32 +41,17 @@ public class CompanyLoginTests : IClassFixture<CompanyLoginApp>, IAsyncLifetime
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
-        if (!db.People.Any())
-        {
-            var planner = new Person { Name = "Pat Planner", Email = Planner, IsPlanner = true };
-            planner.LastChangedBy = planner.Id;
-            db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = planner.Id });
-            db.People.Add(planner);
-            await db.SaveChangesAsync();
-        }
-        // Every test starts with a Company login of the Entra kind, and a Planner without an identifier.
-        await SetCompanyLoginAsync(CompanyLoginKind.Entra, EntraIssuer);
-        await db.People.Where(p => p.Email == Planner).ExecuteUpdateAsync(p => p.SetProperty(x => x.CompanyLoginIssuer, (string?)null).SetProperty(x => x.CompanyLoginSubject, (string?)null));
+        if (db.People.Any()) return;
+        var planner = new Person { Name = "Pat Planner", Email = Planner, IsPlanner = true };
+        planner.LastChangedBy = planner.Id;
+        db.InstanceSettings.Add(new InstanceSettings { CompanyName = "Acme", LastChangedBy = planner.Id });
+        db.People.Add(planner);
+        await db.SaveChangesAsync();
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    private async Task SetCompanyLoginAsync(CompanyLoginKind? kind, string? issuer)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
-        var protection = scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>();
-        var secret = kind is null ? null : CompanyLogin.ProtectSecret(Secret, protection);
-        await db.InstanceSettings.ExecuteUpdateAsync(s => s.SetProperty(i => i.CompanyLoginKind, kind).SetProperty(i => i.CompanyLoginIssuer, issuer)
-            .SetProperty(i => i.CompanyLoginClientId, kind == null ? null : "headroom").SetProperty(i => i.CompanyLoginClientSecret, secret));
-    }
-
-    private HttpClient NewClient() => _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+    private HttpClient NewClient() => TestLogin.NewClient(_factory);
 
     private async Task<Person> AddPersonAsync(string email, DateOnly? end = null)
     {
@@ -99,16 +71,12 @@ public class CompanyLoginTests : IClassFixture<CompanyLoginApp>, IAsyncLifetime
 
     private static string NewEmail() => $"cl-{Guid.NewGuid():N}@example.com";
 
-    // The provider claims of a login. "id" is the object id (Entra) or the subject (Other).
-    private static (string, string)[] Claims(CompanyLoginKind kind, string id, string email) => kind == CompanyLoginKind.Entra
-        ? [("sub", "entra-" + id), ("tid", Tenant), ("oid", id), ("preferred_username", email), ("name", "Test Person")]
-        : [("sub", id), ("email", email), ("email_verified", "true"), ("name", "Test Person")];
+    // The claims of Entra ID: "id" is the object id.
+    private static (string, string)[] Claims(string id, string email, string tenant = HeadroomApp.TenantId) =>
+        [("sub", "entra-" + id), ("tid", tenant), ("oid", id), ("preferred_username", email), ("name", "Test Person")];
 
-    private async Task UseKindAsync(CompanyLoginKind kind) =>
-        await SetCompanyLoginAsync(kind, kind == CompanyLoginKind.Entra ? EntraIssuer : OtherIssuer);
-
-    private static (string Issuer, string Subject) Identifier(CompanyLoginKind kind, string id) =>
-        kind == CompanyLoginKind.Entra ? (Tenant, id) : (OtherIssuer, id);
+    private Task<HttpResponseMessage> LoginAsync(HttpClient client, params (string, string)[] claims) =>
+        _app.Provider.LoginAsync(client, "/login/company", claims);
 
     private static async Task<HttpStatusCode> MeAsync(HttpClient client) =>
         (await client.GetAsync("/api/me", TestContext.Current.CancellationToken)).StatusCode;
@@ -116,112 +84,90 @@ public class CompanyLoginTests : IClassFixture<CompanyLoginApp>, IAsyncLifetime
     private static void AssertRefused(HttpResponseMessage callback) =>
         Assert.Equal("/login?companyLogin=refused", callback.Headers.Location!.OriginalString);
 
-    [Theory]
-    [InlineData(CompanyLoginKind.Entra)]
-    [InlineData(CompanyLoginKind.Other)]
-    public async Task TheFirstLoginMatchesTheEmailAndStoresTheIdentifier(CompanyLoginKind kind)
+    [Fact]
+    public async Task TheFirstLoginMatchesTheEmailWithoutCaseAndStoresTheIdentifier()
     {
-        await UseKindAsync(kind);
         var email = NewEmail();
         await AddPersonAsync(email);
         var client = NewClient();
 
-        var callback = await _app.Provider.LoginAsync(client, "/login/company", Claims(kind, "id-1", email));
+        var callback = await LoginAsync(client, Claims("id-1", email.ToUpperInvariant()));
 
         Assert.Equal("/", callback.Headers.Location!.OriginalString);
         Assert.Equal(HttpStatusCode.OK, await MeAsync(client));
         var person = await ReloadAsync(email);
-        Assert.Equal(Identifier(kind, "id-1"), (person.CompanyLoginIssuer!, person.CompanyLoginSubject!));
+        Assert.Equal((HeadroomApp.TenantId, "id-1"), (person.CompanyLoginIssuer!, person.CompanyLoginSubject!));
         // The login uses the authorization code flow with PKCE and the client secret.
-        Assert.Equal(("headroom", Secret), (_app.Provider.LastTokenRequest["client_id"], _app.Provider.LastTokenRequest["client_secret"]));
+        Assert.Equal(("headroom", HeadroomApp.ClientSecret), (_app.Provider.LastTokenRequest["client_id"], _app.Provider.LastTokenRequest["client_secret"]));
         Assert.True(_app.Provider.LastTokenRequest.ContainsKey("code_verifier"));
     }
 
-    [Theory]
-    [InlineData(CompanyLoginKind.Entra)]
-    [InlineData(CompanyLoginKind.Other)]
-    public async Task ALaterLoginMatchesTheIdentifierEvenWhenTheEmailChanged(CompanyLoginKind kind)
+    [Fact]
+    public async Task ALaterLoginMatchesTheIdentifierEvenWhenTheEmailChanged()
     {
-        await UseKindAsync(kind);
         var email = NewEmail();
         await AddPersonAsync(email);
-        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(kind, "id-2", email));
+        await LoginAsync(NewClient(), Claims("id-2", email));
 
         var client = NewClient();
-        var callback = await _app.Provider.LoginAsync(client, "/login/company", Claims(kind, "id-2", NewEmail()));
+        var callback = await LoginAsync(client, Claims("id-2", NewEmail()));
 
         Assert.Equal("/", callback.Headers.Location!.OriginalString);
         Assert.Equal(HttpStatusCode.OK, await MeAsync(client));
     }
 
-    [Theory]
-    [InlineData(CompanyLoginKind.Entra)]
-    [InlineData(CompanyLoginKind.Other)]
-    public async Task ASecondIdentifierWithTheSameEmailDoesNotTakeOverThePerson(CompanyLoginKind kind)
+    [Fact]
+    public async Task ASecondIdentifierWithTheSameEmailDoesNotTakeOverThePerson()
     {
-        await UseKindAsync(kind);
         var email = NewEmail();
         await AddPersonAsync(email);
-        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(kind, "id-3", email));
+        await LoginAsync(NewClient(), Claims("id-3", email));
 
         var client = NewClient();
-        var callback = await _app.Provider.LoginAsync(client, "/login/company", Claims(kind, "id-3-other", email));
-
-        AssertRefused(callback);
+        AssertRefused(await LoginAsync(client, Claims("id-3-other", email)));
         Assert.Equal(HttpStatusCode.Unauthorized, await MeAsync(client));
-        Assert.Equal(Identifier(kind, "id-3").Subject, (await ReloadAsync(email)).CompanyLoginSubject);
+        Assert.Equal("id-3", (await ReloadAsync(email)).CompanyLoginSubject);
     }
 
-    [Theory]
-    [InlineData(CompanyLoginKind.Entra)]
-    [InlineData(CompanyLoginKind.Other)]
-    public async Task AnUnknownLoginIsRefused(CompanyLoginKind kind)
+    [Fact]
+    public async Task AnUnknownLoginIsRefused()
     {
-        await UseKindAsync(kind);
         var client = NewClient();
 
-        AssertRefused(await _app.Provider.LoginAsync(client, "/login/company", Claims(kind, "id-4", NewEmail())));
+        AssertRefused(await LoginAsync(client, Claims("id-4", NewEmail())));
         Assert.Equal(HttpStatusCode.Unauthorized, await MeAsync(client));
     }
 
-    [Theory]
-    [InlineData(CompanyLoginKind.Entra)]
-    [InlineData(CompanyLoginKind.Other)]
-    public async Task APersonPastTheEndDateIsRefusedAndKeepsNoIdentifier(CompanyLoginKind kind)
+    [Fact]
+    public async Task APersonPastTheEndDateIsRefusedAndKeepsNoIdentifier()
     {
-        await UseKindAsync(kind);
         var email = NewEmail();
         await AddPersonAsync(email, end: DateOnly.FromDateTime(_app.Start.UtcDateTime).AddDays(-2));
         var client = NewClient();
 
-        AssertRefused(await _app.Provider.LoginAsync(client, "/login/company", Claims(kind, "id-5", email)));
+        AssertRefused(await LoginAsync(client, Claims("id-5", email)));
         Assert.Equal(HttpStatusCode.Unauthorized, await MeAsync(client));
         Assert.Null((await ReloadAsync(email)).CompanyLoginSubject);
     }
 
-    [Theory]
-    [InlineData("false")]
-    [InlineData(null)]
-    public async Task OtherNeedsAVerifiedEmail(string? verified)
+    [Fact]
+    public async Task ALoginFromAnotherTenantIsRefused()
     {
-        await UseKindAsync(CompanyLoginKind.Other);
         var email = NewEmail();
         await AddPersonAsync(email);
-        var claims = new List<(string, string)> { ("sub", "id-6"), ("email", email) };
-        if (verified is not null) claims.Add(("email_verified", verified));
 
-        AssertRefused(await _app.Provider.LoginAsync(NewClient(), "/login/company", [.. claims]));
+        AssertRefused(await LoginAsync(NewClient(), Claims("id-6", email, tenant: "22222222-2222-2222-2222-222222222222")));
         Assert.Null((await ReloadAsync(email)).CompanyLoginSubject);
     }
 
     [Fact]
-    public async Task EntraIgnoresTheEmailClaim()
+    public async Task TheEmailClaimIsIgnored()
     {
         var email = NewEmail();
         await AddPersonAsync(email);
 
-        AssertRefused(await _app.Provider.LoginAsync(NewClient(), "/login/company",
-            ("sub", "s7"), ("tid", Tenant), ("oid", "id-7"), ("preferred_username", NewEmail()), ("email", email), ("email_verified", "true")));
+        AssertRefused(await LoginAsync(NewClient(),
+            ("sub", "s7"), ("tid", HeadroomApp.TenantId), ("oid", "id-7"), ("preferred_username", NewEmail()), ("email", email), ("email_verified", "true")));
         Assert.Null((await ReloadAsync(email)).CompanyLoginSubject);
     }
 
@@ -232,178 +178,111 @@ public class CompanyLoginTests : IClassFixture<CompanyLoginApp>, IAsyncLifetime
         await AddPersonAsync(email);
         _app.Provider.RefuseCode = true;
 
-        var callback = await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-8", email));
+        var callback = await LoginAsync(NewClient(), Claims("id-8", email));
 
         Assert.Equal("/login?companyLogin=provider", callback.Headers.Location!.OriginalString);
     }
 
     [Fact]
-    public async Task TheLoginPageShowsTheButtonOnlyWithACompanyLogin()
+    public async Task TheLoginPageHasOneButtonAndOneMessageForEveryRefusal()
     {
         var client = NewClient();
-        var with = await client.GetStringAsync("/login", TestContext.Current.CancellationToken);
-        Assert.Contains("Company login</button>", with);
-        Assert.True(with.IndexOf("Company login</button>") < with.IndexOf("name=\"email\""));
+        var page = await client.GetStringAsync("/login", TestContext.Current.CancellationToken);
+        Assert.Contains("Log in with Microsoft</button>", page);
+        Assert.DoesNotContain("name=\"email\"", page);
 
-        await SetCompanyLoginAsync(null, null);
-        Assert.DoesNotContain("Company login", await client.GetStringAsync("/login", TestContext.Current.CancellationToken));
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/login/company", TestContext.Current.CancellationToken)).StatusCode);
+        var refused = await client.GetStringAsync("/login?companyLogin=refused", TestContext.Current.CancellationToken);
+        Assert.Contains("Headroom could not log you in. Ask a Planner for help.", refused);
     }
 
     [Fact]
-    public async Task ACompanyLoginSessionEndsAfter12HoursButALoginCodeSessionDoesNot()
+    public async Task ASessionEndsAfter12HoursAndActivityDoesNotSlideIt()
     {
         var email = NewEmail();
         await AddPersonAsync(email);
-        var company = NewClient();
-        await _app.Provider.LoginAsync(company, "/login/company", Claims(CompanyLoginKind.Entra, "id-9", email));
-        var codeEmail = NewEmail();
-        await AddPersonAsync(codeEmail);
-        var code = await TestLogin.SignInAsync(_factory, _app.Mail, codeEmail);
+        var client = NewClient();
+        await LoginAsync(client, Claims("id-9", email));
 
         _app.Time.Advance(TimeSpan.FromHours(11));
-        // Activity does not slide the Company login session.
-        Assert.Equal(HttpStatusCode.OK, await MeAsync(company));
+        Assert.Equal(HttpStatusCode.OK, await MeAsync(client));
         _app.Time.Advance(TimeSpan.FromHours(2));
 
-        Assert.Equal(HttpStatusCode.Unauthorized, await MeAsync(company));
-        Assert.Equal(HttpStatusCode.OK, await MeAsync(code));
+        Assert.Equal(HttpStatusCode.Unauthorized, await MeAsync(client));
     }
+}
 
+// The Instance is empty: the first login of the tenant creates the first Planner.
+public class CompanyLoginFirstLoginTests(HeadroomApp app) : IClassFixture<HeadroomApp>
+{
     [Fact]
-    public async Task AMultiTenantEntraIssuerIsRefusedAndNothingIsStored()
+    public async Task TheFirstLoginBecomesThePlannerAndASecondPersonIsRefused()
     {
-        var (client, token) = await PlannerAsync();
+        var first = TestLogin.NewClient(app.Factory);
+        var callback = await app.Provider.LoginAsync(first, "/login/company", TestLogin.Claims("first@company.be", "First Planner"));
 
-        foreach (var tenant in new[] { "common", "organizations", "consumers" })
-        {
-            var response = await PutAsync(client, token, new(CompanyLoginKind.Entra, $"https://login.microsoftonline.com/{tenant}/v2.0", "id", Secret));
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-        Assert.Equal(EntraIssuer, (await GetSettingsAsync(client)).Issuer);
+        Assert.Equal("/", callback.Headers.Location!.OriginalString);
+        Assert.Equal(HttpStatusCode.OK, (await first.GetAsync("/api/me", TestContext.Current.CancellationToken)).StatusCode);
+        using var scope = app.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HeadroomDbContext>();
+        var person = await db.People.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(("First Planner", "first@company.be", true, HeadroomApp.TenantId), (person.Name, person.Email, person.IsPlanner, person.CompanyLoginIssuer));
+        Assert.Null((await db.InstanceSettings.SingleAsync(TestContext.Current.CancellationToken)).CompanyName);
+        Assert.Equal(1, await db.Contracts.CountAsync(c => c.PersonId == person.Id, TestContext.Current.CancellationToken));
+
+        var second = TestLogin.NewClient(app.Factory);
+        var refused = await app.Provider.LoginAsync(second, "/login/company", TestLogin.Claims("second@company.be"));
+
+        Assert.Equal("/login?companyLogin=refused", refused.Headers.Location!.OriginalString);
+        Assert.Equal(1, await db.People.CountAsync(TestContext.Current.CancellationToken));
+        // The company name is null until a Planner sets it. The pages still render.
+        Assert.Contains("Your company is the controller", await second.GetStringAsync("/login", TestContext.Current.CancellationToken));
+        Assert.Equal(HttpStatusCode.OK, (await first.GetAsync("/", TestContext.Current.CancellationToken)).StatusCode);
     }
+}
 
+// No client secret: the code exchange sends a client assertion from the managed identity.
+public class NoSecretApp : HeadroomApp
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder
+        .ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?> { ["EntraId:ClientSecret"] = "" }))
+        .ConfigureServices(services => services.AddSingleton<Headroom.Auth.IClientAssertionProvider>(new FakeAssertion()));
+
+    private sealed class FakeAssertion : Headroom.Auth.IClientAssertionProvider
+    {
+        public Task<string> GetAsync(CancellationToken ct) => Task.FromResult("assertion-from-managed-identity");
+    }
+}
+
+public class CompanyLoginAssertionTests(NoSecretApp app) : IClassFixture<NoSecretApp>
+{
     [Fact]
-    public async Task TestAndSaveKeepsNewSettingsOnlyAfterAMatchingTestLogin()
+    public async Task WithoutASecretTheTokenRequestCarriesTheClientAssertion()
     {
-        var (client, token) = await PlannerAsync();
-        await UseKindAsync(CompanyLoginKind.Entra);
+        var callback = await app.Provider.LoginAsync(TestLogin.NewClient(app.Factory), "/login/company", TestLogin.Claims("first@company.be"));
 
-        var put = await PutAsync(client, token, new(CompanyLoginKind.Other, OtherIssuer, "new-client", "new-secret"));
-        var test = (await put.Content.ReadFromJsonAsync<CompanyLoginTestResponse>(TestContext.Current.CancellationToken))!;
-        // Nothing is stored before the test login.
-        Assert.Equal(CompanyLoginKind.Entra, (await GetSettingsAsync(client)).Kind);
-        var callback = await _app.Provider.LoginAsync(client, test.TestUrl, Claims(CompanyLoginKind.Other, "planner-sub", Planner));
-
-        Assert.Equal("/settings?companyLogin=saved", callback.Headers.Location!.OriginalString);
-        var saved = await GetSettingsAsync(client);
-        Assert.Equal((CompanyLoginKind.Other, OtherIssuer, "new-client", true), (saved.Kind, saved.Issuer, saved.ClientId, saved.HasSecret));
-        Assert.Equal(("new-client", "new-secret"), (_app.Provider.LastTokenRequest["client_id"], _app.Provider.LastTokenRequest["client_secret"]));
-        // The secret is stored as ciphertext and no API returns it.
-        using var scope = _factory.Services.CreateScope();
-        var row = await scope.ServiceProvider.GetRequiredService<HeadroomDbContext>().InstanceSettings.AsNoTracking().FirstAsync(TestContext.Current.CancellationToken);
-        Assert.DoesNotContain("new-secret", row.CompanyLoginClientSecret);
-        Assert.DoesNotContain("new-secret", await (await client.GetAsync("/api/settings/company-login", TestContext.Current.CancellationToken)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("/", callback.Headers.Location!.OriginalString);
+        var request = app.Provider.LastTokenRequest;
+        Assert.Equal("assertion-from-managed-identity", request["client_assertion"]);
+        Assert.Equal("urn:ietf:params:oauth:client-assertion-type:jwt-bearer", request["client_assertion_type"]);
+        Assert.False(request.ContainsKey("client_secret"));
     }
+}
 
+// The Operator must set the tenant and the client. Without them the app does not start.
+public class MissingEntraIdApp : HeadroomApp
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureAppConfiguration((_, config) =>
+        config.AddInMemoryCollection(new Dictionary<string, string?> { ["EntraId:TenantId"] = "not-a-guid", ["EntraId:ClientId"] = "" }));
+}
+
+public class EntraIdOptionsTests(MissingEntraIdApp app) : IClassFixture<MissingEntraIdApp>
+{
     [Fact]
-    public async Task AProviderErrorInTheTestLoginKeepsTheOldSettings()
+    public void StartupFailsWhenTheTenantIsNotAGuidOrTheClientIsMissing()
     {
-        var (client, token) = await PlannerAsync();
-        var put = await PutAsync(client, token, new(CompanyLoginKind.Other, OtherIssuer, "new-client", "new-secret"));
-        var test = (await put.Content.ReadFromJsonAsync<CompanyLoginTestResponse>(TestContext.Current.CancellationToken))!;
-        _app.Provider.RefuseCode = true;
+        var error = Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(() => app.Factory.CreateClient());
 
-        var callback = await _app.Provider.LoginAsync(client, test.TestUrl, Claims(CompanyLoginKind.Other, "planner-sub", Planner));
-
-        Assert.Equal("/settings?companyLogin=provider", callback.Headers.Location!.OriginalString);
-        Assert.Equal((CompanyLoginKind.Entra, EntraIssuer), ((await GetSettingsAsync(client)).Kind, (await GetSettingsAsync(client)).Issuer));
+        Assert.Contains("ClientId", string.Join(' ', error.Failures));
+        Assert.Contains("TenantId must be a GUID", string.Join(' ', error.Failures));
     }
-
-    [Fact]
-    public async Task ATestLoginOfAnotherPersonKeepsTheOldSettings()
-    {
-        var (client, token) = await PlannerAsync();
-        var other = NewEmail();
-        await AddPersonAsync(other);
-        var put = await PutAsync(client, token, new(CompanyLoginKind.Other, OtherIssuer, "new-client", "new-secret"));
-        var test = (await put.Content.ReadFromJsonAsync<CompanyLoginTestResponse>(TestContext.Current.CancellationToken))!;
-
-        var callback = await _app.Provider.LoginAsync(client, test.TestUrl, Claims(CompanyLoginKind.Other, "other-sub", other));
-
-        Assert.Equal("/settings?companyLogin=not-you", callback.Headers.Location!.OriginalString);
-        Assert.Equal(CompanyLoginKind.Entra, (await GetSettingsAsync(client)).Kind);
-        Assert.Null((await ReloadAsync(other)).CompanyLoginSubject); // the other Person gets no identifier either
-    }
-
-    [Fact]
-    public async Task AProviderChangeMatchesThePlannerOnTheEmailAndClearsTheOtherIdentifiers()
-    {
-        var email = NewEmail();
-        await AddPersonAsync(email);
-        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-20", email));
-        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-21", Planner)); // the Planner holds an old identifier
-        var (client, token) = await PlannerAsync();
-        var put = await PutAsync(client, token, new(CompanyLoginKind.Other, OtherIssuer, "new-client", "new-secret"));
-        var test = (await put.Content.ReadFromJsonAsync<CompanyLoginTestResponse>(TestContext.Current.CancellationToken))!;
-
-        var callback = await _app.Provider.LoginAsync(client, test.TestUrl, Claims(CompanyLoginKind.Other, "planner-new", Planner));
-
-        Assert.Equal("/settings?companyLogin=saved", callback.Headers.Location!.OriginalString);
-        Assert.Equal(CompanyLoginKind.Other, (await GetSettingsAsync(client)).Kind);
-        var planner = await ReloadAsync(Planner);
-        Assert.Equal((OtherIssuer, "planner-new"), (planner.CompanyLoginIssuer, planner.CompanyLoginSubject));
-        Assert.Null((await ReloadAsync(email)).CompanyLoginSubject);
-    }
-
-    [Fact]
-    public async Task AFailedTestLoginOfANewProviderKeepsTheOldSettingsAndIdentifiers()
-    {
-        var email = NewEmail();
-        await AddPersonAsync(email);
-        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-22", email));
-        var (client, token) = await PlannerAsync();
-        var put = await PutAsync(client, token, new(CompanyLoginKind.Other, OtherIssuer, "new-client", "new-secret"));
-        var test = (await put.Content.ReadFromJsonAsync<CompanyLoginTestResponse>(TestContext.Current.CancellationToken))!;
-
-        // The test login belongs to another Person.
-        var callback = await _app.Provider.LoginAsync(client, test.TestUrl, Claims(CompanyLoginKind.Other, "other-new", email));
-
-        Assert.Equal("/settings?companyLogin=not-you", callback.Headers.Location!.OriginalString);
-        Assert.Equal(CompanyLoginKind.Entra, (await GetSettingsAsync(client)).Kind);
-        Assert.Equal((Tenant, "id-22"), ((await ReloadAsync(email)).CompanyLoginIssuer, (await ReloadAsync(email)).CompanyLoginSubject));
-    }
-
-    [Fact]
-    public async Task ARemovedCompanyLoginClearsTheSettingsAndTheIdentifiers()
-    {
-        var email = NewEmail();
-        await AddPersonAsync(email);
-        await _app.Provider.LoginAsync(NewClient(), "/login/company", Claims(CompanyLoginKind.Entra, "id-10", email));
-        var (client, token) = await PlannerAsync();
-
-        var delete = new HttpRequestMessage(HttpMethod.Delete, "/api/settings/company-login");
-        delete.Headers.Add(AntiforgeryToken.HeaderName, token);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(delete, TestContext.Current.CancellationToken)).StatusCode);
-
-        var settings = await GetSettingsAsync(client);
-        Assert.Equal((null, false), (settings.Kind, settings.HasSecret));
-        Assert.Null((await ReloadAsync(email)).CompanyLoginSubject);
-    }
-
-    private async Task<(HttpClient, string)> PlannerAsync()
-    {
-        var client = await TestLogin.SignInAsync(_factory, _app.Mail, Planner);
-        return (client, await TestLogin.ApiTokenAsync(client));
-    }
-
-    private static async Task<HttpResponseMessage> PutAsync(HttpClient client, string token, CompanyLoginRequest body)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/settings/company-login") { Content = JsonContent.Create(body) };
-        request.Headers.Add(AntiforgeryToken.HeaderName, token);
-        return await client.SendAsync(request, TestContext.Current.CancellationToken);
-    }
-
-    private static async Task<CompanyLoginResponse> GetSettingsAsync(HttpClient client) =>
-        (await client.GetFromJsonAsync<CompanyLoginResponse>("/api/settings/company-login", TestContext.Current.CancellationToken))!;
 }

@@ -5,7 +5,6 @@ using System.Net.Http.Json;
 using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Headroom.Telemetry;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -29,7 +28,6 @@ public class TelemetryTests : IAsyncLifetime
     private const string QueryValue = "q-marker-7f3a";
 
     private readonly HeadroomApp _app = new();
-    private readonly FakeEmailSender _mail = new();
     private readonly LockedList<Activity> _spans = new();
     private readonly LockedList<LogRecord> _logs = new();
     private readonly LockedList<Metric> _metrics = new();
@@ -55,7 +53,6 @@ public class TelemetryTests : IAsyncLifetime
             if (!clientAddress) builder.UseSetting(HeadroomTelemetry.ClientAddressKey, "false");
             builder.ConfigureServices(services =>
             {
-                services.AddSingleton<IEmailSender>(_mail);
                 // The test server has no client address, so give each request one.
                 services.AddSingleton<IStartupFilter>(new ClientAddressFilter());
                 services.ConfigureOpenTelemetryTracerProvider(t => t.AddInMemoryExporter(_spans));
@@ -78,9 +75,8 @@ public class TelemetryTests : IAsyncLifetime
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        var client = await TestLogin.SignInAsync(factory, _mail, Email);
+        var client = await TestLogin.SignInAsync(factory, Email);
         client.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(client));
-        var code = _mail.Sent.Last().Code;
         var me = (await client.GetFromJsonAsync<MeResponse>($"/api/me?x={QueryValue}", TestContext.Current.CancellationToken))!;
         var created = (await (await client.PostAsJsonAsync("/api/clients", new ClientRequest("Acme Client"), TestContext.Current.CancellationToken))
             .Content.ReadFromJsonAsync<ClientResponse>(TestContext.Current.CancellationToken))!;
@@ -94,7 +90,7 @@ public class TelemetryTests : IAsyncLifetime
         await FlushAndStopAsync(factory);
         // The Person id is the one personal value that telemetry holds (ADR 0016), as enduser.id on the request span.
         Assert.Contains(_spans.Snapshot(), s => s.Kind == ActivityKind.Server && s.GetTagItem("enduser.id") as string == me.Id.ToString());
-        AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", code, QueryValue);
+        AssertNothingLeaks(true, Email, "Zebulon", "Quillfeather", QueryValue);
     }
 
     // The order is the stored value, then Telemetry__*, then on. A save applies to the next request.
@@ -115,7 +111,7 @@ public class TelemetryTests : IAsyncLifetime
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        var client = await TestLogin.SignInAsync(factory, _mail, Email);
+        var client = await TestLogin.SignInAsync(factory, Email);
         client.DefaultRequestHeaders.Add(AntiforgeryToken.HeaderName, await TestLogin.ApiTokenAsync(client));
         if (stored is { } value)
             (await client.PutAsJsonAsync("/api/settings/telemetry", new TelemetrySettingsRequest(value, value), TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
@@ -168,30 +164,28 @@ public class TelemetryTests : IAsyncLifetime
         AssertNothingLeaks(true, [Email, "Zebulon", "Quillfeather", secret, .. endUserId ? Array.Empty<string>() : [person.Id.ToString()]]);
     }
 
-    // The first-run form takes a company, a name and an email, and the first Planner is created from them.
+    // The first login on an empty Instance creates the first Planner from the name and the preferred_username.
     // OTLP alone, and OTLP next to Azure Monitor, use the same filter. Each OTLP endpoint key switches it on.
     [Theory]
     [InlineData(AzureMonitor, null)]
     [InlineData(null, "OTEL_EXPORTER_OTLP_ENDPOINT")]
     [InlineData(AzureMonitor, "OTEL_EXPORTER_OTLP_ENDPOINT")]
     [InlineData(null, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")]
-    public async Task TheFirstRunExportsNoPersonalData(string? connectionString, string? otlpKey)
+    public async Task TheFirstLoginExportsNoPersonalData(string? connectionString, string? otlpKey)
     {
         var factory = StartFactory(connectionString, otlpKey);
-        await FirstRunAsync(factory);
+        await FirstLoginAsync(factory);
         var id = PersonId(factory);
         await FlushAndStopAsync(factory);
         AssertNothingLeaks(expectSqlSpans: connectionString is not null, // only the Azure Monitor distro adds the SQL spans
-            id, "first-run-ob@example.com", "Zebulon", "Quillfeather", "Hollowbrook", _mail.Sent.Last().Code);
+            id, "first-login-ob@example.com", "Zebulon", "Quillfeather");
     }
 
-    private async Task FirstRunAsync(WebApplicationFactory<Program> factory)
+    private static async Task FirstLoginAsync(WebApplicationFactory<Program> factory)
     {
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
-        var fields = new[] { ("company", "Hollowbrook Holdings"), ("name", Name), ("email", "first-run-ob@example.com") };
-        await TestLogin.PostFrom(client, "/first-run", "/first-run", fields);
-        var done = await TestLogin.PostFrom(client, "/first-run", "/first-run/verify", [.. fields, ("code", _mail.Sent.Last().Code)]);
-        Assert.Equal(System.Net.HttpStatusCode.Redirect, done.StatusCode);
+        var done = await factory.Services.GetRequiredService<FakeProvider>().LoginAsync(
+            TestLogin.NewClient(factory), "/login/company", TestLogin.Claims("first-login-ob@example.com", Name));
+        Assert.Equal("/", done.Headers.Location!.OriginalString);
     }
 
     private static string PersonId(WebApplicationFactory<Program> factory)

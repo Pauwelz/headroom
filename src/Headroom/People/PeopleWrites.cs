@@ -1,3 +1,4 @@
+using System.Net.Mail;
 using Headroom.Auth;
 using Headroom.Client.Api;
 using Headroom.Data;
@@ -22,7 +23,7 @@ public static class PeopleWrites
         var name = request.Name?.Trim() ?? "";
         var email = request.Email?.Trim() ?? "";
         if (name.Length is 0 or > 200) return (null, null, new(400, ApiProblem.NameDetail));
-        if (!FirstRunEndpoints.IsEmail(email)) return (null, null, new(400, EmailMessage));
+        if (!IsEmail(email)) return (null, null, new(400, EmailMessage));
         if (request.Hours is not { IsValid: true }) return (null, null, new(400, HoursMessage));
         if (await EmailTaken(db, email, null)) return (null, null, new(409, EmailTakenMessage));
 
@@ -40,7 +41,7 @@ public static class PeopleWrites
         var name = request.Name?.Trim() ?? "";
         var email = request.Email?.Trim() ?? "";
         if (name.Length is 0 or > 200) return (null, new(400, ApiProblem.NameDetail));
-        if (!FirstRunEndpoints.IsEmail(email)) return (null, new(400, EmailMessage));
+        if (!IsEmail(email)) return (null, new(400, EmailMessage));
         if (await EmailTaken(db, email, id)) return (null, new(409, EmailTakenMessage));
         if (!request.IsPlanner && await LastPlanner.IsAsync(db, person, today)) return (null, new(409, LastPlanner.Message));
 
@@ -49,7 +50,6 @@ public static class PeopleWrites
         person.IsPlanner = request.IsPlanner;
         person.LastChangedBy = by;
         await db.SaveChangesAsync();
-        await CompanyLoginOnly.DeletePasskeysAsync(db, person.Id); // the new email may be in a company domain
         return (person, null);
     }
 
@@ -110,6 +110,9 @@ public static class PeopleWrites
     }
 
     // The database collation ignores case, so this compare ignores case too.
+    internal static bool IsEmail(string email) =>
+        email.Length <= 254 && MailAddress.TryCreate(email, out var parsed) && parsed.Address == email;
+
     private static Task<bool> EmailTaken(HeadroomDbContext db, string email, Guid? exceptId) =>
         db.People.AnyAsync(p => p.Email == email && p.Id != exceptId);
 

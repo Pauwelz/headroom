@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using Headroom.Auth;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,12 +19,10 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     private const string WorkerSecret = "hr_mcp-worker-secret";
     private readonly WebApplicationFactory<Program> _factory;
 
-    private readonly FakeEmailSender _mail;
 
     public McpTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -238,7 +235,7 @@ public class McpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task McpDoesNotAcceptTheLoginCookie()
     {
-        var planner = await TestLogin.SignInAsync(_factory, _mail, "mcp-ann@example.com");
+        var planner = await TestLogin.SignInAsync(_factory, "mcp-ann@example.com");
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await planner.PostAsync("/mcp", Json(), cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
     }

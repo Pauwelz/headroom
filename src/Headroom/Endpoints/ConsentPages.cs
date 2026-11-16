@@ -6,16 +6,16 @@ public static class ConsentPages
 {
     private static readonly string[] Steps = ["Log in", "Allow access"];
 
-    public static string Consent(string token, string company, string appName, string personName, IEnumerable<KeyValuePair<string, string?>> request)
+    public static string Consent(string token, string? company, string appName, string personName, IEnumerable<KeyValuePair<string, string?>> request)
     {
-        var app = FirstRunPages.E(appName);
-        return FirstRunPages.Layout($"Connect {app}", null, Steps, 1, company, $$"""
-            <p><strong>{{app}}</strong> wants to connect to Headroom as <strong>{{FirstRunPages.E(personName)}}</strong>.</p>
+        var app = ServerPages.E(appName);
+        return ServerPages.Layout($"Connect {app}", null, Steps, 1, company, $$"""
+            <p><strong>{{app}}</strong> wants to connect to Headroom as <strong>{{ServerPages.E(personName)}}</strong>.</p>
             <p class="hint">The app can read the planning that you can see.</p>
             <form method="post" action="/connect/authorize">
-              {{FirstRunPages.Hidden("__RequestVerificationToken", token)}}
+              {{ServerPages.Hidden("__RequestVerificationToken", token)}}
               <label><input type="checkbox" name="canChange"> Can change: the app can also change what you can change.</label>
-              {{string.Concat(request.Select(p => FirstRunPages.Hidden(p.Key, p.Value ?? "")))}}
+              {{string.Concat(request.Select(p => ServerPages.Hidden(p.Key, p.Value ?? "")))}}
               <button name="decision" value="allow">Allow</button>
               <button name="decision" value="deny">Cancel</button>
             </form>

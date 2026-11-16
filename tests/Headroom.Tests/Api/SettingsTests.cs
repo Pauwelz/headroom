@@ -4,7 +4,6 @@ using Headroom.Capacity;
 using Headroom.Client.Api;
 using Headroom.Client.Settings;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,13 +12,11 @@ namespace Headroom.Tests.Api;
 public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     private const string Url = "/api/settings/company-days-off";
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
 
     public SettingsTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -40,7 +37,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task NonPlannerGets403OnEverySettingsEndpoint()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "settings-flo@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
         var id = Guid.NewGuid();
 
@@ -53,7 +50,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task PlannerAddsEditsAndDeletesACompanyDayOff()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-ann@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "settings-ann@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
 
         var added = await Send(client, token, HttpMethod.Post, Url, new DayOffRequest(new(2031, 5, 2), " Bridge day "));
@@ -74,7 +71,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task ListShowsBelgianPublicHolidaysWithoutAnId()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-ann@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "settings-ann@example.com");
 
         var list = await client.GetFromJsonAsync<List<DayOffResponse>>($"{Url}?year=2026", cancellationToken: TestContext.Current.CancellationToken);
 
@@ -84,7 +81,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task OneCompanyDayOffPerDate()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-ann@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "settings-ann@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
         var request = new DayOffRequest(new(2032, 5, 14), "Bridge day");
         var first = (await (await Send(client, token, HttpMethod.Post, Url, request)).Content.ReadFromJsonAsync<DayOffResponse>(cancellationToken: TestContext.Current.CancellationToken))!;
@@ -99,7 +96,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task BlankNameIsRefused()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-ann@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "settings-ann@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
 
         var response = await Send(client, token, HttpMethod.Post, Url, new DayOffRequest(new(2033, 5, 14), "  "));
@@ -129,7 +126,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task PlannerChangesTheCompanyName()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-ann@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "settings-ann@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
         var ct = TestContext.Current.CancellationToken;
 
@@ -150,7 +147,7 @@ public class SettingsTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task NonPlannerCannotChangeTheCompanyName()
     {
-        var client = await TestLogin.SignInAsync(_factory, _mail, "settings-flo@example.com");
+        var client = await TestLogin.SignInAsync(_factory, "settings-flo@example.com");
         var token = await TestLogin.ApiTokenAsync(client);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(client, token, HttpMethod.Put, CompanyNameUrl, new CompanyNameRequest("Evil Corp"))).StatusCode);

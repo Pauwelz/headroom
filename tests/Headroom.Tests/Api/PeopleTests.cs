@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Headroom.Client.Api;
 using Headroom.Data;
-using Headroom.Email;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,14 +11,12 @@ namespace Headroom.Tests.Api;
 public class PeopleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
 {
     private static readonly DateOnly Jan1 = new(2026, 1, 1);
-    private readonly FakeEmailSender _mail;
     private readonly WebApplicationFactory<Program> _factory;
     private HttpClient _planner = null!;
 
     public PeopleTests(HeadroomApp app)
     {
         _factory = app.Factory;
-        _mail = app.Mail;
     }
 
     public async ValueTask InitializeAsync()
@@ -38,9 +35,8 @@ public class PeopleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
                 await db.SaveChangesAsync();
             }
             // Every test logs in again. The login rate limit would stop the later tests.
-            await db.LoginCodes.ExecuteDeleteAsync();
         }
-        _planner = await TestLogin.SignInAsync(_factory, _mail, "ann@example.com");
+        _planner = await TestLogin.SignInAsync(_factory, "ann@example.com");
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -48,7 +44,7 @@ public class PeopleTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     [Fact]
     public async Task ANonPlannerGets403OnEveryEndpoint()
     {
-        var flo = await TestLogin.SignInAsync(_factory, _mail, "flo@example.com");
+        var flo = await TestLogin.SignInAsync(_factory, "flo@example.com");
         var id = Guid.NewGuid();
         JsonContent Body() => Json(new ContractRequest(Jan1, WeekHours.FullTime));
 

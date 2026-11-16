@@ -15,11 +15,9 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
     public DbSet<TimeOff> TimeOff => Set<TimeOff>();
     public DbSet<CompanyDayOff> CompanyDaysOff => Set<CompanyDayOff>();
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
-    public DbSet<Passkey> Passkeys => Set<Passkey>();
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Allocation> Allocations => Set<Allocation>();
-    public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<Webhook> Webhooks => Set<Webhook>();
@@ -32,11 +30,7 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
         // A nondeterministic collation rejects LIKE, so never run Contains or StartsWith on these columns in the database.
         modelBuilder.HasCollation("case_insensitive", locale: "und-u-ks-level2", provider: "icu", deterministic: false);
         // The server generates ids, so the database does not.
-        modelBuilder.Entity<InstanceSettings>(settings =>
-        {
-            settings.Property(s => s.Id).ValueGeneratedNever();
-            settings.Property(s => s.CompanyLoginKind).HasConversion<string>();
-        });
+        modelBuilder.Entity<InstanceSettings>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<Person>(person =>
         {
             person.Property(p => p.Id).ValueGeneratedNever();
@@ -80,14 +74,6 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
             token.HasIndex(t => t.TokenHash).IsUnique();
             token.HasOne<Person>().WithMany().HasForeignKey(t => t.PersonId);
         });
-        modelBuilder.Entity<Passkey>(passkey =>
-        {
-            passkey.Property(p => p.Id).ValueGeneratedNever();
-            passkey.Property(p => p.Name).HasMaxLength(200);
-            passkey.Property(p => p.CredentialId).HasMaxLength(1024);
-            passkey.HasIndex(p => p.CredentialId).IsUnique();
-            passkey.HasOne<Person>().WithMany().HasForeignKey(p => p.PersonId);
-        });
         modelBuilder.Entity<Client>(client =>
         {
             client.Property(c => c.Id).ValueGeneratedNever();
@@ -108,12 +94,6 @@ public class HeadroomDbContext(DbContextOptions<HeadroomDbContext> options, Time
             allocation.HasOne<Person>().WithMany().HasForeignKey(a => a.PersonId);
             allocation.HasOne<Project>().WithMany().HasForeignKey(a => a.ProjectId);
             allocation.HasIndex(a => new { a.PersonId, a.ProjectId });
-        });
-        modelBuilder.Entity<LoginCode>(code =>
-        {
-            code.Property(c => c.Id).ValueGeneratedNever();
-            code.Property(c => c.Email).HasMaxLength(254).UseCollation("case_insensitive");
-            code.HasIndex(c => c.Email);
         });
         modelBuilder.Entity<Session>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<Webhook>(webhook =>
