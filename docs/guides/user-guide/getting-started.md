@@ -26,39 +26,18 @@ It comes with no warranty. Support is best effort.
 ## Log in
 
 1. Open the URL of your Instance. The login screen opens.
-2. Enter your email address. This is the email that a Planner entered for you on the People page.
-3. Select **Send code**. Headroom sends a login code to that email.
+2. Select **Log in with Microsoft**. Log in with your work account.
 
-![The login screen with an email address in the Email field](images/login-email.png)
+You are logged in. The session lasts 12 hours. After that, Headroom sends you to Microsoft again.
+Activity does not extend the session.
 
-4. Enter the 6-digit code. Select **Log in**.
-
-![The second login step with a 6-digit code in the Code field](images/login-code.png)
-
-You are logged in. The session lasts 30 days from your last visit.
-
-After a login with a code, Headroom offers "Log in faster next time." Select **Save a Passkey** to save one, or close the message.
-The offer shows only when your browser supports Passkeys. See the [Account page](account.md).
-
-If you saved a Passkey, you can log in with it instead: select **Log in with a Passkey**. See the [Account page](account.md).
-
-If your company set up a Company login, the login screen has a **Company login** button above the email field.
-Select it to log in with the login of your company. The session lasts 12 hours. After that, Headroom sends you to your company login again.
-Your email address must be in Headroom already. A Planner must enter the email that your company login returns.
-For Microsoft Entra ID, this is your user principal name (UPN), for example `upn@company.be`. It can differ from your email alias.
-Headroom refuses the login in the same way when you are not known, when your end date has passed, or when the provider gives no verified email.
-The Login code and the Passkey keep working beside it, unless a Planner made Company login the only login for your email domain.
-Then the login screen says "Use Company login for @domain" and sends no code.
-
-Rules for the code:
-
-- The code works for 10 minutes and works once.
-- You get 5 attempts for each code.
-- You get 3 codes for each email in 15 minutes. After that, wait 15 minutes.
-
-You get the same "code sent" message if your email is not known, or if your end date has passed.
-In that case no email goes out. Ask a Planner to check your email address and end date.
+Your work account must match a Person in Headroom. A Planner must enter the email that Microsoft returns for you.
+This is your user principal name (UPN), for example `upn@company.be`. It can differ from your email alias.
+The first login links your Microsoft account to your Person. Later logins use this link, even when the email changes.
+Headroom refuses the login with one message when you are not known, when your end date has passed, or when you use another tenant.
+The message does not say which one. Ask a Planner to check your email address and end date.
 Your login stops the day after your end date.
+A person who is disabled at Microsoft can keep an open session for up to 12 hours. A Planner can set the end date to stop access at once.
 
 The login screen has a "Privacy notice" link. Click it to show the notice below the link. It names the company that controls your data.
 It says what Headroom stores: your name, email, Contracts, Allocations and Time off.
@@ -78,11 +57,9 @@ To log out, select **Sign out** in the header.
 
 ## Planners: first steps
 
-The Operator creates the first Planner on the first-run screen. The operator guide describes it.
-The first-run screen offers **Set up Company login instead**. The first Planner then enters the company name and the Company login.
-Headroom tests it with a login. This login creates the first Planner with the name and the email from the provider.
-The email server is then optional: a Planner adds it later in Settings, and Login codes work from then on.
-That Planner gets a Contract of 8 hours, Monday to Friday, from the day of the first run.
+The first person of your company who logs in on a new Instance becomes the first Planner. Headroom takes the name and the email from Microsoft.
+The company name is empty at first. Set it in Settings.
+That Planner gets a Contract of 8 hours, Monday to Friday, from the day of the first login.
 Then follow these steps in order to set up the new Instance.
 
 1. Set the Company days off. Open the **Settings** page.

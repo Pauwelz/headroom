@@ -17,7 +17,7 @@ Headroom is one container image. It does not depend on a cloud. You choose how t
 - A container host that runs one Linux container. The app listens on port 8080.
   Put HTTPS termination in front of it, for example a reverse proxy or the ingress of your platform.
 - PostgreSQL 17 or later, or Azure Database for PostgreSQL Flexible Server. The app creates and migrates its schema at start.
-- An SMTP server. Headroom sends the login codes through it (see [Email](#email)).
+- A Microsoft Entra ID tenant. Every login goes through it (see [Microsoft Entra ID](#microsoft-entra-id)).
 - Optional telemetry: any OTLP backend or collector, or Azure Monitor through Application Insights, or both (see [Telemetry](#telemetry)).
 
 ### Image
@@ -49,11 +49,11 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | Setting | Value |
 | --- | --- |
 | `ConnectionStrings__Headroom` | The Npgsql connection string, for example `Host=<server>.postgres.database.azure.com;Database=<database>;Username=<user>;Password=<password>;SSL Mode=Require;Maximum Pool Size=20`. Keep `Maximum Pool Size` below the connection limit of the server: the Burstable B1ms tier allows 50, and Azure uses some of them. Use letters and digits only in the password: a `;` breaks the string |
-| `Smtp__Host` | Fallback. Host name of your SMTP server. A Planner can set the email server in Settings instead (see [Email](#email)). A later release removes the `Smtp__*` variables |
-| `Smtp__Port` | Fallback. Port, for example `587` |
-| `Smtp__Username` | Fallback. SMTP user name |
-| `Smtp__Password` | Fallback. SMTP password. Keep it secret |
-| `Smtp__FromAddress` | Fallback. The sender address. Your SMTP provider must allow it |
+| `EntraId__TenantId` | Required. The tenant (directory) ID, a GUID. Headroom refuses a login from another tenant. The app does not start without it |
+| `EntraId__ClientId` | Required. The application (client) ID of the app registration |
+| `EntraId__ManagedIdentityClientId` | Optional. The client ID of a user-assigned managed identity. Empty means the system-assigned managed identity |
+| `EntraId__ClientSecret` | Optional. When set, Headroom sends this secret and does not use the managed identity. Use it for local development only. Keep it secret |
+| `EntraId__Authority` | Optional. The default is `https://login.microsoftonline.com/{TenantId}/v2.0`. Only a local mock provider needs another value |
 | `BaseUri` | The public URL of the Instance, with `https://` and without a path |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | `true`. TLS ends in front of the app, so it must trust `X-Forwarded-Proto` |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional. Sends telemetry to Azure Monitor |
@@ -64,8 +64,7 @@ ASP.NET Core reads `__` in an environment variable name as `:`.
 | `Seed__PlannerEmail` | Test Instances only. Never set it in production: it seeds demo data into an empty database |
 
 The Instance uses one URL. A custom domain is your choice, as long as `BaseUri` matches it.
-Passkeys are bound to the domain in `BaseUri`. If you change the domain, all Passkeys stop working.
-People then log in with a Login code and save a new Passkey. Warn People before you change the domain.
+If you change the domain, change the redirect URI of the app registration too (see [Microsoft Entra ID](#microsoft-entra-id)).
 
 ### Health probe
 
@@ -99,77 +98,54 @@ Every migration works with the previous release (expand and contract, see [docs/
 So the previous release runs on the newer schema.
 To go back further than one release, restore the database to a time before the upgrade.
 
+## Microsoft Entra ID
+
+Entra ID is the only login. Set it up before the first start.
+
+1. In the Microsoft Entra admin center, open **App registrations** and select **New registration**.
+   Choose **Accounts in this organizational directory only** (single tenant).
+2. Under **Redirect URI**, choose the type **Web**. Enter the URL of the Instance followed by `/signin-oidc`, for example `https://headroom.company.be/signin-oidc`.
+3. Copy the **Application (client) ID** and the **Directory (tenant) ID** from the overview page.
+   Set them as `EntraId__ClientId` and `EntraId__TenantId`.
+4. Give the Container App a managed identity. Use the system-assigned identity, or a user-assigned identity and its client ID in `EntraId__ManagedIdentityClientId`.
+5. In the app registration, open **Certificates & secrets**, then **Federated credentials**, and select **Add credential**. Choose **Other issuer** and enter:
+   - Issuer: `https://login.microsoftonline.com/{tenant id}/v2.0`
+   - Subject identifier: the principal ID (object ID) of the managed identity
+   - Audience: `api://AzureADTokenExchange`
+
+   Headroom then logs in without a client secret. Set `EntraId__ClientSecret` only for local development.
+
+Headroom matches a login with a Person who is already in the Instance. It uses the `tid` and `oid` claims of the token.
+The first time, a Person without a stored identifier matches on the `preferred_username` claim, without case.
+Headroom never uses the `email` claim, because a user can change it.
+A Planner must enter the user principal name (UPN) of the person as the email.
+Every session lasts 12 hours and does not extend.
+
 ## First run
 
-1. Open the URL from the deploy run, followed by `/first-run`.
-   For example `https://<container app>.<environment>.westeurope.azurecontainerapps.io/first-run`.
-2. Enter the company name, and the name and email of the first Planner.
-3. Enter the email server: host, port, user name, password and From address.
-   Headroom skips this step when `Smtp__Host` is set, and in Development.
-4. Headroom sends a login code to the email of the first Planner, through the server that you entered. Enter the code.
-   If the send fails, the screen shows "Could not connect to the email server." and keeps the values, but not the password.
-5. The first Planner exists. Headroom stores the email server with the encrypted password. The first-run screen closes for good.
+1. Deploy the Instance with the `EntraId__*` settings. The app does not start without `EntraId__TenantId` and `EntraId__ClientId`.
+2. Open the URL from the deploy run. For example `https://<container app>.<environment>.westeurope.azurecontainerapps.io`.
+3. Select **Log in with Microsoft** and log in.
 
-Instead of steps 3 and 4, the first Planner can select **Set up Company login instead**.
-Enter the Kind, the issuer, the client ID and the client secret, and log in at the provider.
-Headroom then creates the first Planner with the name and email from the provider. It needs no email server for this.
-See the Company login section on the [Settings page](user-guide/settings.md).
-
-There is no setup secret. Until setup ends, anyone who reaches the screen can make the server connect to any host and port. The error shows no reply from that server. Complete this screen right after the first start, before anyone else finds the URL.
-The company name cannot change after this step.
-The first run also creates a default Contract for the Planner: 8 hours, Monday to Friday, from today.
+The first person of the configured tenant who logs in on an empty Instance becomes the first Planner.
+Headroom takes the name from the `name` claim and the email from the `preferred_username` claim.
+Every later person who is not in the Instance is refused. Let the right person log in first, right after the first start.
+The company name is empty until the first Planner sets it in Settings.
+The first login also creates a default Contract for the Planner: 8 hours, Monday to Friday, from today.
 
 Tell the first Planner to add a second Planner on the People page.
 Then one Planner can still work when the other one leaves (see [Recover a Planner](#recover-a-planner)).
 
-If the code email fails, the screen shows "The email could not be sent. Check the SMTP settings."
-Fix the SMTP parameters. Deploy again.
+## Recover a login
 
-## Email
-
-Login codes go out through the SMTP account that you choose.
-That provider sees the email addresses and the codes. Check that its terms and location fit your company.
-
-- Headroom uses plain SMTP (MailKit). It uses no provider API.
-- The From address is the one in the settings. The From name is "<company name> Headroom".
-- The subject is "Your Headroom login code".
-- Headroom does not write email addresses or codes to the logs.
-- If the provider is down, nobody can log in.
-
-The first-run screen sets the email server for a new Instance. After that, a Planner changes it in Settings, in the group **Instance**, section **Email server**.
-Headroom sends a test email to the Planner before it saves a change.
-Headroom encrypts the password with the Data Protection key ring. The key ring is in the same database.
-At each send, Headroom uses the first of these:
-
-1. The settings that a Planner saved in Settings.
-2. The `Smtp__*` parameters, if `Smtp__Host` is set. Existing Instances keep working with them.
-3. In Development only: the console log.
-
-If none applies, nobody can log in. A later release removes the `Smtp__*` parameters.
-
-To recover from broken settings, clear the stored settings in the database. Run this SQL statement:
+When nobody can log in, for example after you delete the app registration or change the tenant, fix the data in the database.
+Fix the Entra ID settings first. Then clear the stored identifiers, so that People match on their email again:
 
 ```sql
-UPDATE "InstanceSettings"
-SET "SmtpHost" = NULL, "SmtpPort" = NULL, "SmtpUsername" = NULL, "SmtpPassword" = NULL, "SmtpFromAddress" = NULL;
+UPDATE "People" SET "CompanyLoginIssuer" = NULL, "CompanyLoginSubject" = NULL;
 ```
 
-Headroom then uses the `Smtp__*` parameters again. No restart is needed.
-
-The key ring that decrypts the password is in the same database.
-If you restore the database without its key ring, Headroom cannot decrypt the password. Then all Login codes fail.
-Run the SQL statement above to clear the settings, and set them again in Settings.
-
-## Company login only
-
-A Planner can make Company login the only login for company email domains. If the provider breaks, nobody in those domains can log in.
-To turn the switch off, run this SQL statement:
-
-```sql
-UPDATE "InstanceSettings" SET "CompanyLoginOnly" = false;
-```
-
-Login codes work again for every email. No restart is needed. Headroom does not bring back the Passkeys that it deleted.
+No restart is needed. Use [Recover a Planner](#recover-a-planner) when no Planner can log in.
 
 ## Export
 
@@ -281,7 +257,7 @@ The telemetry holds no other personal data:
 - Requests show the route template, such as `/api/people/{id}`. They show no path with ids and no query string.
 - Database calls show no statement text.
 - Headroom adds no name or email to spans, logs or log scopes.
-- Headroom does not log Login codes or email addresses.
+- Headroom does not log email addresses.
 
 Headroom exports every trace. It does not sample. If the volume grows, add tail-based sampling in an OpenTelemetry Collector.
 
@@ -293,7 +269,6 @@ In Application Insights, a metric is a row in `customMetrics` with this name. Ea
 | Metric | Kind | Dimension and values |
 |---|---|---|
 | `headroom.logins` | Counter | `result`: `success`, `failed` |
-| `headroom.login_code_emails` | Counter | `result`: `sent`, `failed` |
 | `headroom.record_changes` | Counter | `type`: `headroom.Allocation.created`, `headroom.Allocation.changed`, `headroom.Allocation.deleted`, the same three for `headroom.TimeOff`, and `headroom.Project.changed` |
 | `headroom.requests` | Counter | `surface`: `api`, `mcp` |
 | `headroom.webhook_deliveries` | Counter | `result`: `success`, `failed` |
@@ -307,5 +282,5 @@ A Webhook delivery counts each attempt, so a retry counts again.
 
 Telemetry holds no personal data (see above), but check before you share (ADR 0012).
 Copy the result of a query as text, or take a screenshot.
-Check that it shows no email address, name or Login code. Remove anything else that identifies a Person or a client. Then paste it in the issue.
+Check that it shows no email address or name. Remove anything else that identifies a Person or a client. Then paste it in the issue.
 Do not share the connection string.

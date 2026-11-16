@@ -25,7 +25,7 @@ Someone who works for the company, as an employee or a freelancer, and can be sc
 _Avoid_: Resource, employee, user
 
 **Planner**:
-A Person who can create and change Allocations, the Time off of every Person, and the Settings of the Instance, such as the email server. Usually a managing partner. Other People view the schedule and manage only their own Time off.
+A Person who can create and change Allocations, the Time off of every Person, and the Settings of the Instance, such as the company name. Usually a managing partner. Other People view the schedule and manage only their own Time off.
 _Avoid_: Resource manager, scheduler, admin
 
 **Client**:
@@ -81,20 +81,12 @@ A Project whose last Allocation is before today. It is a filter on the Projects 
 _Avoid_: Finished, done (for this filter)
 
 **Delete a Person**:
-The step that removes a Person with their Contracts, Allocations, Time off, Passkeys, Access tokens and Connections. Past Utilisation and Project hours drop. A Planner can do it at any time, and it runs on its own 12 months after the end date. It cannot be undone.
+The step that removes a Person with their Contracts, Allocations, Time off, Access tokens and Connections. Past Utilisation and Project hours drop. A Planner can do it at any time, and it runs on its own 12 months after the end date. It cannot be undone.
 _Avoid_: Erase, anonymise, archive (for People)
 
 **Utilisation**:
 Allocated hours divided by Capacity for a Person or group in a period.
 _Avoid_: Occupancy, load
-
-**Login code**:
-The 6-digit code that Headroom sends by email to a Person so they can log in. It works for a short time and only once. The first Planner gets one during setup, unless they set up Company login there.
-_Avoid_: OTP, password, magic link
-
-**Passkey**:
-A key on a device or in a password manager that lets a Person log in without a Login code. A Person can have several. Each one works only for the Instance where they saved it.
-_Avoid_: WebAuthn credential, security key, FIDO key, password
 
 **Event**:
 A message that Headroom sends when an Allocation, Time off or Project status changes. It carries the full record. Headroom sends it to every Webhook, and the receiver decides what to do with it.
@@ -105,7 +97,7 @@ A URL that a Planner adds in Settings. Headroom sends each Event to it.
 _Avoid_: Subscription, endpoint, integration
 
 **Company login**:
-The login of the company's own identity provider, such as Microsoft Entra ID, that a Planner adds in Settings. An Instance has at most one. It works only for a Person who is already in the Instance, and a session from it lasts 12 hours. A Planner can make it the only way to log in for People with a company email domain. Those People then cannot use a Login code, and their Passkeys are deleted. It is optional: an Instance can run with Login codes only.
+The login with Microsoft Entra ID. It is the only way to log in, and the Operator sets it in the environment. It works only for a Person who is already in the Instance, or for the first person of the tenant on an empty Instance, who becomes the first Planner. A session lasts 12 hours.
 _Avoid_: SSO, OAuth provider, external login, IdP
 
 **Access token**:

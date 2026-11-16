@@ -11,3 +11,7 @@ Each company runs its Instance in its own Azure tenant and subscription, and pay
 - The CI workflow runs on GitHub Actions only. Superseded by [ADR 0007](0007-operators-deploy-with-github-actions-only.md): it no longer stays portable to other CI systems.
 
 Superseded by [ADR 0013](0013-the-public-repo-publishes-the-image-only.md).
+
+## Update
+
+[ADR 0020](0020-entra-id-is-the-only-login.md) makes Microsoft Entra ID required. Login email through plain SMTP is gone, because Headroom sends no email.

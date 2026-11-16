@@ -20,3 +20,5 @@ Claude Team and Enterprise store one connector key for the whole organisation, s
 ## Update
 
 [ADR 0018](0018-company-login-uses-openid-connect-without-provisioning.md) adds an optional Company login. Headroom still does not depend on an identity provider.
+
+[ADR 0020](0020-entra-id-is-the-only-login.md) reverses the reason to avoid an identity provider. An Instance now depends on Microsoft Entra ID for the login. Headroom stays its own OAuth server for Connected apps.

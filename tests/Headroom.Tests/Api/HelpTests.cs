@@ -87,8 +87,8 @@ public class HelpTests : IClassFixture<HeadroomApp>, IAsyncLifetime
     public async Task ImagesComeBackFromTheApi()
     {
         var client = await TestLogin.SignInAsync(_factory, "flo@example.com");
-        Assert.Contains("src=\"/api/help/images/login-email.png\"", await client.GetStringAsync("/api/help/getting-started", TestContext.Current.CancellationToken));
-        var response = await client.GetAsync("/api/help/images/login-email.png", TestContext.Current.CancellationToken);
+        Assert.Contains("src=\"/api/help/images/account.png\"", await client.GetStringAsync("/api/help/account", TestContext.Current.CancellationToken));
+        var response = await client.GetAsync("/api/help/images/account.png", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
     }

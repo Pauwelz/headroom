@@ -17,7 +17,7 @@ Terms are in [GLOSSARY.md](GLOSSARY.md).
 - [Releasing](docs/releasing.md) and [migrations](docs/migrations.md): for contributors.
 - [Architecture decisions](docs/adr/).
 - [Contributing](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md) and [Security policy](SECURITY.md).
-- `scripts/preview.sh`: run the app locally with fresh demo data. Login emails go to Mailpit at http://localhost:8025.
+- `scripts/preview.sh`: run the app locally with fresh demo data. A mock OpenID Connect provider handles the login.
 
 ## License
 

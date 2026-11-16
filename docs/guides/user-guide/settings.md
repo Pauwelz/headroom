@@ -10,8 +10,8 @@ The page has three groups: **Company**, **Instance** and **Access and integratio
 - **Company name** and **Connected apps** start collapsed. Click the arrow to show them.
   Connected apps stays open while it shows a new secret, an error or an Edit row.
 
-- **Company name.** The first-run screen sets it. Enter a new name and click **Save**.
-  The login page, the app bar and the sender of the login email show the new name.
+- **Company name.** It is empty until a Planner sets it. Enter a name and click **Save**.
+  The login page and the app bar show the name.
 - **Company days off.** A Company day off is a day on which nobody works.
   It reduces Capacity like a public holiday.
   Use the arrows to change the year.
@@ -23,50 +23,6 @@ The page has three groups: **Company**, **Instance** and **Access and integratio
     **Add** stays disabled until the date and the name are filled in.
   - Each date can have one Company day off.
     A note warns if the date is a public holiday (no effect) or a weekend.
-- **Email server.** This section sets the server that sends the Login codes.
-  - Fill in **Host**, **Port**, **User name**, **Password** and **From address**.
-  - Click **Save**. Headroom sends a test email to you first. It saves the settings only if the test succeeds.
-    If it fails, the page shows "Could not connect to the email server." and the old settings stay.
-  - Headroom never shows the password again. The field says "Stored. Leave empty to keep it." Leave it empty to keep the password.
-    If you change the host, the port or the user name, enter the password again.
-  - The line under the heading shows the host, "The Operator's server" when the Operator set the server in the environment, or "Not set".
-- **Company login only.** This section makes Company login the only login for the company email domains.
-  - Enter **Domains**, one per line, for example `company.be`. A domain matches the part of an email after `@`, without case.
-    It does not match subdomains. A wildcard such as `*.company.be` is not allowed.
-  - Add every domain people use to log in, including aliases.
-  - Turn on **Company login only** and select **Save**. You need a Company login, and you must have logged in with it at least once.
-    If not, Headroom refuses the switch and says why. No Planner is exempt.
-  - While the switch is on, the login page sends no Login code for these emails. It says "Use Company login for @domain". It gives the same answer for known and unknown emails.
-    Passkey login is refused, and a Passkey cannot be saved. The Passkey offer does not show.
-  - When you turn the switch on, add a domain, or change a Person's email into a company domain, Headroom deletes the Passkeys of the People affected. There is no confirmation step.
-    Turning the switch off brings back Login codes. It does not bring back deleted Passkeys.
-  - People with other domains, such as freelancers, keep Login codes and Passkeys.
-    Access tokens and Connections keep working. They are not a login.
-  - **Remove** on Company login also turns the switch off. If the provider breaks, the Operator can turn the switch off. The Operator guide has the steps.
-- **Company login.** This section lets People log in with the login of your company. An Instance has at most one Company login.
-  - Choose the **Kind**: **Microsoft Entra ID** or **Other OpenID Connect**. Fill in **Issuer URL**, **Client ID** and **Client secret**.
-  - Register the **Redirect URI** at the provider. Select the copy button to copy it. It is the address of your Instance followed by `/signin-oidc`.
-  - Select **Test and save**. The browser goes to the provider and you log in. Headroom saves the settings only if the test login works **and** is your own login.
-    If the test fails, the page shows why: the provider refused the login, the provider gave no verified email, or the login belongs to another Person.
-    The old settings stay.
-  - Headroom matches a login with a Person who is already in Headroom. It never creates a Person from the provider.
-    Enter the email that the provider returns as the Person's email. For Microsoft Entra ID, this is the user principal name (UPN).
-    The first login links the provider identity to the Person. Later logins use this link, even when the email changes.
-    A second identity with the same email cannot take over the Person.
-  - A Company login session lasts 12 hours and does not extend. A person who is disabled at the provider can keep an open session for up to 12 hours.
-    Set the end date of the Person to stop access at once.
-  - Headroom never shows the client secret again. The field says "Stored. Leave empty to keep it." If you change the kind, the issuer or the client ID, enter the secret again.
-  - **Remove** deletes the Company login and the links of all People. To change to another provider, change the kind or the issuer and save. The test login must match your own email. After it, Headroom deletes the links of all other People. They link again at their next login.
-  - **Microsoft Entra ID:** register Headroom in the Microsoft Entra admin center.
-    1. Open **App registrations** and select **New registration**. Choose **Accounts in this organizational directory only** (single tenant).
-    2. Under **Redirect URI**, choose the type **Web** and enter the redirect URI from Headroom.
-    3. Open **Certificates & secrets**, select **New client secret** and copy the value.
-    4. Copy the **Application (client) ID** and the **Directory (tenant) ID** from the overview page.
-    5. In Headroom, choose **Microsoft Entra ID**. Enter `https://login.microsoftonline.com/{tenant id}/v2.0` as the issuer, the client ID and the secret.
-    Headroom refuses `common`, `organizations` and `consumers` as the tenant, because they allow accounts of other companies.
-  - **Local test with the mock provider:** `scripts/preview.sh` also starts a mock provider.
-    Choose **Other OpenID Connect**, enter `http://localhost:8080/default` as the issuer, and any client ID and secret.
-    At its login form, enter any user name and the claims `{"email":"planner@example.test","email_verified":true}`.
 - **Telemetry.** This section sets which personal data Headroom adds to the telemetry of the Operator.
   - **Send Person id** lets the Operator count active users and trace a fault of one Person.
   - **Send client IP address** shows the real client address instead of the proxy.

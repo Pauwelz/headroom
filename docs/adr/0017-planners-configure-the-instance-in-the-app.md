@@ -16,3 +16,7 @@ Planners set the company name, the email server (SMTP) and the two telemetry pri
 - Headroom saves new SMTP settings only after a test email to the Planner succeeds. To recover from broken settings, the Operator clears them in the database.
 - The database value wins. `Smtp__*` and `Telemetry__*` stay as a fallback for existing Instances, and a later release removes them.
 - This supersedes in part [ADR 0016](0016-telemetry-holds-the-person-id.md): a Planner switches the Person id and the client IP address off in Settings.
+
+## Update
+
+[ADR 0020](0020-entra-id-is-the-only-login.md) removes the Email server. A Planner no longer sets SMTP or the Company login in Settings. The first-run screen is gone.

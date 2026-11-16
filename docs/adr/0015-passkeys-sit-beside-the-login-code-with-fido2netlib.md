@@ -14,3 +14,9 @@ A Login code email can take a while to arrive, so a Person can also log in with 
 - A Passkey is bound to the domain of the Instance. When an Operator changes the domain, all Passkeys stop working, and People fall back to the Login code.
 - A Passkey login passes the same `CanLogIn` check as a Login code. An ended Person cannot log in with a Passkey.
 - Headroom asks for no attestation, so it needs no FIDO metadata service.
+
+## Update
+
+[ADR 0020](0020-entra-id-is-the-only-login.md) removes the Login code and Passkeys. Microsoft Entra ID is the only login.
+
+Superseded by [ADR 0020](0020-entra-id-is-the-only-login.md).

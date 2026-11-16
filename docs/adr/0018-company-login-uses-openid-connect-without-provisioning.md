@@ -17,3 +17,9 @@ Companies want People to log in with their own identity provider, and they want 
 - A Planner can make Company login the only way to log in for People with a company email domain. Their Passkeys are then deleted. The Operator recovers in the database.
 - A person disabled in the provider keeps an open session for up to 12 hours, and keeps Access tokens and Connections until a Planner sets the end date.
 - The Planner right stays in Headroom. The provider does not create or change People.
+
+## Update
+
+[ADR 0020](0020-entra-id-is-the-only-login.md) makes Entra ID the only login and removes the generic OpenID Connect kind, the settings in the app and "Company login only". The Operator sets Entra ID in the environment.
+
+Superseded by [ADR 0020](0020-entra-id-is-the-only-login.md).

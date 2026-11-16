@@ -25,4 +25,4 @@ body:
     id: extra
     attributes:
       label: Extra information
-      description: 'Remove names, email addresses and Login codes from logs and screenshots.'
+      description: 'Remove names and email addresses from logs and screenshots.'

@@ -110,7 +110,7 @@ The reset step checks the variable `ENVIRONMENT_NAME` (it must be `test`) and th
 
 The app seeds an empty database with demo data when the setting `Seed:PlannerEmail` is set.
 Only the Test Instance sets the setting. Production never sets it.
-The seeded Planner uses the address in `Seed__PlannerEmail`, so login codes reach a real mailbox.
+The seeded Planner uses the address in `Seed__PlannerEmail`. It must be the user principal name of a real account in the tenant.
 The other seeded People use addresses at `example.test`.
 
 Rules for migrations are in `docs/migrations.md`.
@@ -119,7 +119,7 @@ Rules for migrations are in `docs/migrations.md`.
 
 The Test Instance is a Container App and an Azure Database for PostgreSQL Flexible Server in an Azure subscription of the maintainer.
 The private repo creates them and sets the app settings (see the configuration table in the Hosting requirements),
-including `Seed__PlannerEmail`. This repo only rolls images onto them.
+including `Seed__PlannerEmail` and the `EntraId__*` settings. This repo only rolls images onto them.
 
 1. In the repository, create the Environment `test`. Select **Selected branches and tags** and add the rule `main` only. Add no required reviewers.
    The workflows `dev` and `deploy-test` run from `main`.

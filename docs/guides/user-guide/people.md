@@ -66,7 +66,7 @@ The card explains the status in a sentence. It shows the last change and who mad
   A freelancer between engagements has an end date, so they cannot log in. Capacity is 0 in the gap.
 - **Delete.** Removes the Person at any time, also before the end date.
   The dialog shows what goes, for example "3 Contracts, 41 Allocations and 12 Time off".
-  Delete also removes the Passkeys, Access tokens and Connections of the Person.
+  Delete also removes the Access tokens and Connections of the Person.
   Headroom sends a deleted Event for each removed Allocation and Time off, with no name and no email.
   It also blanks the name and email inside stored Webhook Events.
   Past Utilisation and Project hours drop. You cannot undo a Delete.

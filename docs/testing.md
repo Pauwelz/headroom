@@ -15,7 +15,7 @@ To list only the failing tests, run `dotnet test --no-ansi 2>&1 | grep '^failed 
 ## The shared app host
 
 The tests of one class share one app host and one database. The order of the tests in a class is not fixed.
-A test that changes seed data, for example the end date or the Passkeys of a Person, uses a Person that no other test in the class uses.
+A test that changes seed data, for example the end date of a Person, uses a Person that no other test in the class uses.
 Add a new Person to the seed data of the class for it.
 
 ## The shared PostgreSQL container
