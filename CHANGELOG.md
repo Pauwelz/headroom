@@ -26,7 +26,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- The Login code, Passkeys, the Email server (the `Smtp__*` variables, MailKit and the SMTP columns), the first-run screen, the generic OpenID Connect kind, "Company login only" and the Company login settings in Settings. The migration drops the Login code table, the Passkey table and the SMTP columns. Rolling back to the previous release needs a database restore. See ADR 0020.
+- The Login code, Passkeys, the Email server (the `Smtp__*` variables, MailKit and the SMTP columns), the first-run screen, the generic OpenID Connect kind, "Company login only" and the Company login settings in Settings. The Login code table, the Passkey table and the SMTP columns stay unused, and a later release drops them. The upgrade ends all open sessions. See ADR 0020.
 - Erase personal details: the erase endpoint, the dialog, the "Former Person N" name, the Erased status and the erase counter. The columns `People.ErasedNumber` and `InstanceSettings.ErasedCount` stay unused. A later release drops them.
 
 ## [0.5.0] - 2026-11-10
