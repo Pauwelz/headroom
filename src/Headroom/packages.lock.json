@@ -499,8 +499,8 @@
       },
       "MudBlazor": {
         "type": "Transitive",
-        "resolved": "9.13.0",
-        "contentHash": "li89Y1afb7LAbdh6I/3PAoXx1zUtyjhA6LuVQC8hGAItRCu4tpITAmL7o3KhK2b7PTlzl8PMZ43lAZgXJOVfzw=="
+        "resolved": "9.14.0",
+        "contentHash": "VmMM/u4upqpc0lJoXmo30Zj1d/Zq3BjdS11+q/eB/+p20pV1WXbLS0C17WbV4xqLM1i9Kpco6emt6M4s2R/BUA=="
       },
       "Newtonsoft.Json": {
         "type": "Transitive",
@@ -856,7 +856,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.Components.WebAssembly": "[10.0.15, )",
-          "MudBlazor": "[9.13.0, )"
+          "MudBlazor": "[9.14.0, )"
         }
       }
     }
